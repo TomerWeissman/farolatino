@@ -42,23 +42,39 @@ Tier thresholds: HOT >=85, WARM >=70, WATCH >=55, PASS otherwise (see [config/al
 
 ## Setup
 
-Requires Python 3.14 and a Chartmetric refresh token.
+Requires **Python 3.11+** (developed on 3.14) and a Chartmetric refresh token.
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# fill in CHARTMETRIC_REFRESH_TOKEN at minimum
+# fill in CHARTMETRIC_REFRESH_TOKEN at minimum (see Credentials below)
 ```
 
-Optional (for direct platform queries, not needed for v1):
-- Spotify client_id / client_secret
-- YouTube OAuth — run `python scripts/youtube_oauth_bootstrap.py` once to authorize the DSP FaroLatino channel
+### Credentials
+
+| API | What you need | Where to get it |
+|---|---|---|
+| **Chartmetric** (required) | refresh token | Chartmetric account → API settings → "Generate refresh token". For FaroLatino, request from Julio (`julio@farolatino.com`). |
+| **Spotify** (optional, deferred) | `client_id` + `client_secret` | https://developer.spotify.com/dashboard → Create app → Web API. |
+| **YouTube OAuth** (optional, deferred) | `client_id` + `client_secret` + refresh token | https://console.cloud.google.com → enable YouTube Data API v3 → create "OAuth client ID" of type **Desktop app** → run `python scripts/youtube_oauth_bootstrap.py`, paste the printed token into `.env`. |
+
+Without Chartmetric, the test suite still runs (mocks); `collect_artist.py` will fail. Spotify and YouTube are wired but unused in v1.
 
 ## Usage
 
-### Collect a full ArtistProfile from a name
+A standalone walkthrough for verifying every piece on a fresh machine lives in [TESTING.md](TESTING.md).
+
+### Run the test suite (no credentials needed)
+
+```bash
+pytest tests/ -q
+```
+
+42 tests against fixtures in `tests/mock_data/`. Should pass on a fresh clone with no `.env`.
+
+### Collect a full ArtistProfile from a name (needs Chartmetric)
 
 ```bash
 python scripts/collect_artist.py "Feid"
@@ -66,17 +82,27 @@ python scripts/collect_artist.py "Feid"
 
 Calls `search_artists`, picks the top match, fetches all 14 Chartmetric endpoints (~15s cold, throttled at 1 req/s), and dumps the assembled profile to `data/cache/collect_<cm_id>_<timestamp>.json`. Prints a coverage summary at the end.
 
-### Run the test suite
-
-```bash
-pytest tests/ -q
-```
-
-42 tests cover the scorers, dossier generator, and revenue model against fixtures in `tests/mock_data/`.
-
 ### Use the MCP server in Claude Code
 
-The skills in [.claude/skills/](.claude/skills/) wire the MCP tools into slash commands. Once the MCP server is registered with your Claude Code config, run `/evaluate "Ryan Castro"` etc.
+The skills in [.claude/skills/](.claude/skills/) wire the MCP tools into slash commands (`/evaluate`, `/discover`, `/compare`, `/prospect`, `/analyze`).
+
+Register the MCP server with Claude Code (run from the project root):
+
+```bash
+claude mcp add farolatino -s user -- $(pwd)/venv/bin/python -m mcp_server.server
+```
+
+Then in Claude Code:
+
+```
+/evaluate "Ryan Castro"
+```
+
+To verify the server starts cleanly outside Claude Code:
+
+```bash
+python -m mcp_server.server   # should hang waiting for stdio input — Ctrl-C to exit
+```
 
 ## Layout
 
