@@ -14,6 +14,7 @@ build/
 docs/*
 !docs/PRD_v1.md
 !docs/phase_a_findings.md
+!docs/phase_b_findings.md
 
 # Internal team material
 communications/
