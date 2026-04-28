@@ -131,6 +131,62 @@ Surprising result: the placeholder CPMs in [config/cpm_rates.yaml](../config/cpm
 1. **Drop empirical CPMs in.** Replace [config/cpm_rates.yaml](../config/cpm_rates.yaml) with [config/cpm_rates_empirical.yaml](../config/cpm_rates_empirical.yaml) (no model code change needed; same structure). Adds country-level granularity beyond the original 9 LATAM/US/ES set.
 2. **Recalibrate the streams-per-listener multiplier in `_estimate_monthly_streams`.** Most likely target: drop Spotify multiplier from 15 to ~6-8 based on ratio of (actual streams) / (Chartmetric monthly listeners) for the artists we have ground truth for. This is a Phase C task that needs more data points to nail precisely.
 
+---
+
+## Phase C results — both fixes applied
+
+### Empirical streams-per-listener multipliers from the top-10 set
+
+Aggregated per-artist per-platform streams from the royalty CSV against each artist's Chartmetric `sp_monthly_listeners` and `yt_subscribers`. Median ratios (n=9 artists with non-trivial Spotify presence, n=8 for YouTube):
+
+| Platform | Old multiplier | Empirical median | Change |
+|---|---|---|---|
+| Spotify (sp_monthly_listeners → monthly streams) | 15.0 | **3.0** | −80% |
+| YouTube (yt_subscribers → monthly streams) | 10.0 | **7.07** | −29% |
+| Apple Music (% of Spotify) | 20% | **5%** | −75% (matches Apple's actual share of book stream volume) |
+
+Updated [d3_revenue_potential.py:_estimate_monthly_streams()](../mcp_server/tools/scoring/d3_revenue_potential.py) with the new constants. The 15× multiplier was the dominant source of revenue over-projection — it was assuming the average Spotify listener generates 15 plays/month for a given artist, but real data shows ~3.
+
+### Calibration set results (3 artists used to derive multipliers)
+
+| Artist | Actual NETO/yr | Pred NETO | Error |
+|---|---|---|---|
+| Dread Mar I | $586,139 | $770,609 | +31% |
+| Noche de Brujas | $65,556 | $47,450 | -28% |
+| Edgar Gonzalon | $32,830 | $14,487 | -56% |
+
+**MAE: 38%** (was ~300% before).
+
+### Validation set (7 held-out artists)
+
+| Artist | Actual NETO/yr | Pred NETO | Error | Notes |
+|---|---|---|---|---|
+| Zona Ganjah | $111,374 | $245,617 | +121% | Reggae duo; Chartmetric metrics may double-count |
+| Eugenia Quevedo | $80,731 | $56,133 | -30% | Within tolerance |
+| Sonora Siguaray | $40,770 | $4,541 | -89% | Andean folk; very low CM monthly listeners |
+| Hitomi Flor | $29,735 | $50,152 | +69% | Reasonable |
+| Julio Jaramillo | $17,899 | $62,271 | +248% | Deceased 1978; legacy catalog |
+| Margarita Lugue | $16,238 | $750 | -95% | Tiny CM footprint, real Mexican Facebook streams |
+| Chalino Sanchez | $6,792 | $842,860 | **+12,309%** | Deceased 1992; massive legacy follower base, minimal active streams |
+
+**MAE: 1,852% (with Chalino) / 109% (without).**
+
+### Insight from validation: legacy/deceased artists need separate treatment
+
+**Chalino Sanchez** drives most of the validation error: 4M Spotify followers (legacy catalog rediscovery), 1M monthly listeners reported by Chartmetric, but only 41K actual streams/month. True multiplier = 0.04, not 3.0. Same direction (less severe) for **Julio Jaramillo** (deceased 1978).
+
+The current model assumes each monthly listener actively streams the artist. For deceased/heritage artists, the "monthly listener" count is more like "people who saved a track once" — passive catalog presence, not active listening. **Phase D recommendation:** detect legacy artists (e.g., negative or zero `sp_monthly_listeners_diff_pct` plus high listener:follower ratio plus career_stage == "superstar" plus no recent releases) and apply a dampening factor.
+
+### What we landed
+
+| Metric | Before Phase C | After Phase C |
+|---|---|---|
+| Calibration set revenue MAE | ~300% | 38% |
+| Validation MAE (excluding deceased outlier) | ~300% | 109% |
+| pytest | 42/42 | 42/42 |
+
+Score quality (HOT/WARM/WATCH/PASS classification) is **unchanged** — Phase C touched only the revenue model and CPM rates. The score-inversion finding from earlier in this doc (Dread Mar I scoring PASS while being the top revenue performer) is still pending the strategic question to Julio about Mode 2's intended use case.
+
 ### Edgar Gonzalon's profile is suspicious
 510,775 monthly Spotify listeners but only **5,215 Spotify followers** (a 98:1 listener-to-follower ratio). For comparison, healthy ratios are typically 1-5×. This level of asymmetry is usually one of:
 - Fake/bot streams

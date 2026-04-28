@@ -24,21 +24,24 @@ def _clamp(val: float) -> float:
 
 
 def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
-    """Rough estimate of monthly streams per platform from available metrics."""
+    """Rough estimate of monthly streams per platform from available metrics.
+
+    Multipliers calibrated against FaroLatino's 24-month royalty data
+    (Mar 2024 - Mar 2026, ~10M rows, see scripts/calibrate_cpm.py).
+    Median ratios across the top-10 calibration set:
+      Spotify:  ~3 streams/month per monthly listener
+      YouTube:  ~7 streams/month per subscriber
+      Apple:    ~5% of Spotify stream volume across the book
+    """
     if platform == "spotify":
-        # Monthly listeners ≈ monthly streams / ~15 (avg streams per listener)
-        return artist.sp_monthly_listeners * 15
+        return artist.sp_monthly_listeners * 3
     if platform == "youtube":
         if artist.yt_daily_views:
             return artist.yt_daily_views * 30
-        # Fallback: total views / estimated account age isn't reliable,
-        # use a fraction of subscriber-based estimate
-        return artist.yt_subscribers * 10
+        return artist.yt_subscribers * 7
     if platform == "apple_music":
-        # No direct metric from CM; estimate as ~20% of Spotify
-        return artist.sp_monthly_listeners * 15 * 0.20
+        return artist.sp_monthly_listeners * 3 * 0.05
     if platform == "deezer":
-        # Estimate from fans
         return artist.deezer_fans * 8
     return 0
 
