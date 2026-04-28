@@ -1,0 +1,57 @@
+# Alert system configuration
+# Score-based tiers + signal-based alerts that fire regardless of score
+
+tiers:
+  hot:
+    score_min: 85
+    action: "immediate_contact"
+    channels: ["email", "whatsapp"]
+    priority: "real_time"
+  warm:
+    score_min: 70
+    action: "weekly_review"
+    channels: ["email"]
+    priority: "daily_digest"
+  watch:
+    score_min: 55
+    action: "passive_tracking"
+    channels: ["email"]
+    priority: "weekly_digest"
+  pass:
+    score_min: 0
+    action: "archive"
+    channels: []
+    priority: "none"
+    reevaluate_after_days: 90
+
+# Signal-based alerts fire regardless of overall score
+# "field" alerts trigger when a numeric field exceeds the threshold
+# "event" alerts trigger on specific conditions
+signal_alerts:
+  - name: "Shazam Spike"
+    type: "field"
+    field: "shazam_count_diff_pct"
+    threshold: 200
+    channels: ["email", "whatsapp"]
+
+  - name: "TikTok Virality"
+    type: "field"
+    field: "tiktok_followers_diff_pct"
+    threshold: 300
+    channels: ["email", "whatsapp"]
+
+  - name: "Listener Surge"
+    type: "field"
+    field: "sp_monthly_listeners_diff_pct"
+    threshold: 150
+    channels: ["email"]
+
+  - name: "Editorial Playlist Add"
+    type: "event"
+    condition: "new_editorial_playlist"
+    channels: ["email"]
+
+  - name: "Career Momentum Surge"
+    type: "event"
+    condition: "career_trend_explosive_growth"
+    channels: ["email", "whatsapp"]

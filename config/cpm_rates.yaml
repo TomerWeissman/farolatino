@@ -1,0 +1,60 @@
+# CPM rates (revenue per 1,000 streams) in USD
+# PLACEHOLDER values — replace with FaroLatino's actual rates
+#
+# Structure: platform → country → rate
+# "default" is the fallback when a specific country isn't listed
+
+spotify:
+  US: 4.00
+  ES: 3.50
+  MX: 1.20
+  CO: 1.00
+  AR: 0.60
+  CL: 1.10
+  PE: 0.90
+  BR: 0.80
+  EC: 0.85
+  default: 0.80
+
+youtube:
+  US: 2.50
+  ES: 2.00
+  MX: 0.80
+  CO: 0.70
+  AR: 0.40
+  CL: 0.75
+  PE: 0.60
+  BR: 0.65
+  EC: 0.55
+  default: 0.50
+
+apple_music:
+  US: 7.00
+  ES: 5.50
+  MX: 2.00
+  CO: 1.60
+  AR: 1.00
+  CL: 1.80
+  PE: 1.40
+  BR: 1.50
+  EC: 1.30
+  default: 1.50
+
+deezer:
+  BR: 1.00
+  MX: 0.70
+  CO: 0.60
+  AR: 0.40
+  default: 0.60
+
+# Revenue model thresholds for D3 scoring normalization
+# These define what score maps to what annual revenue projection
+revenue_score_thresholds:
+  # Annual projected revenue → D3 score
+  # Linear interpolation between these points
+  0: 0
+  1000: 20
+  5000: 40
+  15000: 60
+  50000: 80
+  150000: 100

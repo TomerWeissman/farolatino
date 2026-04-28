@@ -1,0 +1,150 @@
+"""D3 — Revenue Potential (Default Weight: 20%)
+
+Projects 12-month revenue from streaming metrics and geographic distribution,
+then normalizes to a 0-100 score using configurable thresholds.
+"""
+
+from pathlib import Path
+
+import yaml
+
+from mcp_server.models import ArtistProfile, DimensionResult
+
+CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config"
+
+
+def _load_cpm_config() -> dict:
+    path = CONFIG_DIR / "cpm_rates.yaml"
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def _clamp(val: float) -> float:
+    return max(0.0, min(100.0, val))
+
+
+def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
+    """Rough estimate of monthly streams per platform from available metrics."""
+    if platform == "spotify":
+        # Monthly listeners ≈ monthly streams / ~15 (avg streams per listener)
+        return artist.sp_monthly_listeners * 15
+    if platform == "youtube":
+        if artist.yt_daily_views:
+            return artist.yt_daily_views * 30
+        # Fallback: total views / estimated account age isn't reliable,
+        # use a fraction of subscriber-based estimate
+        return artist.yt_subscribers * 10
+    if platform == "apple_music":
+        # No direct metric from CM; estimate as ~20% of Spotify
+        return artist.sp_monthly_listeners * 15 * 0.20
+    if platform == "deezer":
+        # Estimate from fans
+        return artist.deezer_fans * 8
+    return 0
+
+
+def _momentum_growth_factor(career_trend: str, sp_growth_pct: float | None) -> float:
+    """Convert momentum into a 12-month growth adjustment factor."""
+    base = {
+        "explosive growth": 1.8,
+        "rising": 1.4,
+        "gaining": 1.2,
+        "stable": 1.0,
+        "losing": 0.85,
+        "decline": 0.7,
+    }.get(career_trend, 1.0)
+
+    # Refine with actual growth rate if available
+    if sp_growth_pct is not None and sp_growth_pct > 0:
+        # Compound monthly growth over 12 months, dampened
+        monthly_mult = 1 + (sp_growth_pct / 100) * 0.5  # dampen by 50%
+        compound = monthly_mult ** 6  # ~6 months of growth (conservative)
+        return max(base, min(compound, 3.0))
+
+    return base
+
+
+def _score_from_revenue(annual: float, thresholds: dict) -> float:
+    """Interpolate annual revenue to a 0-100 score using threshold table."""
+    # Sort thresholds by revenue amount
+    points = sorted((float(k), float(v)) for k, v in thresholds.items())
+
+    if annual <= points[0][0]:
+        return points[0][1]
+    if annual >= points[-1][0]:
+        return points[-1][1]
+
+    for i in range(len(points) - 1):
+        rev_lo, score_lo = points[i]
+        rev_hi, score_hi = points[i + 1]
+        if rev_lo <= annual <= rev_hi:
+            ratio = (annual - rev_lo) / (rev_hi - rev_lo)
+            return score_lo + ratio * (score_hi - score_lo)
+
+    return 50.0
+
+
+def estimate_artist_revenue(artist: ArtistProfile) -> dict:
+    """Core revenue estimation logic, reusable by both the scorer and the MCP tool."""
+    config = _load_cpm_config()
+
+    # Country distribution from where-people-listen
+    total_listeners = sum(c.listeners for c in artist.listener_countries)
+    country_shares = {}
+    if total_listeners > 0:
+        for c in artist.listener_countries:
+            country_shares[c.country_code] = c.listeners / total_listeners
+    else:
+        country_shares = {"default": 1.0}
+
+    platforms = ["spotify", "youtube", "apple_music", "deezer"]
+    monthly_revenue = {}
+
+    for platform in platforms:
+        monthly_streams = _estimate_monthly_streams(artist, platform)
+        platform_cpms = config.get(platform, {})
+        default_cpm = platform_cpms.get("default", 0.50)
+
+        platform_total = 0
+        for country, share in country_shares.items():
+            cpm = platform_cpms.get(country, default_cpm)
+            country_streams = monthly_streams * share
+            platform_total += country_streams * cpm / 1000
+
+        monthly_revenue[platform] = round(platform_total, 2)
+
+    monthly_total = sum(monthly_revenue.values())
+    growth_factor = _momentum_growth_factor(artist.career_trend, artist.sp_monthly_listeners_diff_pct)
+    annual_projected = monthly_total * 12 * growth_factor
+
+    top_countries = sorted(country_shares.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return {
+        "monthly_revenue_by_platform": monthly_revenue,
+        "monthly_total": round(monthly_total, 2),
+        "annual_projected": round(annual_projected, 2),
+        "growth_factor": round(growth_factor, 2),
+        "top_revenue_countries": [{"country": c, "share": round(s, 3)} for c, s in top_countries],
+    }
+
+
+def score_revenue_potential(artist: ArtistProfile) -> DimensionResult:
+    config = _load_cpm_config()
+    thresholds = config.get("revenue_score_thresholds", {0: 0, 1000: 20, 5000: 40, 15000: 60, 50000: 80, 150000: 100})
+
+    rev = estimate_artist_revenue(artist)
+    annual = rev["annual_projected"]
+    score = _clamp(_score_from_revenue(annual, thresholds))
+
+    has_geo = len(artist.listener_countries) > 0
+    has_streams = artist.sp_monthly_listeners > 0
+    confidence = (0.5 if has_streams else 0.0) + (0.3 if has_geo else 0.0) + 0.2
+
+    rationale = f"Projected annual revenue: ${annual:,.0f}. "
+    rationale += f"Monthly: ${rev['monthly_total']:,.0f}. "
+    rationale += f"Growth factor: {rev['growth_factor']}x. "
+    if rev["top_revenue_countries"]:
+        top = rev["top_revenue_countries"][0]
+        rationale += f"Top market: {top['country']} ({top['share']*100:.0f}%)."
+
+    return DimensionResult(score=round(score, 1), confidence=round(confidence, 2), rationale=rationale.strip())

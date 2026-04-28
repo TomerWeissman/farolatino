@@ -1,0 +1,24 @@
+venv/
+.env
+__pycache__/
+*.pyc
+.DS_Store
+data/cache/
+data/internal/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Docs — keep local, but commit the canonical PRD
+docs/*
+!docs/PRD_v1.md
+
+# Internal team material
+communications/
+
+# Secrets and local-only data
+config/youtube_oauth_client.json
+config/youtube_oauth_token.json
+client_secret_*.json
+*.7z

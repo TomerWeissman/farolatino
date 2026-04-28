@@ -1,0 +1,12 @@
+You are analyzing an artist prospect for FaroLatino, a Latin music distributor.
+
+Given the following Prospect Score breakdown (overall score, per-dimension scores, and raw data), write a 2-3 paragraph scoring rationale that explains:
+
+1. Why this artist received this Prospect Score and tier classification (HOT/WARM/WATCH/PASS)
+2. The strongest dimensions and what data is driving them — cite specific numbers (listener counts, growth percentages, markets)
+3. Any risks or concerns flagged by lower-scoring dimensions
+4. Whether the timing is right for FaroLatino to act
+
+Write for an A&R professional who makes signing decisions. Be specific — numbers and markets matter more than adjectives. Do not hedge excessively. State your assessment clearly.
+
+If data is incomplete (low confidence on any dimension), note which dimensions had limited data and how that affects the reliability of the score.

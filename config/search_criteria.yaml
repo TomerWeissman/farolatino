@@ -1,0 +1,47 @@
+# Default search criteria for artist discovery (Mode 1)
+# Maps to Chartmetric API filter parameters
+# Edit these to change what the system looks for
+
+filters:
+  # ISO 3166-1 alpha-2 country codes → CM `code2` param
+  countries: ["CO", "MX", "AR", "CL", "PE"]
+
+  # Chartmetric genre tag IDs → CM `tagId` param
+  genres: ["reggaeton", "latin pop", "cumbia", "urbano latino", "latin trap"]
+
+  # Spotify monthly listeners range → CM `sp_ml_min`/`sp_ml_max`
+  monthly_listeners:
+    min: 1000
+    max: 200000
+
+  # Only unsigned/independent artists → CM `unsigned=true`
+  unsigned_only: true
+
+  # CM career stage values → CM `career_stage` param
+  career_stages: ["developing", "mid-level"]
+
+  # CM career trend values → CM `career_trend` param
+  career_trends: ["gaining", "rising", "explosive growth"]
+
+  # Minimum CM career momentum score (0-100)
+  min_momentum_score: 40
+
+  # Must have released a track within this many months
+  released_within_months: 6
+
+  # Chartmetric artist IDs to always skip
+  excluded_artists: []
+
+  # Label names to exclude (case-insensitive match)
+  excluded_labels:
+    - "Universal Music"
+    - "Sony Music"
+    - "Warner Music"
+    - "Universal Music Latin"
+    - "Sony Music Latin"
+
+  # Distributor names to exclude
+  excluded_distributors: []
+
+  # Days before a dismissed ("pass") artist can reappear
+  dismissed_suppression_days: 90

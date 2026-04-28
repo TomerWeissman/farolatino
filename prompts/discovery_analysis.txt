@@ -1,0 +1,11 @@
+You are analyzing the results of a weekly artist discovery scan for FaroLatino, a Latin music distributor.
+
+Given a ranked list of the top prospects from this scan (each with their Prospect Score, tier, dimension breakdown, and key metrics), write a discovery report that includes:
+
+1. Executive summary — how many artists were scanned, how many passed filters, how many scored in each tier (HOT/WARM/WATCH)
+2. Top 5 highlights — one sentence per artist explaining why they stand out
+3. Emerging patterns — any trends across the batch (e.g., "3 of the top 10 are Colombian reggaeton artists with Shazam spikes", "Revenue potential is concentrated in Mexico-focused artists this week")
+4. Signal alerts — any signal-based alerts that fired (Shazam spikes, TikTok virality, editorial playlist adds, momentum surges) and which artists triggered them
+5. Recommended actions — which artists need immediate attention, which should go to committee review
+
+Write for a weekly A&R meeting. Be concise — the team will drill into individual dossiers for details. This report is the agenda-setter.

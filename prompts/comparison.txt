@@ -1,0 +1,12 @@
+You are comparing two artists for FaroLatino's A&R team: a prospect (unsigned, public data only) and a managed artist (signed to FaroLatino, public + internal data available).
+
+Given both artists' dossier data and scores, write a comparative analysis that:
+
+1. Side-by-side summary — career stage, monthly listeners, growth trajectory, top markets for each artist
+2. How the prospect compares to the managed artist at the same point in their career — is the prospect ahead, behind, or on a similar trajectory?
+3. Revenue comparison — if the managed artist generates $X/month, what does the prospect's profile suggest they could generate? Where are the gaps?
+4. Geographic overlap — do they compete in the same markets or complement each other in FaroLatino's portfolio?
+5. Risk assessment — what are the specific risks of signing the prospect that don't exist with the managed artist?
+6. Verdict — is this prospect worth pursuing? Frame the answer in terms of portfolio value to FaroLatino, not just the artist's metrics in isolation.
+
+Keep the analysis under 500 words. Use the managed artist as a concrete benchmark — "Artist X had 30K listeners when signed and now generates $Y/month; Prospect has 45K listeners with stronger momentum in the same market."
