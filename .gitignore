@@ -10,9 +10,10 @@ dist/
 build/
 .pytest_cache/
 
-# Docs — keep local, but commit the canonical PRD
+# Docs — keep local, but commit the canonical PRD and phase findings
 docs/*
 !docs/PRD_v1.md
+!docs/phase_a_findings.md
 
 # Internal team material
 communications/
