@@ -315,7 +315,40 @@ For the kind of artists FaroLatino actually evaluates as prospects — active mi
 - **Listener-decay curve modeling** — instead of `monthly_listeners × constant`, fit `f(listeners, recent_release_freq, follower_ratio)`.
 - **Per-platform native data** (Spotify Web API call per artist for actual stream counts, not Chartmetric estimates).
 
-These are real wins but with diminishing returns. For Mode 2 ahead of May 5, the current state — **~40% MAE on realistic prospects** with the conceptual structure right — is a workable baseline for the field test.
+These are real wins but with diminishing returns.
+
+---
+
+## Phase F — Address structural error sources beyond the multiplier
+
+A deeper error decomposition revealed four issues that didn't require new APIs to fix:
+
+1. YouTube subscriber multiplier was a poor signal (variance 0.5x to 740x across artists).
+2. Facebook and Amazon were missing from the platforms list (~5-30% of revenue per artist).
+3. Deezer multiplier was 16x too aggressive (over-projected by 10-40x).
+4. Apple Music was scaled off Spotify alone, ignoring YouTube-heavy artists.
+
+### Changes shipped in [d3_revenue_potential.py](../mcp_server/tools/scoring/d3_revenue_potential.py)
+
+- **YouTube**: prefer `yt_daily_views * 30` whenever Chartmetric provides it; subscriber-based fallback dropped from 7x to 3x.
+- **Apple Music**: scaled as 4% of (Spotify + YouTube) combined stream estimate, not 5% of Spotify alone. Fixes over-projection for YouTube-heavy regional artists like Eugenia Quevedo.
+- **Deezer**: multiplier dropped from `deezer_fans * 8` to `deezer_fans * 0.5`. Empirical Deezer revenue is <1% of book; prior multiplier over-projected by 10-40x for artists with large Deezer follower counts.
+- **Facebook + Amazon added**: estimated as `sp_monthly_listeners * 12` and `* 0.6` respectively, anchored on book-wide ratios. Both fall back to Spotify country shares.
+
+### Result on the 10-artist top-NETO set
+
+| Subset | Phase E | Phase F |
+|---|---|---|
+| Realistic prospect-shaped artists (5) | 37% | **27%** |
+| All 10 excluding Chalino edge case (9) | 53% | 50% |
+| Within 50% of actual | 4/10 | **5/10** |
+| Within 100% of actual | 9/10 | 9/10 |
+
+Per-artist gains: Eugenia Quevedo went from -11% to -2% (essentially perfect), Edgar Gonzalon -41% → -27%, Hitomi Flor +71% → +47%. Sonora Siguaray and Margarita Lugue remain heavily under-projected because Chartmetric undercounts their stream-driving platforms.
+
+42/42 pytest still green.
+
+For Mode 2 ahead of May 5, the **27% MAE on realistic prospects** is the working accuracy. Order of magnitude correct, ranking-quality output, sufficient for tier-based prioritization.
 
 ### Edgar Gonzalon's profile is suspicious
 510,775 monthly Spotify listeners but only **5,215 Spotify followers** (a 98:1 listener-to-follower ratio). For comparison, healthy ratios are typically 1-5×. This level of asymmetry is usually one of:

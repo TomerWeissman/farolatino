@@ -72,12 +72,29 @@ def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
     """Rough estimate of monthly streams per platform from available metrics.
 
     Multipliers calibrated against FaroLatino's 24-month royalty data
-    (Mar 2024 - Mar 2026, ~10M rows, scripts/calibrate_cpm.py + 45-artist
-    stratified sample). For artists with full catalog distribution
-    (Dread Mar I, Zona Ganjah, Noche de Brujas, Hitomi Flor) the median
-    streams-per-listener was ~4.4. Legacy/deceased artists drop to
-    ~0.05 because Chartmetric monthly_listeners includes passive saved
-    tracks that don't stream.
+    (Mar 2024 - Mar 2026, ~10M rows + 45-artist stratified sample).
+
+    Active artists (default tier):
+      Spotify:  monthly_listeners x 4   (full-catalog median from 4 active artists)
+      YouTube:  yt_daily_views x 30 if available; else yt_subscribers x 3
+                (subscribers-based estimate is unreliable for Latin music
+                 where view counts decouple from subscriber count;
+                 yt_daily_views is far more predictive when present)
+      Apple:    4% of (Spotify + YouTube) stream volume (anchored on
+                Apple's actual share of total streams across the book,
+                not on Spotify alone — fixes over-projection for
+                YouTube-heavy artists)
+      Deezer:   deezer_fans x 0.5 (down from 8; book data shows Deezer
+                                    is <1% of revenue, prior multiplier
+                                    over-projected by 10-40x)
+      Facebook: sp_monthly_listeners x 12 (book-wide ratio; CPM is so low
+                                            (~$0.016/1000) that absolute
+                                            stream count tolerance is wide)
+      Amazon:   sp_monthly_listeners x 0.6 (small share of streams,
+                                             decent CPM ~$2.30/1000)
+
+    Legacy/deceased: heavy dampening because Chartmetric monthly_listeners
+    includes passive saved tracks that don't actively stream.
     """
     if _is_legacy_catalog(artist):
         # Heavy dampening for passive-catalog tier.
@@ -88,9 +105,15 @@ def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
                 return artist.yt_daily_views * 30
             return artist.yt_subscribers * 0.5
         if platform == "apple_music":
-            return artist.sp_monthly_listeners * 0.05 * 0.05
+            sp = artist.sp_monthly_listeners * 0.05
+            yt = (artist.yt_daily_views * 30) if artist.yt_daily_views else (artist.yt_subscribers * 0.5)
+            return (sp + yt) * 0.04
         if platform == "deezer":
-            return artist.deezer_fans * 0.5
+            return artist.deezer_fans * 0.05
+        if platform == "facebook":
+            return artist.sp_monthly_listeners * 0.6  # very dampened
+        if platform == "amazon":
+            return artist.sp_monthly_listeners * 0.05
         return 0
 
     if platform == "spotify":
@@ -98,11 +121,17 @@ def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
     if platform == "youtube":
         if artist.yt_daily_views:
             return artist.yt_daily_views * 30
-        return artist.yt_subscribers * 7
+        return artist.yt_subscribers * 3
     if platform == "apple_music":
-        return artist.sp_monthly_listeners * 4 * 0.05
+        sp = artist.sp_monthly_listeners * 4
+        yt = (artist.yt_daily_views * 30) if artist.yt_daily_views else (artist.yt_subscribers * 3)
+        return (sp + yt) * 0.04
     if platform == "deezer":
-        return artist.deezer_fans * 8
+        return artist.deezer_fans * 0.5
+    if platform == "facebook":
+        return artist.sp_monthly_listeners * 12
+    if platform == "amazon":
+        return artist.sp_monthly_listeners * 0.6
     return 0
 
 
@@ -194,8 +223,9 @@ def estimate_artist_revenue(artist: ArtistProfile) -> dict:
     spotify_shares = _spotify_country_shares(artist)
 
     # Per-platform geography: YouTube and TikTok have their own audience
-    # endpoints in Chartmetric. Apple Music falls back to Spotify shares.
-    platforms = ["spotify", "youtube", "apple_music", "deezer"]
+    # endpoints in Chartmetric. Apple Music, Deezer, Facebook, and Amazon
+    # fall back to Spotify shares (no per-platform geography available).
+    platforms = ["spotify", "youtube", "apple_music", "deezer", "facebook", "amazon"]
     monthly_revenue = {}
     geo_by_platform: dict[str, dict[str, float]] = {}
 
