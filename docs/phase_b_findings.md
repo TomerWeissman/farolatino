@@ -78,9 +78,58 @@ Either interpretation is plausible. **Both should go to Julio in writing.**
 
 ## Other findings
 
-### Revenue model multiplier is consistent across the three artists (4-6×)
+### Revenue model: NETO is artist payout, not FaroLatino's cut
 
-Even though our score ordering is inverted, the *revenue projection* directionally tracks (Dread > Noche > Edgar, just like NETO). The 4-6× over-projection is consistent enough that a single calibration constant (~0.2× current values, or properly: split the model output by an average distribution share) would land us in the right ballpark for NETO. This is fixable.
+Re-examining the data clarifies what NETO means in FaroLatino's accounting: the **artist's payout share**, not the distributor's cut. Across the entire 24-month book, NETO/BRUTO ≈ 74% (artist gets 74%, FaroLatino keeps 26%). So:
+
+- BRUTO = total streaming royalty paid out by the platform.
+- NETO = artist's share (~74% of BRUTO).
+- FaroLatino's revenue = BRUTO − NETO ≈ 26% of BRUTO.
+
+For Dread Mar I:
+- Actual NETO (artist payout): $586,139 / yr.
+- Implied BRUTO: ~$792,000 / yr.
+- Implied FaroLatino revenue: ~$206,000 / yr.
+
+### Empirical CPM pipeline built ([scripts/calibrate_cpm.py](../scripts/calibrate_cpm.py))
+
+A new pipeline scans the royalty CSV and emits per-(platform, country) BRUTO and NETO CPMs plus the distribution split:
+
+- [config/cpm_rates_empirical.yaml](../config/cpm_rates_empirical.yaml) — empirical BRUTO CPMs by platform and country.
+- [config/distribution_split.yaml](../config/distribution_split.yaml) — empirical NETO/BRUTO ratio per (platform, country).
+
+Platform-level book-wide averages from real data:
+
+| Platform | Streams | BRUTO total | BRUTO CPM | NETO CPM | NETO/BRUTO |
+|---|---|---|---|---|---|
+| Facebook | 4.0B | $65K | $0.0160 | $0.0119 | 74.7% |
+| YouTube | 2.3B | $1.08M | $0.4587 | $0.3254 | 70.9% |
+| Spotify | 1.6B | $1.57M | $0.9586 | $0.6896 | 71.9% |
+| Amazon | 65M | $150K | $2.3075 | $1.7613 | 76.3% |
+| Apple Music | 53M | $191K | $3.6216 | $2.6195 | 72.3% |
+| TikTok | 13M | $36K | $2.6868 | $1.9966 | 74.3% |
+| Deezer | 4.7M | $19K | $4.1218 | $2.9382 | 71.3% |
+
+15 lower-volume platforms (Tidal, Pandora, SoundCloud, JioSaavn, etc.) are skipped by the calibration.
+
+### CPMs are NOT the main source of revenue over-projection
+
+Surprising result: the placeholder CPMs in [config/cpm_rates.yaml](../config/cpm_rates.yaml) are **roughly correct** for Spotify, YouTube, and Apple in major LATAM markets. Side-by-side projection on the three calibration artists:
+
+| Artist | Actual NETO | Placeholder annual | Empirical BRUTO | Empirical NETO | Emp NETO / Actual |
+|---|---|---|---|---|---|
+| Dread Mar I | $586,139 | $3,704,396 | $3,367,287 | $2,420,844 | 4.13× |
+| Noche de Brujas | $65,556 | $265,051 | $267,487 | $192,532 | 2.94× |
+| Edgar Gonzalon | $32,830 | $142,383 | $132,064 | $95,185 | 2.90× |
+
+**Swapping placeholder for empirical CPMs barely moves the projection.** Both are 3-4× too high vs. actual NETO. The over-projection comes from the **stream-estimation logic** in [d3_revenue_potential.py:_estimate_monthly_streams()](../mcp_server/tools/scoring/d3_revenue_potential.py): it assumes Spotify monthly listeners × 15 streams/listener/month. Realistic ratios are 5-10×, not 15×.
+
+**Validation:** if we use empirical CPMs × Dread Mar I's *actual* stream count (1.7B/yr from the royalty data), we project $464K NETO vs. actual $586K — **within 21%**. So the calibrated CPM × distribution split pipeline is sound; the bug is upstream in stream estimation.
+
+### Conclusion: two separate fixes for revenue projection
+
+1. **Drop empirical CPMs in.** Replace [config/cpm_rates.yaml](../config/cpm_rates.yaml) with [config/cpm_rates_empirical.yaml](../config/cpm_rates_empirical.yaml) (no model code change needed; same structure). Adds country-level granularity beyond the original 9 LATAM/US/ES set.
+2. **Recalibrate the streams-per-listener multiplier in `_estimate_monthly_streams`.** Most likely target: drop Spotify multiplier from 15 to ~6-8 based on ratio of (actual streams) / (Chartmetric monthly listeners) for the artists we have ground truth for. This is a Phase C task that needs more data points to nail precisely.
 
 ### Edgar Gonzalon's profile is suspicious
 510,775 monthly Spotify listeners but only **5,215 Spotify followers** (a 98:1 listener-to-follower ratio). For comparison, healthy ratios are typically 1-5×. This level of asymmetry is usually one of:
@@ -115,4 +164,8 @@ Either way the held-out 7-artist validation set ([data/internal/top10_cm_ids.jso
 - `data/internal/top10_summary.json` — aggregate stats, top-50 by NETO and streams (gitignored)
 - `data/internal/top10_cm_ids.json` — Chartmetric IDs for the top 10 (gitignored)
 - `data/internal/calibration_scored.json` — full pipeline output for the 3 calibration artists (gitignored)
-- `docs/phase_b_findings.md` — this document (committed)
+- `data/internal/cpm_aggregations.json` — raw aggregations from the calibration pipeline (gitignored)
+- [scripts/calibrate_cpm.py](../scripts/calibrate_cpm.py) — re-runnable CPM/distribution calibration pipeline (committed)
+- [config/cpm_rates_empirical.yaml](../config/cpm_rates_empirical.yaml) — empirical BRUTO CPMs (committed)
+- [config/distribution_split.yaml](../config/distribution_split.yaml) — empirical NETO/BRUTO ratios (committed)
+- [docs/phase_b_findings.md](phase_b_findings.md) — this document (committed)
