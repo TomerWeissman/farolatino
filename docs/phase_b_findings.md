@@ -187,6 +187,65 @@ The current model assumes each monthly listener actively streams the artist. For
 
 Score quality (HOT/WARM/WATCH/PASS classification) is **unchanged** — Phase C touched only the revenue model and CPM rates. The score-inversion finding from earlier in this doc (Dread Mar I scoring PASS while being the top revenue performer) is still pending the strategic question to Julio about Mode 2's intended use case.
 
+---
+
+## Phase D — Per-platform geography (fixing the CPM application)
+
+### The conceptual problem Phase D fixed
+
+Per-(platform, country) CPMs need per-platform listener geography to be applied correctly. Until Phase D, the model used Spotify's `where-people-listen` for *every* platform, which is wrong: actual stream distributions across platforms are materially different.
+
+For Dread Mar I, comparing Chartmetric data sources:
+
+| Country | Spotify (where-people-listen) | YouTube (audience-stats) | TikTok (audience-stats) |
+|---|---|---|---|
+| MX | 30% | 15% | 0% |
+| CO | 18% | 17% | 0% |
+| AR | <2% | **17%** | **85%** |
+| US | 11% | 12% | <1% |
+
+Argentina is barely-visible on Spotify but dominates TikTok and is one of the top-3 on YouTube. Using Spotify's "30% MX" share to spread YouTube *and* TikTok streams over MX-CPM would systematically misroute revenue to MX.
+
+### Fix
+
+Two new fetchers in [chartmetric_artist.py](../mcp_server/tools/chartmetric_artist.py):
+- `_fetch_youtube_audience` — `/api/artist/:id/youtube-audience-stats`
+- `_fetch_tiktok_audience` — `/api/artist/:id/tiktok-audience-stats`
+
+Both populate `profile.social_audience_countries[platform]` as a list of `{country_code, percent}` dicts. Country codes are normalized to uppercase to match the Spotify payload.
+
+[d3_revenue_potential.py](../mcp_server/tools/scoring/d3_revenue_potential.py) refactored: `estimate_artist_revenue` now calls `_platform_country_shares(artist, platform)` per platform, falling back to Spotify shares only when the platform-specific data isn't available (Apple Music has no Chartmetric audience endpoint; for very-sparse artists YouTube/TikTok audience-stats can be empty).
+
+### Phase D result on the same 10-artist set
+
+| Set | Phase C MAE | Phase D MAE | Change |
+|---|---|---|---|
+| Calibration (3 artists) | 38% | 39% | ≈ same |
+| Validation (excl. Chalino) | 109% | 107% | -2pp |
+
+The per-platform-geo fix improved 3 of 10 artist projections (Dread Mar I, Zona Ganjah, Hitomi Flor — the ones whose YouTube/TikTok geography genuinely differs from Spotify) and left the others unchanged.
+
+### Why the gain wasn't bigger
+
+The dominant errors in the validation set are not from geography mismatch. Looking at the residuals:
+
+1. **Deceased-legacy artists** (Chalino Sánchez +12,309%, Julio Jaramillo +279%) — passive catalog rediscovery; need a separate handling tier (a Phase E task).
+2. **Sparse-Chartmetric artists** (Edgar Gonzalon, Sonora Siguaray, Margarita Lugue) — Chartmetric has 0 yt_subscribers / no TikTok data, so the model projects $0 from those platforms even when the actual royalty data shows millions of streams. The geography fix can't help when the *stream count* is zero in the input.
+3. **Stream-count assumptions** (sp_monthly_listeners → ×3) hold up directionally but vary 2-5× across artists; a single global multiplier can't capture this.
+
+**Geographic correction was a structural fix that needed doing**, but the bigger remaining improvements live in:
+- Detecting and dampening deceased/legacy tier
+- Better stream-count estimation for artists with sparse Chartmetric coverage (e.g., scrape platform-native stats directly, or use catalog-level signals)
+
+### CPM calibration script confirmed country-aware
+
+[scripts/calibrate_cpm.py](../scripts/calibrate_cpm.py) was already keyed by `(platform, country)` in its internal aggregation and YAML outputs:
+
+- `cpm_rates_empirical.yaml` structure: `platform → country → BRUTO CPM`
+- `distribution_split.yaml` structure: `platform → country → NETO/BRUTO ratio`
+
+Both files cover 45+ country codes per platform plus a `default` fallback. No changes were needed to make the calibration country-aware; it always was.
+
 ### Edgar Gonzalon's profile is suspicious
 510,775 monthly Spotify listeners but only **5,215 Spotify followers** (a 98:1 listener-to-follower ratio). For comparison, healthy ratios are typically 1-5×. This level of asymmetry is usually one of:
 - Fake/bot streams

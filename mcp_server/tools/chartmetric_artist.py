@@ -137,6 +137,24 @@ def _fetch_ig_audience(cm_id: int) -> dict:
         return {}
 
 
+def _fetch_youtube_audience(cm_id: int) -> dict:
+    """GET /api/artist/:id/youtube-audience-stats — YouTube subscriber geography."""
+    try:
+        data = api_get(f"/api/artist/{cm_id}/youtube-audience-stats")
+        return data.get("obj", {})
+    except Exception:
+        return {}
+
+
+def _fetch_tiktok_audience(cm_id: int) -> dict:
+    """GET /api/artist/:id/tiktok-audience-stats — TikTok follower geography."""
+    try:
+        data = api_get(f"/api/artist/{cm_id}/tiktok-audience-stats")
+        return data.get("obj", {})
+    except Exception:
+        return {}
+
+
 def _fetch_milestones(cm_id: int) -> list:
     """GET /api/artist/:id/milestones — platform milestones."""
     try:
@@ -634,6 +652,8 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
     raw_tracks = _cached_fetch(cm_artist_id, "tracks", _fetch_tracks, c)
     wpl_data = _cached_fetch(cm_artist_id, "where_people_listen", _fetch_where_people_listen, c)
     raw_insights = _cached_fetch(cm_artist_id, "insights", _fetch_noteworthy_insights, c)
+    yt_audience = _cached_fetch(cm_artist_id, "yt_audience", _fetch_youtube_audience, c)
+    tt_audience = _cached_fetch(cm_artist_id, "tt_audience", _fetch_tiktok_audience, c)
 
     # Extract stats from cmStats response
     latest = cm_stats.get("latest", {})
@@ -741,13 +761,24 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
         "data_completeness": 0.0,
     }
 
-    # Add IG audience geographic data if available
-    ig_countries = ig_audience.get("top_countries", [])
-    if ig_countries:
-        profile["social_audience_countries"]["instagram"] = [
-            {"country_code": c.get("code", ""), "percent": _safe_float(c.get("percent"), 0)}
-            for c in ig_countries
-        ]
+    # Add per-platform audience geography (used by revenue model for proper
+    # per-(platform, country) CPM application). Country codes are normalized
+    # to uppercase to match the `where-people-listen` payload.
+    for plat, payload in (
+        ("instagram", ig_audience),
+        ("youtube", yt_audience),
+        ("tiktok", tt_audience),
+    ):
+        countries = payload.get("top_countries", []) if isinstance(payload, dict) else []
+        if countries:
+            profile["social_audience_countries"][plat] = [
+                {
+                    "country_code": (c.get("code", "") or "").upper(),
+                    "percent": _safe_float(c.get("percent"), 0),
+                }
+                for c in countries
+                if c.get("code")
+            ]
 
     profile["data_completeness"] = _compute_completeness(profile)
 

@@ -87,34 +87,80 @@ def _score_from_revenue(annual: float, thresholds: dict) -> float:
     return 50.0
 
 
+def _spotify_country_shares(artist: ArtistProfile) -> dict[str, float]:
+    """Default country shares from Spotify's where-people-listen."""
+    total = sum(c.listeners for c in artist.listener_countries)
+    if total <= 0:
+        return {"default": 1.0}
+    return {c.country_code: c.listeners / total for c in artist.listener_countries}
+
+
+def _platform_country_shares(artist: ArtistProfile, platform: str) -> dict[str, float]:
+    """Per-platform listener geography. Falls back to Spotify when the
+    platform's audience data isn't available.
+
+    Chartmetric exposes platform-specific audience geography via
+    /youtube-audience-stats and /tiktok-audience-stats (and /instagram-...
+    for engagement). Country distributions differ markedly across platforms
+    for the same artist (e.g. Dread Mar I: TikTok is ~85% Argentina but
+    Spotify reads ~30% Mexico), so applying per-(platform, country) CPMs
+    requires platform-specific shares — Spotify shares for non-Spotify
+    platforms can be 30-50% off in CO/AR/MX-heavy LATAM mixes.
+    """
+    pcs = artist.social_audience_countries or {}
+    entries = pcs.get(platform) or []
+    if entries:
+        # Entries are dicts with country_code and percent (already 0-100)
+        shares: dict[str, float] = {}
+        total_pct = 0.0
+        for e in entries:
+            code = (e.get("country_code") or "").upper() if isinstance(e, dict) else ""
+            pct = e.get("percent", 0) if isinstance(e, dict) else 0
+            if code and pct:
+                shares[code] = shares.get(code, 0.0) + float(pct)
+                total_pct += float(pct)
+        if total_pct > 0:
+            return {k: v / total_pct for k, v in shares.items()}
+
+    # Special case: apple_music has no dedicated Chartmetric audience endpoint;
+    # in practice its listener geography overlaps closely with Spotify.
+    return _spotify_country_shares(artist)
+
+
 def estimate_artist_revenue(artist: ArtistProfile) -> dict:
     """Core revenue estimation logic, reusable by both the scorer and the MCP tool."""
     config = _load_cpm_config()
 
-    # Country distribution from where-people-listen
-    total_listeners = sum(c.listeners for c in artist.listener_countries)
-    country_shares = {}
-    if total_listeners > 0:
-        for c in artist.listener_countries:
-            country_shares[c.country_code] = c.listeners / total_listeners
-    else:
-        country_shares = {"default": 1.0}
+    spotify_shares = _spotify_country_shares(artist)
 
+    # Per-platform geography: YouTube and TikTok have their own audience
+    # endpoints in Chartmetric. Apple Music falls back to Spotify shares.
     platforms = ["spotify", "youtube", "apple_music", "deezer"]
     monthly_revenue = {}
+    geo_by_platform: dict[str, dict[str, float]] = {}
 
     for platform in platforms:
+        if platform == "spotify":
+            shares = spotify_shares
+        else:
+            shares = _platform_country_shares(artist, platform)
+        geo_by_platform[platform] = shares
+
         monthly_streams = _estimate_monthly_streams(artist, platform)
         platform_cpms = config.get(platform, {})
         default_cpm = platform_cpms.get("default", 0.50)
 
         platform_total = 0
-        for country, share in country_shares.items():
+        for country, share in shares.items():
             cpm = platform_cpms.get(country, default_cpm)
             country_streams = monthly_streams * share
             platform_total += country_streams * cpm / 1000
 
         monthly_revenue[platform] = round(platform_total, 2)
+
+    # For the dossier output: union of top countries across platforms,
+    # weighted by stream volume. Falls back to Spotify shares.
+    country_shares = spotify_shares
 
     monthly_total = sum(monthly_revenue.values())
     growth_factor = _momentum_growth_factor(artist.career_trend, artist.sp_monthly_listeners_diff_pct)
