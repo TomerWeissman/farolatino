@@ -18,7 +18,5 @@ docs/*
 communications/
 
 # Secrets and local-only data
-config/youtube_oauth_client.json
-config/youtube_oauth_token.json
 client_secret_*.json
 *.7z

@@ -1,9 +1,9 @@
 """One-time YouTube OAuth bootstrap.
 
-Opens a browser, runs the installed-app OAuth flow against the client JSON,
-and writes the resulting credentials (including the refresh token) to
-`config/youtube_oauth_token.json`. After this runs once, the app can refresh
-access tokens non-interactively.
+Reads YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET from .env, opens a browser
+for the installed-app OAuth flow, and prints the resulting refresh token.
+Paste that token into .env as YOUTUBE_REFRESH_TOKEN; afterwards the app can
+mint access tokens non-interactively (same pattern as Chartmetric).
 
 Usage:
     source venv/bin/activate
@@ -11,26 +11,41 @@ Usage:
 """
 from __future__ import annotations
 
-import json
+import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CLIENT_SECRETS = PROJECT_ROOT / "config" / "youtube_oauth_client.json"
-TOKEN_FILE = PROJECT_ROOT / "config" / "youtube_oauth_token.json"
+load_dotenv(PROJECT_ROOT / ".env")
+
+SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
 
 
 def main() -> int:
-    if not CLIENT_SECRETS.exists():
-        print(f"Missing {CLIENT_SECRETS}", file=sys.stderr)
+    client_id = os.getenv("YOUTUBE_CLIENT_ID")
+    client_secret = os.getenv("YOUTUBE_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        print(
+            "YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET must be set in .env",
+            file=sys.stderr,
+        )
         return 1
 
-    flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRETS), SCOPES)
+    client_config = {
+        "installed": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost"],
+        }
+    }
+
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
     creds = flow.run_local_server(
         port=0,
         prompt="consent",
@@ -42,19 +57,21 @@ def main() -> int:
         success_message="Authorization complete — you can close this tab.",
     )
 
-    TOKEN_FILE.write_text(creds.to_json())
-    print(f"Saved credentials to {TOKEN_FILE}")
+    if not creds.refresh_token:
+        print("OAuth completed but no refresh token returned.", file=sys.stderr)
+        return 1
 
-    # Sanity check: hit a lightweight endpoint to confirm the token works.
     youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
     resp = youtube.channels().list(part="snippet", mine=True).execute()
     items = resp.get("items", [])
     if items:
         ch = items[0]["snippet"]
-        print(f"Authorized channel: {ch.get('title')} ({items[0]['id']})")
+        print(f"\nAuthorized channel: {ch.get('title')} ({items[0]['id']})")
     else:
-        print("Token works, but this Google account has no YouTube channel attached.")
+        print("\nToken works, but this Google account has no YouTube channel attached.")
 
+    print("\nAdd the following line to .env:\n")
+    print(f"YOUTUBE_REFRESH_TOKEN={creds.refresh_token}\n")
     return 0
 
 
