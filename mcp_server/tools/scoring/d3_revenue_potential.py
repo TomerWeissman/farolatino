@@ -23,24 +23,84 @@ def _clamp(val: float) -> float:
     return max(0.0, min(100.0, val))
 
 
+def _is_legacy_catalog(artist: ArtistProfile) -> bool:
+    """Detect deceased/legacy artists with passive catalog presence.
+
+    Their Chartmetric monthly_listeners count includes everyone who
+    saved a track years ago, but actual stream volume is far lower
+    than for an active artist of the same listener count. Two signals
+    we use, both requiring no releases in the last 12 months and a
+    mainstream/superstar tier:
+
+    1. Career trend explicitly tagged "decline" or "gradual decline".
+    2. Listener-to-follower ratio < 2.0 (active artists usually have
+       L/F 3-10x because algorithmic recommendations push them to
+       non-followers; legacy catalog has L/F near or below 1 because
+       people saved tracks years ago without active listening).
+
+    Calibrated against 36-artist sample from FaroLatino royalty data:
+    catches Chalino Sanchez, Cornelio Reyna, Ramon Ayala (all classic
+    deceased/heritage artists with empirical streams-per-listener
+    ratios <0.01 vs active median ~4). False positive risk: active
+    artists whose last release fell just outside the 12-month window
+    AND whose L/F is unusually low — accepted as edge case.
+    """
+    trend = (artist.career_trend or "").lower()
+    stage = (artist.career_stage or "").lower()
+    no_recent = (
+        artist.recent_release_count_12m == 0
+        and artist.recent_release_count_6m == 0
+    )
+    legacy_tier = stage in ("superstar", "mainstream")
+    if not (no_recent and legacy_tier):
+        return False
+    declining = "decline" in trend
+    if declining:
+        return True
+    # L/F < 2 with no recent releases at mainstream/superstar tier:
+    # passive saved-tracks pattern.
+    sp_followers = artist.sp_followers or 0
+    sp_listeners = artist.sp_monthly_listeners or 0
+    if sp_followers > 100_000 and sp_listeners > 0:
+        ratio = sp_listeners / sp_followers
+        if ratio < 2.0:
+            return True
+    return False
+
+
 def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
     """Rough estimate of monthly streams per platform from available metrics.
 
     Multipliers calibrated against FaroLatino's 24-month royalty data
-    (Mar 2024 - Mar 2026, ~10M rows, see scripts/calibrate_cpm.py).
-    Median ratios across the top-10 calibration set:
-      Spotify:  ~3 streams/month per monthly listener
-      YouTube:  ~7 streams/month per subscriber
-      Apple:    ~5% of Spotify stream volume across the book
+    (Mar 2024 - Mar 2026, ~10M rows, scripts/calibrate_cpm.py + 45-artist
+    stratified sample). For artists with full catalog distribution
+    (Dread Mar I, Zona Ganjah, Noche de Brujas, Hitomi Flor) the median
+    streams-per-listener was ~4.4. Legacy/deceased artists drop to
+    ~0.05 because Chartmetric monthly_listeners includes passive saved
+    tracks that don't stream.
     """
+    if _is_legacy_catalog(artist):
+        # Heavy dampening for passive-catalog tier.
+        if platform == "spotify":
+            return artist.sp_monthly_listeners * 0.05
+        if platform == "youtube":
+            if artist.yt_daily_views:
+                return artist.yt_daily_views * 30
+            return artist.yt_subscribers * 0.5
+        if platform == "apple_music":
+            return artist.sp_monthly_listeners * 0.05 * 0.05
+        if platform == "deezer":
+            return artist.deezer_fans * 0.5
+        return 0
+
     if platform == "spotify":
-        return artist.sp_monthly_listeners * 3
+        return artist.sp_monthly_listeners * 4
     if platform == "youtube":
         if artist.yt_daily_views:
             return artist.yt_daily_views * 30
         return artist.yt_subscribers * 7
     if platform == "apple_music":
-        return artist.sp_monthly_listeners * 3 * 0.05
+        return artist.sp_monthly_listeners * 4 * 0.05
     if platform == "deezer":
         return artist.deezer_fans * 8
     return 0
