@@ -1,7 +1,7 @@
 """Revenue estimation model — MCP tool wrapper.
 
-Converts public streaming data into projected earnings using
-FaroLatino's CPM rates by country and platform. The core logic
+Converts public Chartmetric data into projected total artist streaming
+revenue (across all platforms and all distributors). The core logic
 lives in d3_revenue_potential.py; this tool exposes it directly.
 """
 
@@ -12,16 +12,26 @@ from mcp_server.tools.scoring.d3_revenue_potential import estimate_artist_revenu
 
 @mcp.tool()
 def estimate_revenue(artist_data: dict) -> dict:
-    """Project 12-month revenue from an artist's streaming metrics and geographic distribution.
+    """Project the artist's TOTAL annual streaming revenue (BRUTO, full catalog).
 
-    Uses CPM rates from config/cpm_rates.yaml and the artist's listener
-    geography to estimate revenue per platform. Growth trajectory from
-    career momentum adjusts the annual projection.
+    Returns the estimated total annual gross streaming royalty across all
+    platforms and all distributors — the catalog's market value if a
+    single distributor (e.g. FaroLatino) had full rights. Multiply by
+    ~0.74 for artist NETO payout, by ~0.26 for distributor cut.
+
+    Uses empirical CPMs from config/cpm_rates.yaml and bucketed
+    streams-per-listener multipliers from config/stream_multipliers.yaml,
+    both calibrated against FaroLatino's 24-month royalty data.
 
     Args:
         artist_data: Dict with artist fields matching ArtistProfile model.
     """
     artist = build_artist(artist_data)
     result = estimate_artist_revenue(artist)
-    result["note"] = "Uses placeholder CPMs — recalibrate with FaroLatino actuals"
+    result["scope"] = "total artist BRUTO (all platforms, all distributors)"
+    result["payout_split_note"] = (
+        "Apply ~0.74 multiplier for artist NETO (typical streaming payout share); "
+        "~0.26 for distributor cut. Per-(platform, country) splits in "
+        "config/distribution_split.yaml."
+    )
     return result

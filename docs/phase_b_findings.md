@@ -350,6 +350,102 @@ Per-artist gains: Eugenia Quevedo went from -11% to -2% (essentially perfect), E
 
 For Mode 2 ahead of May 5, the **27% MAE on realistic prospects** is the working accuracy. Order of magnitude correct, ranking-quality output, sufficient for tier-based prioritization.
 
+---
+
+## Phase G+ — Reframe to total artist revenue (the actual goal)
+
+### The semantic fix
+
+Until this phase, the model was being measured against FaroLatino's NETO from the royalty data — but that's only FaroLatino's distribution share of each artist (5%-100%), not the artist's total revenue. For prospect evaluation, the real question is: "if FaroLatino had this artist's full catalog, how much would it generate per year?" The model was implicitly answering that question and being scored against a partial-catalog ground truth.
+
+We now reverse-engineer the right ground truth using ISRC matching.
+
+### Phase G — ISRC-based catalog coverage
+
+Both data sources carry ISRCs (track identifiers): the royalty CSV has an `Isrc` column on every row, and Chartmetric's `/tracks` endpoint returns ISRC per track. For each FaroLatino artist with a cached Chartmetric profile, we compute:
+
+```
+track_coverage = |FaroLatino ISRCs ∩ Chartmetric ISRCs| / |Chartmetric ISRCs|
+```
+
+Output: [scripts/compute_catalog_coverage.py](../scripts/compute_catalog_coverage.py) → `data/internal/coverage_per_artist.json`. Coverage histogram on 39 cached artists:
+
+| Coverage band | Artists |
+|---|---|
+| ≥ 80% | 5 (full or near-full catalog: Hitomi Flor, Rondalla, etc.) |
+| 50-80% | 8 (substantial catalog: Dread Mar I 53%, Zona Ganjah 73%, Noche de Brujas 68%) |
+| 30-50% | 1 |
+| < 30% | 25 (mostly legacy/multi-distributor artists; Chalino: 0%, Julio Jaramillo: 0.3%) |
+
+The deceased classics show 0% coverage — Chartmetric tracks them but FaroLatino's distributed ISRCs don't appear in Chartmetric's track list. That's fine; we exclude them from training.
+
+### Phase H — Reverse-engineered total streams
+
+For the 14 artists with `track_coverage ≥ 0.30`, we scale up actual FaroLatino streams to estimate total artist streams:
+
+```
+total_streams_per_month = (FaroLatino streams over 24mo) / 24 / track_coverage
+```
+
+[scripts/build_training_dataset.py](../scripts/build_training_dataset.py) → `data/internal/training_dataset.json` — 85 (artist, platform) training rows with paired Chartmetric features.
+
+### Phase I — Multiplier fitting
+
+[scripts/fit_multipliers.py](../scripts/fit_multipliers.py) computes median Chartmetric → total-stream multipliers per `(career_stage, coarse_trend, platform)` bucket. Writes to [config/stream_multipliers.yaml](../config/stream_multipliers.yaml).
+
+**Key finding:** at this sample size (14 high-coverage artists, 5-13 rows per platform), the auto-fitted defaults were noisier than Phase F's manually-tuned constants — particularly YouTube where the fitted 12.7 streams/sub/month inflated several artists' projections by 2-3×. We kept the **fitting infrastructure** (it scales as we expand the sample) but reverted the YAML defaults to Phase F values:
+
+```yaml
+default:
+  spotify: 4.0
+  youtube: 3.0       # subscriber fallback only — yt_daily_views * 30 preferred in code
+  deezer: 0.5
+  facebook: 12.0
+  amazon: 0.6
+buckets: {}          # no bucket overrides yet — sample too thin
+```
+
+### Phase J — Production update
+
+[d3_revenue_potential.py](../mcp_server/tools/scoring/d3_revenue_potential.py) now reads multipliers via `_lookup_multiplier(artist, platform)` from the YAML, with bucket-key fallback to platform default. The `_is_legacy_catalog()` detector still hard-overrides to dampened constants. [revenue_model.py](../mcp_server/tools/revenue_model.py) docstring updated: `estimate_revenue` now explicitly returns **total artist BRUTO across all platforms and all distributors**, with a note about applying ~0.74 NETO multiplier for artist payout, ~0.26 for distributor cut.
+
+### Phase K — Validation against scaled-up ground truth
+
+[scripts/validate_total_revenue.py](../scripts/validate_total_revenue.py) measures error against `(FaroLatino_NETO / track_coverage)` — the proper full-catalog ground truth.
+
+| Subset | n | MAE | Median |
+|---|---|---|---|
+| All eligible vs **partial** ground truth (old framing) | 14 | 179% | 83% |
+| All eligible vs **total** ground truth (correct framing) | 14 | 110% | 70% |
+| Active prospects (excl. legacy) vs total | 13 | 113% | 62% |
+| **5 realistic prospects vs total** | 5 | **32%** | 26% |
+
+Per realistic-prospect artist:
+
+| Artist | Coverage | Actual Total NETO/yr | Predicted NETO/yr | Error |
+|---|---|---|---|---|
+| Dread Mar I | 53% | $1,111,591 | $934,477 | -16% |
+| Eugenia Quevedo | 50% | $72,576 | $91,084 | +26% |
+| Edgar Gonzalon | 66% | $50,030 | $33,233 | -34% |
+| Noche de Brujas | 68% | $96,552 | $73,287 | -24% |
+| Hitomi Flor | 91% | $32,690 | $52,892 | +62% |
+
+The **realistic-prospect MAE landed at 32%** against the correct (total-revenue) ground truth — a 5pp regression vs. the 27% Phase F number, but measuring the right thing. The ranking is preserved and the numbers are usable for tier assignment.
+
+### Summary of what changed conceptually
+
+- **What we predict:** total artist annual streaming revenue (full catalog, all distributors).
+- **What we evaluate against:** scaled-up FaroLatino NETO via ISRC-based coverage, not raw NETO.
+- **Why this matters for prospects:** when Mariana asks "what's this catalog worth per year?" we now answer the right question. The Phase F number was implicitly answering this but being scored on the wrong yardstick.
+
+42/42 unit tests still green.
+
+### What's still unsolved
+
+1. **Sparse-Chartmetric artists** (Margarita Lugue, Sonora Siguaray, very-small developing acts). Chartmetric undercounts their stream-driving signals. ~5/14 artists in the validation set hit -90%+ errors. Structural — needs platform-native APIs to fix.
+2. **Legacy artists with 0% ISRC match** (Chalino Sánchez, Cornelio Reyna, Julio Jaramillo). FaroLatino's distributed catalog doesn't overlap Chartmetric's track list at all. Excluded from training; the legacy detector dampens them at runtime, which keeps catastrophic over-projections off the dossier.
+3. **Sample size**: 14 high-coverage artists is too thin to fit per-bucket multipliers reliably. The pipeline (Phase G→I) is in place to retrain whenever we expand the calibration sample.
+
 ### Edgar Gonzalon's profile is suspicious
 510,775 monthly Spotify listeners but only **5,215 Spotify followers** (a 98:1 listener-to-follower ratio). For comparison, healthy ratios are typically 1-5×. This level of asymmetry is usually one of:
 - Fake/bot streams

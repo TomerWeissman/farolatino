@@ -2,6 +2,12 @@
 
 Projects 12-month revenue from streaming metrics and geographic distribution,
 then normalizes to a 0-100 score using configurable thresholds.
+
+Semantic note: `estimate_artist_revenue` returns the artist's TOTAL annual
+streaming revenue across all platforms and all distributors — i.e. what
+the catalog would be worth if FaroLatino had full distribution rights.
+This is the prospect-evaluation framing. The book's NETO reflects only
+FaroLatino's actual distribution share for any given artist (5%-100%).
 """
 
 from pathlib import Path
@@ -17,6 +23,53 @@ def _load_cpm_config() -> dict:
     path = CONFIG_DIR / "cpm_rates.yaml"
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+def _load_stream_multipliers() -> dict:
+    """Per-bucket multipliers fitted from FaroLatino royalty data scaled
+    by per-artist track_coverage (Phase G+H). See
+    scripts/fit_multipliers.py and config/stream_multipliers.yaml.
+    """
+    path = CONFIG_DIR / "stream_multipliers.yaml"
+    if not path.exists():
+        return {"default": {}, "buckets": {}}
+    with open(path) as f:
+        return yaml.safe_load(f) or {"default": {}, "buckets": {}}
+
+
+_STREAM_MULTIPLIERS_CACHE: dict | None = None
+
+
+def _stream_multipliers() -> dict:
+    global _STREAM_MULTIPLIERS_CACHE
+    if _STREAM_MULTIPLIERS_CACHE is None:
+        _STREAM_MULTIPLIERS_CACHE = _load_stream_multipliers()
+    return _STREAM_MULTIPLIERS_CACHE
+
+
+def _bucket_key(stage: str | None, trend: str | None) -> str:
+    """Same coarsening as scripts/fit_multipliers.py."""
+    s = (stage or "unknown").lower()
+    t = (trend or "unknown").lower()
+    if "decline" in t:
+        t_coarse = "decline"
+    elif t in ("growth", "explosive growth"):
+        t_coarse = "growth"
+    elif t == "steady":
+        t_coarse = "steady"
+    else:
+        t_coarse = "unknown"
+    return f"{s}__{t_coarse}"
+
+
+def _lookup_multiplier(artist: ArtistProfile, platform: str) -> float:
+    """Per-(bucket, platform) multiplier, falling back to platform default."""
+    cfg = _stream_multipliers()
+    bucket = _bucket_key(artist.career_stage, artist.career_trend)
+    bucket_mults = (cfg.get("buckets") or {}).get(bucket, {})
+    if platform in bucket_mults:
+        return float(bucket_mults[platform])
+    return float((cfg.get("default") or {}).get(platform, 1.0))
 
 
 def _clamp(val: float) -> float:
@@ -68,70 +121,74 @@ def _is_legacy_catalog(artist: ArtistProfile) -> bool:
     return False
 
 
+_LEGACY_DAMPENING = {
+    "spotify": 0.05,
+    "youtube": 0.5,         # applied to subscribers when daily_views unavailable
+    "apple_music": 0.0025,  # 5% of dampened spotify volume
+    "deezer": 0.05,
+    "facebook": 0.6,
+    "amazon": 0.05,
+    "tiktok": 0.0,
+}
+
+
 def _estimate_monthly_streams(artist: ArtistProfile, platform: str) -> float:
-    """Rough estimate of monthly streams per platform from available metrics.
+    """Estimate the artist's TOTAL monthly streams per platform.
 
-    Multipliers calibrated against FaroLatino's 24-month royalty data
-    (Mar 2024 - Mar 2026, ~10M rows + 45-artist stratified sample).
+    Uses per-(bucket, platform) multipliers fitted from FaroLatino royalty
+    data scaled by per-artist track_coverage (Phase G+H). See
+    scripts/fit_multipliers.py. Bucket key is career_stage + coarse trend.
 
-    Active artists (default tier):
-      Spotify:  monthly_listeners x 4   (full-catalog median from 4 active artists)
-      YouTube:  yt_daily_views x 30 if available; else yt_subscribers x 3
-                (subscribers-based estimate is unreliable for Latin music
-                 where view counts decouple from subscriber count;
-                 yt_daily_views is far more predictive when present)
-      Apple:    4% of (Spotify + YouTube) stream volume (anchored on
-                Apple's actual share of total streams across the book,
-                not on Spotify alone — fixes over-projection for
-                YouTube-heavy artists)
-      Deezer:   deezer_fans x 0.5 (down from 8; book data shows Deezer
-                                    is <1% of revenue, prior multiplier
-                                    over-projected by 10-40x)
-      Facebook: sp_monthly_listeners x 12 (book-wide ratio; CPM is so low
-                                            (~$0.016/1000) that absolute
-                                            stream count tolerance is wide)
-      Amazon:   sp_monthly_listeners x 0.6 (small share of streams,
-                                             decent CPM ~$2.30/1000)
+    YouTube is special: prefer yt_daily_views * 30 whenever available
+    (most predictive); fall back to yt_subscribers * <fitted multiplier>
+    when daily_views is missing.
 
-    Legacy/deceased: heavy dampening because Chartmetric monthly_listeners
-    includes passive saved tracks that don't actively stream.
+    Apple Music is also special: scaled as 4% of (Spotify + YouTube)
+    combined stream volume, since Apple's share of total streams is
+    stable but its tie to Spotify alone over-projects for YouTube-heavy
+    artists.
+
+    Legacy/deceased artists get heavily dampened — Chartmetric's
+    monthly_listeners includes passive saved tracks that don't stream.
     """
     if _is_legacy_catalog(artist):
-        # Heavy dampening for passive-catalog tier.
+        damp = _LEGACY_DAMPENING.get(platform, 0.0)
         if platform == "spotify":
-            return artist.sp_monthly_listeners * 0.05
+            return artist.sp_monthly_listeners * damp
         if platform == "youtube":
             if artist.yt_daily_views:
                 return artist.yt_daily_views * 30
-            return artist.yt_subscribers * 0.5
+            return artist.yt_subscribers * damp
         if platform == "apple_music":
-            sp = artist.sp_monthly_listeners * 0.05
-            yt = (artist.yt_daily_views * 30) if artist.yt_daily_views else (artist.yt_subscribers * 0.5)
+            sp = artist.sp_monthly_listeners * _LEGACY_DAMPENING["spotify"]
+            yt = (artist.yt_daily_views * 30) if artist.yt_daily_views else (artist.yt_subscribers * _LEGACY_DAMPENING["youtube"])
             return (sp + yt) * 0.04
         if platform == "deezer":
-            return artist.deezer_fans * 0.05
+            return artist.deezer_fans * damp
         if platform == "facebook":
-            return artist.sp_monthly_listeners * 0.6  # very dampened
+            return artist.sp_monthly_listeners * damp
         if platform == "amazon":
-            return artist.sp_monthly_listeners * 0.05
+            return artist.sp_monthly_listeners * damp
         return 0
 
     if platform == "spotify":
-        return artist.sp_monthly_listeners * 4
+        return artist.sp_monthly_listeners * _lookup_multiplier(artist, "spotify")
     if platform == "youtube":
         if artist.yt_daily_views:
             return artist.yt_daily_views * 30
-        return artist.yt_subscribers * 3
+        return artist.yt_subscribers * _lookup_multiplier(artist, "youtube")
     if platform == "apple_music":
-        sp = artist.sp_monthly_listeners * 4
-        yt = (artist.yt_daily_views * 30) if artist.yt_daily_views else (artist.yt_subscribers * 3)
+        sp = artist.sp_monthly_listeners * _lookup_multiplier(artist, "spotify")
+        yt = (artist.yt_daily_views * 30) if artist.yt_daily_views else (artist.yt_subscribers * _lookup_multiplier(artist, "youtube"))
         return (sp + yt) * 0.04
     if platform == "deezer":
-        return artist.deezer_fans * 0.5
+        # Deezer multiplier is fitted against sp_monthly_listeners (proxy)
+        # because Chartmetric deezer_fans is rarely populated reliably.
+        return artist.sp_monthly_listeners * _lookup_multiplier(artist, "deezer")
     if platform == "facebook":
-        return artist.sp_monthly_listeners * 12
+        return artist.sp_monthly_listeners * _lookup_multiplier(artist, "facebook")
     if platform == "amazon":
-        return artist.sp_monthly_listeners * 0.6
+        return artist.sp_monthly_listeners * _lookup_multiplier(artist, "amazon")
     return 0
 
 

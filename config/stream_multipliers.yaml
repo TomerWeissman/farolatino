@@ -1,0 +1,41 @@
+# Per-bucket Chartmetric -> total-stream multipliers.
+# Bucket key: '<career_stage>__<coarse_trend>' where coarse_trend in
+# (growth, steady, decline, unknown).
+#
+# Multiplier semantics:
+#   spotify     : streams/month per sp_monthly_listener
+#   youtube     : streams/month per yt_subscriber (overridden by
+#                 yt_daily_views * 30 in production code when available)
+#   apple_music : NOT USED at lookup time — Apple is computed in code as
+#                 4% of (Spotify + YouTube) combined stream volume
+#   deezer      : streams/month per sp_monthly_listener (proxy)
+#   facebook    : streams/month per sp_monthly_listener (proxy)
+#   amazon      : streams/month per sp_monthly_listener (proxy)
+#
+# Provenance:
+# - The `default` block is hand-set from Phase F manual tuning anchored
+#   on full-catalog active artists (Dread Mar I, Zona Ganjah, Noche de
+#   Brujas, Hitomi Flor). The training set fit by scripts/fit_multipliers.py
+#   on 14 artists was too thin to reliably override these (especially
+#   YouTube, where only 5 rows had non-zero subscribers + scaled streams).
+# - Buckets are *additive* refinements: only included when their fitted
+#   multiplier diverges meaningfully from the default and is supported by
+#   >= 3 training rows.
+#
+# To regenerate with a larger training set:
+#   1. Expand sample_50_cm_ids.json with more high-coverage artists
+#   2. Run scripts/compute_catalog_coverage.py -> coverage map
+#   3. Run scripts/build_training_dataset.py -> training set
+#   4. Run scripts/fit_multipliers.py -> proposed multipliers
+#   5. Compare to defaults; selectively merge into this file.
+
+default:
+  spotify: 4.0       # Phase F; matches full-catalog median ~4.4
+  youtube: 3.0       # Phase F fallback; only used when yt_daily_views absent
+  deezer: 0.5        # Phase F; book data shows Deezer is <1% of revenue
+  facebook: 12.0     # Phase F; CPM is so low (~$0.016/1000) that variance is tolerable
+  amazon: 0.6        # Phase F; small share of streams, decent CPM
+
+# Bucket-specific overrides only when sample size and signal warrant it.
+# Currently empty pending a larger calibration set.
+buckets: {}
