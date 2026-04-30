@@ -446,6 +446,60 @@ The **realistic-prospect MAE landed at 32%** against the correct (total-revenue)
 2. **Legacy artists with 0% ISRC match** (Chalino Sánchez, Cornelio Reyna, Julio Jaramillo). FaroLatino's distributed catalog doesn't overlap Chartmetric's track list at all. Excluded from training; the legacy detector dampens them at runtime, which keeps catastrophic over-projections off the dossier.
 3. **Sample size**: 14 high-coverage artists is too thin to fit per-bucket multipliers reliably. The pipeline (Phase G→I) is in place to retrain whenever we expand the calibration sample.
 
+---
+
+## Phase L — First sample expansion + reusable calibration skill
+
+### Reusable calibration skill
+
+Captured the full G-K pipeline as a Claude Code skill at [.claude/skills/calibrate.md](../.claude/skills/calibrate.md) plus a new orchestrator [scripts/expand_calibration_sample.py](../scripts/expand_calibration_sample.py). The skill describes the cadence (run quarterly or after a fresh royalty CSV), the prerequisites, and a step-by-step pipeline:
+
+1. `expand_calibration_sample.py --add N` — add N more book artists by NETO order, search Chartmetric, fetch full profiles
+2. `compute_catalog_coverage.py` — recompute coverage histogram
+3. `build_training_dataset.py` — rebuild scaled-stream training rows
+4. `fit_multipliers.py` — refit auto-generated multipliers
+5. `validate_total_revenue.py` — measure MAE against scaled ground truth
+6. Selectively merge fitted multipliers into [config/stream_multipliers.yaml](../config/stream_multipliers.yaml) (don't ship blindly — auto-fit can be biased by sample composition)
+7. pytest + commit
+
+The "selectively merge" step is critical: this run's auto-fit dropped the Spotify default to 2.14 (sample-bias toward small developing-tier artists we just added), which under-projected the prospect-shaped subset. Hand-tuned default of 4.0 preserved.
+
+### First expansion: 39 → 85 profiles
+
+Ran `expand_calibration_sample.py --add 60`, which fetched 60 additional book artists in 18 minutes of throttled API calls. Outcome:
+
+| Metric | Before | After |
+|---|---|---|
+| Profiles fetched | 39 | 85 |
+| Artists with track_coverage ≥ 30% | 14 | 21 |
+| Training rows | 85 | 134 |
+| Buckets with ≥ 3 rows fitted | 0 (kept defaults) | 2 (developing__growth, developing__steady) |
+
+Validation on the now-21-artist eligible set:
+
+| Subset | n | MAE | Median |
+|---|---|---|---|
+| All vs total ground truth | 21 | 110% | 62% |
+| Active prospects (excl. legacy) | 20 | 112% | 62% |
+| **5 realistic-prospect subset** | 5 | **32%** | 26% |
+
+Realistic-prospect MAE held at 32% — the expansion brought in mostly developing/undiscovered tier artists, which doesn't shift the prospect-tier multiplier but does enable per-tier bucketing for the first time.
+
+### What the new bucket overrides do
+
+```yaml
+developing__growth:
+  spotify: 1.559   # half the prospect rate
+developing__steady:
+  spotify: 3.818   # close to prospect rate
+```
+
+These apply only when an artist's Chartmetric tags exactly match. For developing-tier artists, the model now uses these instead of the global 4.0 default. Several developing-tier validation cases improved (Markitos Pullay, Darwin del Ecuador, El Trio Huasteco landed within 40% of actual) at the cost of others getting worse.
+
+### Next expansion target
+
+To meaningfully improve realistic-prospect MAE below 30%, the next sample expansion needs to be **stratified specifically for mid-level/growth and mainstream/growth artists** (the actual prospect tier), not just NETO-ordered. The current expansion was NETO-ordered, which over-represents legacy and developing-tier artists. The skill documents this as a known sampling bias.
+
 ### Edgar Gonzalon's profile is suspicious
 510,775 monthly Spotify listeners but only **5,215 Spotify followers** (a 98:1 listener-to-follower ratio). For comparison, healthy ratios are typically 1-5×. This level of asymmetry is usually one of:
 - Fake/bot streams

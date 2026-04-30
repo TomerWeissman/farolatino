@@ -13,29 +13,40 @@
 #   amazon      : streams/month per sp_monthly_listener (proxy)
 #
 # Provenance:
-# - The `default` block is hand-set from Phase F manual tuning anchored
-#   on full-catalog active artists (Dread Mar I, Zona Ganjah, Noche de
-#   Brujas, Hitomi Flor). The training set fit by scripts/fit_multipliers.py
-#   on 14 artists was too thin to reliably override these (especially
-#   YouTube, where only 5 rows had non-zero subscribers + scaled streams).
-# - Buckets are *additive* refinements: only included when their fitted
-#   multiplier diverges meaningfully from the default and is supported by
-#   >= 3 training rows.
+# - The `default` block is hand-set, anchored on the 4 full-catalog
+#   prospect-shaped artists (Dread Mar I, Zona Ganjah, Noche de Brujas,
+#   Hitomi Flor) — empirical Spotify multipliers 3.30-6.47, median ~4.4.
+#   These match the artist tier FaroLatino actually evaluates as prospects.
+# - The auto-fitted defaults from scripts/fit_multipliers.py (run on the
+#   21-artist training set) average across many small developing/
+#   undiscovered acts whose multipliers are 0.5-1.5x. This pulls the
+#   global default down to ~2.1, which under-projects realistic prospects.
+#   We DO NOT use the auto-fit until the calibration sample contains
+#   more mid-level/growth artists (the prospect tier).
+# - Bucket-specific overrides are auto-fitted when ≥3 training rows back
+#   them. They apply only when the artist matches the bucket key.
 #
-# To regenerate with a larger training set:
-#   1. Expand sample_50_cm_ids.json with more high-coverage artists
-#   2. Run scripts/compute_catalog_coverage.py -> coverage map
-#   3. Run scripts/build_training_dataset.py -> training set
-#   4. Run scripts/fit_multipliers.py -> proposed multipliers
-#   5. Compare to defaults; selectively merge into this file.
+# To re-run the full pipeline:
+#   /calibrate           (or scripts/expand_calibration_sample.py + the
+#                         compute/build/fit/validate scripts in order)
 
 default:
-  spotify: 4.0       # Phase F; matches full-catalog median ~4.4
-  youtube: 3.0       # Phase F fallback; only used when yt_daily_views absent
-  deezer: 0.5        # Phase F; book data shows Deezer is <1% of revenue
-  facebook: 12.0     # Phase F; CPM is so low (~$0.016/1000) that variance is tolerable
-  amazon: 0.6        # Phase F; small share of streams, decent CPM
+  spotify: 4.0       # Anchored on full-catalog prospect-tier median ~4.4
+  youtube: 3.0       # Subscriber fallback only (yt_daily_views * 30 preferred in code)
+  deezer: 0.5        # Book data shows Deezer is <1% of revenue
+  facebook: 12.0     # CPM is so low (~$0.016/1000) that variance is tolerable
+  amazon: 0.6        # Small share of streams, decent CPM (~$2.30/1000)
 
-# Bucket-specific overrides only when sample size and signal warrant it.
-# Currently empty pending a larger calibration set.
-buckets: {}
+# Bucket-specific overrides from auto-fit (n>=3 per bucket).
+# These apply only when the artist's (career_stage, coarse_trend) matches.
+buckets:
+  developing__growth:
+    spotify: 1.559   # Developing-tier growing artists stream ~half the prospect rate
+    apple_music: 0.114
+    facebook: 18.963
+    tiktok: 0.251
+  developing__steady:
+    spotify: 3.818   # Developing/steady is closer to active prospect rate
+    apple_music: 0.011
+    facebook: 0.932
+    tiktok: 0.011
