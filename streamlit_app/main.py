@@ -30,6 +30,7 @@ from streamlit_app.components import (  # noqa: E402
     calibration_footer,
     connection_status_badge,
     page_header,
+    recent_runs_sidebar,
     skill_picker_sidebar,
 )
 from streamlit_app.views import chat  # noqa: E402
@@ -61,6 +62,9 @@ def main() -> None:
 
         st.markdown("---")
         skill_picker_sidebar()
+
+        st.markdown("---")
+        recent_runs_sidebar()
 
         st.markdown("---")
         calibration_footer()

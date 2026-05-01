@@ -1,12 +1,14 @@
 """Shared Streamlit components: header, badges, status indicators, skill picker."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 import streamlit as st
 import yaml
 
+from streamlit_app.run_log import load_recent
 from streamlit_app.skill_registry import list_skills
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +42,63 @@ def skill_picker_sidebar() -> None:
             st.rerun()
         if skill.description:
             st.caption(skill.description)
+
+
+def recent_runs_sidebar(limit: int = 10) -> None:
+    """Sidebar expander showing the last N chat runs with status icons.
+
+    Each run is clickable; clicking shows the prompt, response, tools
+    invoked, MCP server status, and the full event trace. Aimed at the
+    person testing the system, not at end-users.
+    """
+    st.markdown("### Recent runs")
+    runs = load_recent(limit=limit)
+    if not runs:
+        st.caption("No chat runs yet.")
+        return
+
+    failures = [r for r in runs if r.status != "ok"]
+    if failures:
+        st.warning(f"{len(failures)}/{len(runs)} recent runs failed or returned no text.")
+
+    for r in runs:
+        with st.expander(r.summary(), expanded=False):
+            cols = st.columns(3)
+            cols[0].metric("Status", r.status.upper())
+            cols[1].metric("Duration", f"{r.duration_s:.1f}s")
+            cols[2].metric("Events", r.event_count)
+
+            if r.cost_usd is not None:
+                st.caption(f"Cost: ${r.cost_usd:.4f}")
+
+            st.markdown("**Prompt:**")
+            st.code(r.prompt, language="text")
+
+            if r.tool_calls:
+                st.markdown(f"**Tools called ({len(r.tool_calls)}):** " + ", ".join(f"`{t}`" for t in r.tool_calls))
+            else:
+                st.markdown("**Tools called:** _(none)_")
+
+            if r.mcp_servers:
+                bad = [s for s in r.mcp_servers if s.get("status") != "connected"]
+                farolatino = next((s for s in r.mcp_servers if s.get("name") == "farolatino"), None)
+                if farolatino:
+                    icon = "✓" if farolatino.get("status") == "connected" else "✗"
+                    st.markdown(f"**FaroLatino MCP:** {icon} {farolatino.get('status')}")
+                else:
+                    st.markdown("**FaroLatino MCP:** ⚠ not in server list")
+                if bad:
+                    st.caption(f"{len(bad)} MCP server(s) failed: " + ", ".join(s.get("name", "?") for s in bad))
+
+            if r.error:
+                st.markdown("**Error:**")
+                st.error(r.error)
+
+            st.markdown("**Response:**")
+            st.markdown(r.response_text or "_(empty)_")
+
+            with st.expander("Full event trace", expanded=False):
+                st.code(json.dumps(r.events, indent=2, default=str), language="json")
 
 
 @st.cache_data(show_spinner=False, ttl=300)

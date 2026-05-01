@@ -13,6 +13,7 @@ from __future__ import annotations
 import streamlit as st
 
 from streamlit_app.claude_runner import ClaudeRunnerError, run_claude_streaming
+from streamlit_app.run_log import RunLogger
 
 
 def _ensure_history() -> list[dict]:
@@ -70,22 +71,27 @@ def render() -> None:
     with st.chat_message("user"):
         st.markdown(full_prompt)
 
-    # Stream assistant response
+    # Stream assistant response with telemetry capture
+    logger = RunLogger(prompt=full_prompt)
     with st.chat_message("assistant"):
         placeholder = st.empty()
         accumulated: list[str] = []
+        error_text: str | None = None
         try:
-            for chunk in run_claude_streaming(full_prompt):
+            for chunk in run_claude_streaming(full_prompt, on_event=logger.record_event):
                 accumulated.append(chunk)
                 placeholder.markdown("".join(accumulated))
         except ClaudeRunnerError as exc:
+            error_text = str(exc)
             placeholder.error(f"⚠️ {exc}")
-            history.append({"role": "assistant", "content": f"⚠️ {exc}"})
-            return
         except Exception as exc:  # pragma: no cover — defensive
-            placeholder.error(f"Unexpected error: {exc}")
-            history.append({"role": "assistant", "content": f"Unexpected error: {exc}"})
-            return
+            error_text = f"Unexpected error: {exc}"
+            placeholder.error(error_text)
 
     final_text = "".join(accumulated).strip() or "_(no response)_"
-    history.append({"role": "assistant", "content": final_text})
+    if error_text:
+        history.append({"role": "assistant", "content": f"⚠️ {error_text}"})
+    else:
+        history.append({"role": "assistant", "content": final_text})
+
+    logger.finalize(response_text="".join(accumulated), error=error_text)

@@ -8,18 +8,25 @@ chunks suitable for `st.write_stream`.
 Why a subprocess: keeps skill discovery, MCP routing, and auth in
 Claude Code's hands. We don't reimplement any of it.
 
-Why `--verbose`: required when `--output-format stream-json` is set
-(Claude Code refuses without it).
+Why `--verbose`: required when `--output-format stream-json` is set.
+
+Why `--mcp-config`: makes the FaroLatino MCP server self-contained per
+snapshot. The launcher (start.command / start.bat) writes a fresh
+`.mcp.json` at startup with absolute paths into the snapshot's venv,
+so Claude Code can spin up our MCP tools without depending on a
+user-scoped registration.
 """
 from __future__ import annotations
 
 import json
 import shutil
 import subprocess
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+MCP_CONFIG_PATH = PROJECT_ROOT / ".mcp.json"
 
 
 class ClaudeRunnerError(Exception):
@@ -27,16 +34,23 @@ class ClaudeRunnerError(Exception):
 
 
 def _claude_path() -> str | None:
-    """Locate the `claude` binary on PATH."""
     return shutil.which("claude")
 
 
-def run_claude_streaming(prompt: str, *, max_turns: int | None = None) -> Iterator[str]:
+def run_claude_streaming(
+    prompt: str,
+    *,
+    max_turns: int | None = None,
+    on_event: callable | None = None,
+) -> Iterator[str]:
     """Run `claude --print` and yield text deltas as they arrive.
 
     Args:
         prompt: the user's chat message (already includes any `@skill` prefix).
         max_turns: optional safety cap on agentic loops.
+        on_event: optional callback invoked for every parsed JSON event from
+            stream-json (system, assistant, user/tool_result, result, ...).
+            Used by the run-log telemetry to capture full traces.
 
     Yields:
         Text chunks. Concatenate all chunks for the full response.
@@ -53,6 +67,12 @@ def run_claude_streaming(prompt: str, *, max_turns: int | None = None) -> Iterat
         )
 
     cmd = [binary, "--print", "--verbose", "--output-format", "stream-json"]
+    if MCP_CONFIG_PATH.exists():
+        # `--strict-mcp-config` ensures we use ONLY the FaroLatino MCP
+        # server — no inheritance from the user's global Claude Code
+        # config (so a tester's machine doesn't drag in their personal
+        # Gmail/Notion MCP servers, for example).
+        cmd.extend(["--mcp-config", str(MCP_CONFIG_PATH), "--strict-mcp-config"])
     if max_turns is not None:
         cmd.extend(["--max-turns", str(max_turns)])
     cmd.append(prompt)
@@ -64,11 +84,12 @@ def run_claude_streaming(prompt: str, *, max_turns: int | None = None) -> Iterat
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            bufsize=1,  # line-buffered so we get events as they arrive
+            bufsize=1,
         )
     except OSError as exc:
         raise ClaudeRunnerError(f"Failed to spawn `claude`: {exc}") from exc
 
+    started_at = time.time()
     try:
         for raw_line in proc.stdout or []:
             line = raw_line.strip()
@@ -77,9 +98,14 @@ def run_claude_streaming(prompt: str, *, max_turns: int | None = None) -> Iterat
             try:
                 event = json.loads(line)
             except json.JSONDecodeError:
-                # Tolerate non-JSON noise (Claude Code sometimes emits
-                # warnings or progress lines that aren't proper events).
                 continue
+
+            if on_event is not None:
+                try:
+                    on_event(event)
+                except Exception:
+                    # Telemetry failures must never crash the chat.
+                    pass
 
             for chunk in _extract_text(event):
                 yield chunk
@@ -98,13 +124,7 @@ def run_claude_streaming(prompt: str, *, max_turns: int | None = None) -> Iterat
 
 
 def _extract_text(event: dict) -> Iterator[str]:
-    """Pull user-visible text out of one stream-json event.
-
-    Yields nothing for system / rate_limit / result / tool events that
-    aren't meant for the chat bubble. The `result` event contains a
-    consolidated copy of the final message, which would duplicate the
-    `assistant` text — we ignore it.
-    """
+    """Pull user-visible text out of one stream-json event."""
     etype = event.get("type")
 
     if etype == "assistant":
@@ -116,14 +136,5 @@ def _extract_text(event: dict) -> Iterator[str]:
                 if text:
                     yield text
             elif btype == "tool_use":
-                # Surface tool invocations as italicized status lines so the
-                # user sees what's happening during long agentic runs.
                 tool_name = block.get("name", "tool")
                 yield f"\n\n_using `{tool_name}`..._\n\n"
-
-    elif etype == "user":
-        # Tool result going back into Claude — don't show in chat.
-        return
-
-    # Other types (system/init, rate_limit_event, result, error) are
-    # intentionally skipped: either metadata or duplicates of assistant text.

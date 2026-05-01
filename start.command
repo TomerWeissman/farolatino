@@ -105,6 +105,23 @@ else
     pip install -r requirements.txt --quiet > /dev/null 2>&1 || true
 fi
 
+# 5b. Generate .mcp.json so `claude --print` can spawn the FaroLatino
+#     MCP server with this snapshot's venv. Regenerated on every launch
+#     so the venv path is always current.
+PY_BIN="$SCRIPT_DIR/venv/bin/python"
+cat > "$SCRIPT_DIR/.mcp.json" <<EOF
+{
+  "mcpServers": {
+    "farolatino": {
+      "command": "$PY_BIN",
+      "args": ["-m", "mcp_server"],
+      "cwd": "$SCRIPT_DIR"
+    }
+  }
+}
+EOF
+echo "✓ MCP config ready"
+
 # 6. Open browser after Streamlit boots (3s delay)
 (
     sleep 3
