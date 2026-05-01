@@ -18,7 +18,7 @@
 #   Hitomi Flor) — empirical Spotify multipliers 3.30-6.47, median ~4.4.
 #   These match the artist tier FaroLatino actually evaluates as prospects.
 # - The auto-fitted defaults from scripts/fit_multipliers.py (run on the
-#   21-artist training set) average across many small developing/
+#   22-artist training set) average across many small developing/
 #   undiscovered acts whose multipliers are 0.5-1.5x. This pulls the
 #   global default down to ~2.1, which under-projects realistic prospects.
 #   We DO NOT use the auto-fit until the calibration sample contains
@@ -29,10 +29,14 @@
 # To re-run the full pipeline:
 #   /calibrate           (or scripts/expand_calibration_sample.py + the
 #                         compute/build/fit/validate scripts in order)
+#
+# The fit_multipliers.py script writes proposed multipliers to
+# config/stream_multipliers_proposed.yaml — review and selectively merge
+# rather than overwriting this file directly.
 
 # Status — surfaced in the Streamlit UI footer
 last_calibrated: "2026-05-01"
-calibration_sample_size: 85
+calibration_sample_size: 111
 realistic_prospect_mae_pct: 32
 
 default:

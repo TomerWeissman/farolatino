@@ -86,6 +86,11 @@ class NeighboringArtist:
     career_stage: str = ""
     signed: bool = False
     recent_momentum: str = ""
+    country_code: str = ""
+    image_url: str = ""
+    sp_monthly_listeners: int = 0
+    sp_followers: int = 0
+    source: str = ""
 
 
 @dataclass

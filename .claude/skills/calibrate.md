@@ -25,20 +25,34 @@ The calibration is a 5-stage pipeline. Each stage has its own standalone script 
 
 ### 1. Expand the sample (if needed)
 
-Add N more book artists to the calibration set:
+**Recommended (stratified):**
+
+```bash
+python scripts/expand_calibration_sample.py --add 30 --stratify
+```
+
+`--stratify` filters new artists by Chartmetric career_stage AND career_trend, keeping only mid-level / mainstream / superstar with growth or steady trend (the actual prospect tier). Skips developing / undiscovered / declining artists, which were over-sampled by NETO-ordered expansion in the past and pulled the global multiplier toward unrealistic values.
+
+You can also target specific buckets:
+
+```bash
+python scripts/expand_calibration_sample.py \
+  --add 40 --stratify \
+  --target-bucket mid-level__growth=10 \
+  --target-bucket mainstream__growth=10
+```
+
+**Lesson from prior runs:** FaroLatino's book is heavily skewed to developing/legacy tiers. A stratified expansion of the next-30-by-NETO yielded only ~6 actual prospect-tier artists (~20% pass rate). To meaningfully grow the prospect-tier training set, future expansions should reach further down the NETO list AND consider searching Chartmetric for known Latin artists *not yet in the book* (out of scope for this skill but worth noting).
+
+**Plain (non-stratified, NOT recommended):**
 
 ```bash
 python scripts/expand_calibration_sample.py --add 60
 ```
 
-This:
-- Aggregates per-artist NETO from the royalty CSV
-- Picks the next-N highest-NETO artists not already in `data/internal/sample_50_cm_ids.json`
-- Searches Chartmetric for each (1 search per artist, throttled at 1 req/s)
-- Fetches the full 14-endpoint Chartmetric profile per resolved artist (cached, throttled)
-- Updates `sample_50_cm_ids.json` and `sample_45_profiles.json`
+Use only when you specifically want to grow the developing-tier bucket-fitted multipliers.
 
-**Time:** ~16 seconds per artist at full throttle (1 search + 14 endpoints). For N=60 expect roughly 16 minutes; can run in the background.
+**Time:** ~16 seconds per artist at the throttle. Stratified mode scans up to 4× the target before keeping enough — for `--add 30 --stratify` expect ~25-35 minutes wall time. Run in the background; the orchestrator writes results at completion only.
 
 **Skip this step** if N=0 or if you only want to recompute on an existing sample.
 
@@ -66,7 +80,7 @@ For each artist with `track_coverage ≥ 0.3`, scales their per-platform FaroLat
 python scripts/fit_multipliers.py
 ```
 
-Computes median Chartmetric → total-stream multipliers per `(career_stage, coarse_trend, platform)` bucket. Writes proposed `config/stream_multipliers.yaml`.
+Computes median Chartmetric → total-stream multipliers per `(career_stage, coarse_trend, platform)` bucket. Writes a **proposed** YAML to `config/stream_multipliers_proposed.yaml`. The production `config/stream_multipliers.yaml` is **not** overwritten — review the proposal and selectively merge buckets you trust.
 
 **Critical review step:** the auto-fit overwrites the YAML wholesale. Compare the new platform defaults to the existing values:
 
