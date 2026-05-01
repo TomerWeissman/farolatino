@@ -1,15 +1,21 @@
-"""Chat view — single-page interface with @-skill autocomplete.
+"""Chat view — single-page interface (v0.dev-style minimal).
 
-Uses the custom `skill_input` component for the input box. Each submit
-spawns a fresh `claude --print` subprocess; the response streams into a
-chat bubble. Multi-turn context is NOT passed to Claude in v1.
+Uses Streamlit's built-in `st.chat_input` for the textbox (proven to
+work end-to-end with our run logger). A small skills cheatsheet sits
+quietly at the top so the user knows the `@<skill>` syntax. The custom
+autocomplete component is on the back-burner until its IPC is fixed —
+the user-facing flow doesn't need it to be functional.
+
+Streaming is throttled to ~10 fps so long dossier responses don't
+re-render the markdown blob on every text chunk.
 """
 from __future__ import annotations
+
+import time
 
 import streamlit as st
 
 from streamlit_app.claude_runner import ClaudeRunnerError, run_claude_streaming
-from streamlit_app.components.skill_input import skill_input
 from streamlit_app.run_log import RunLogger
 from streamlit_app.skill_registry import list_skills
 
@@ -20,41 +26,47 @@ def _ensure_history() -> list[dict]:
     return st.session_state["chat_history"]
 
 
+def _skill_cheatsheet() -> None:
+    """Quiet inline list of skills above the chat. Hover for descriptions."""
+    skills = list_skills()
+    if not skills:
+        return
+    # Render as plain text with abbr tags for native browser tooltips
+    parts = []
+    for s in skills:
+        desc = (s.description or s.name or s.slug).replace('"', "&quot;")
+        parts.append(
+            f'<span class="skill-pill" title="{desc}">@{s.slug}</span>'
+        )
+    st.markdown(
+        "<div class='skills-row'>" + " · ".join(parts) + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def render() -> None:
     history = _ensure_history()
 
-    # Replay history
-    for turn in history:
-        with st.chat_message(turn["role"]):
-            st.markdown(turn["content"])
-
-    # Empty-state hint
+    # Empty state — show skill cheatsheet only when no chat yet
     if not history:
         st.markdown(
-            "<div style='color:#a3a3a3;text-align:center;padding:3rem 0;'>"
-            "<div style='font-size:1.4rem;font-weight:500;color:#525252;margin-bottom:0.5rem;'>"
-            "How can I help?"
-            "</div>"
-            "<div style='font-size:0.9rem;'>"
-            "Type <code style='background:#f5f5f5;padding:1px 5px;border-radius:4px;'>@</code> "
-            "to invoke a skill, or just ask a question."
-            "</div>"
+            "<div class='empty-state'>"
+            "<div class='empty-greet'>How can I help?</div>"
+            "<div class='empty-hint'>Type a message, or start with one of the skills below.</div>"
             "</div>",
             unsafe_allow_html=True,
         )
+        _skill_cheatsheet()
+    else:
+        # Replay history
+        for turn in history:
+            with st.chat_message(turn["role"]):
+                st.markdown(turn["content"])
 
-    # Skill list for the autocomplete component
-    skills_payload = [
-        {"slug": s.slug, "name": s.name, "description": s.description}
-        for s in list_skills()
-    ]
-
-    user_msg = skill_input(
-        skills=skills_payload,
-        placeholder="Type a message…",
-        key="chat_input_v2",
+    # The input — stock Streamlit chat_input (works end-to-end)
+    user_msg = st.chat_input(
+        placeholder="Type a message, or @<skill> to invoke a skill",
     )
-
     if not user_msg:
         return
 
@@ -63,16 +75,26 @@ def render() -> None:
     with st.chat_message("user"):
         st.markdown(user_msg)
 
-    # Stream assistant response
+    # Stream assistant response with telemetry + chunk buffering
     logger = RunLogger(prompt=user_msg)
     with st.chat_message("assistant"):
         placeholder = st.empty()
         accumulated: list[str] = []
+        last_render = 0.0
         error_text: str | None = None
         try:
             for chunk in run_claude_streaming(user_msg, on_event=logger.record_event):
                 accumulated.append(chunk)
-                placeholder.markdown("".join(accumulated))
+                # Throttle markdown re-renders to ~10 fps. Streamlit re-parses
+                # the full string each call, so calling once per token causes
+                # visible jank on long responses.
+                now = time.monotonic()
+                if now - last_render > 0.10:
+                    placeholder.markdown("".join(accumulated))
+                    last_render = now
+            # Final flush so the last chunk renders even if it landed inside
+            # the throttle window.
+            placeholder.markdown("".join(accumulated))
         except ClaudeRunnerError as exc:
             error_text = str(exc)
             placeholder.error(f"⚠️ {exc}")
@@ -87,6 +109,3 @@ def render() -> None:
         history.append({"role": "assistant", "content": final_text})
 
     logger.finalize(response_text="".join(accumulated), error=error_text)
-
-    # Force a rerun so the empty input box is rendered fresh below the new bubble.
-    st.rerun()

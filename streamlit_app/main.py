@@ -4,9 +4,9 @@ Run with:
     source venv/bin/activate
     streamlit run streamlit_app/main.py
 
-Single chat page with a Claude-like minimal layout. Skills accessible
-via @ autocomplete in the input box. Sidebar is intentionally quiet —
-connection status only, plus a collapsible diagnostic panel for runs.
+Single chat page, v0.dev-style minimal: pure white, narrow centered
+column, sidebar hidden by default. Append `?debug=1` to the URL to
+reveal the connection status + recent runs panel for diagnostics.
 """
 from __future__ import annotations
 
@@ -31,125 +31,184 @@ from streamlit_app.components import (  # noqa: E402
 from streamlit_app.views import chat  # noqa: E402
 
 
-# Keep CSS in a constant so it's easy to tweak later
+# v0.dev-style: pure white, single narrow column, almost no chrome.
 _CUSTOM_CSS = """
 <style>
-/* Hide Streamlit default chrome */
+/* Remove Streamlit chrome */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-header[data-testid="stHeader"] {background: transparent;}
+header[data-testid="stHeader"] {display: none;}
+[data-testid="stToolbar"] {display: none;}
 
-/* Center main chat column with breathing room — Claude-style */
+/* Pure white canvas */
+html, body, .stApp, [data-testid="stAppViewContainer"], .main {
+    background: #ffffff !important;
+}
+
+/* Narrow centered column with breathing room */
 .main .block-container {
-    max-width: 760px;
-    padding-top: 2rem;
-    padding-bottom: 6rem;
+    max-width: 640px;
+    padding: 4rem 1.5rem 8rem 1.5rem;
 }
 
-/* Quiet typography */
+/* Typography — Inter / system stack, tight */
 html, body, [class*="css"] {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    color: #1a1a1a;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #0a0a0a;
+    -webkit-font-smoothing: antialiased;
 }
-
-h1, h2, h3, h4, h5, h6 {
-    font-weight: 500;
-    color: #1a1a1a;
+html, body {
     letter-spacing: -0.01em;
 }
 
-/* Chat bubbles — neutral greys */
+/* Wordmark in the top-left corner only */
+.wordmark {
+    position: fixed;
+    top: 1rem;
+    left: 1.25rem;
+    font-size: 12px;
+    color: #737373;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+    z-index: 100;
+    user-select: none;
+}
+
+/* Empty state — vertically centered greeting */
+.empty-state {
+    text-align: center;
+    padding: 3.5rem 0 1.5rem;
+}
+.empty-greet {
+    font-size: 1.6rem;
+    font-weight: 500;
+    color: #0a0a0a;
+    letter-spacing: -0.02em;
+}
+.empty-hint {
+    color: #737373;
+    font-size: 0.9rem;
+    margin-top: 0.4rem;
+}
+
+/* Skill cheatsheet — quiet pills with native tooltips */
+.skills-row {
+    text-align: center;
+    margin: 1.25rem 0 0;
+    color: #a3a3a3;
+    font-size: 0.85rem;
+    line-height: 1.9;
+}
+.skill-pill {
+    color: #525252;
+    font-weight: 500;
+    cursor: help;
+    border-bottom: 1px dotted #d4d4d4;
+}
+
+/* Chat messages — assistant flush prose, user gets a tiny grey bubble */
 [data-testid="stChatMessage"] {
     background: transparent;
     border: none;
-    padding: 0.75rem 0;
+    padding: 0.6rem 0;
+    gap: 0.75rem;
 }
-
 [data-testid="stChatMessage"] .stMarkdown {
-    line-height: 1.6;
+    line-height: 1.65;
 }
-
-/* Subtle divider between turns */
-[data-testid="stChatMessage"] + [data-testid="stChatMessage"] {
-    border-top: 1px solid #ececec;
+/* User bubble */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) .stMarkdown > div {
+    background: #f4f4f4;
+    border-radius: 14px;
+    padding: 10px 14px;
 }
-
-/* User vs assistant avatar tint */
-[data-testid="stChatMessageAvatarUser"] {
-    background: #525252 !important;
-}
+/* Hide both avatars for cleaner look — message direction implied by alignment */
+[data-testid="stChatMessageAvatarUser"],
 [data-testid="stChatMessageAvatarAssistant"] {
-    background: #a3a3a3 !important;
+    display: none;
+}
+/* Right-align user content */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+    flex-direction: row-reverse;
+}
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) > div:last-child {
+    max-width: 80%;
 }
 
-/* Sidebar — quieter */
+/* Chat input — refined, focus ring */
+[data-testid="stChatInput"] textarea {
+    border: 1px solid #e5e5e5 !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    color: #0a0a0a !important;
+    font-size: 15px !important;
+    padding: 12px 16px !important;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+[data-testid="stChatInput"] textarea:focus {
+    border-color: #0a0a0a !important;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.06) !important;
+}
+[data-testid="stChatInput"] textarea::placeholder {
+    color: #a3a3a3 !important;
+}
+
+/* Sidebar (only visible in ?debug=1 mode) — quiet */
 section[data-testid="stSidebar"] {
-    background: #fafafa;
+    background: #fafafa !important;
     border-right: 1px solid #ececec;
 }
 section[data-testid="stSidebar"] .stMarkdown h3 {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     color: #737373;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     font-weight: 600;
     margin-top: 1rem;
 }
-section[data-testid="stSidebar"] .stMarkdown p,
-section[data-testid="stSidebar"] .stCaption {
-    font-size: 0.8rem;
-    color: #525252;
-}
 
-/* Soften default Streamlit buttons (just nicer chrome) */
-.stButton > button {
-    border-radius: 8px;
-    border: 1px solid #d4d4d4;
-    background: #ffffff;
-    color: #262626;
-    font-weight: 400;
-    transition: border-color 0.15s, background 0.15s;
-}
-.stButton > button:hover {
-    border-color: #737373;
-    background: #fafafa;
-}
-
-/* Code/metrics — subtle */
+/* Soften misc Streamlit elements */
 code {
-    background: #f5f5f5;
+    background: #f4f4f4;
     color: #262626;
     padding: 1px 5px;
     border-radius: 4px;
     font-size: 0.88em;
 }
+hr {
+    border-color: #ececec !important;
+}
 </style>
 """
 
 
+def _is_debug_mode() -> bool:
+    """`?debug=1` in the URL toggles the diagnostic sidebar."""
+    qp = st.query_params
+    return qp.get("debug") in ("1", "true", "yes")
+
+
 def main() -> None:
+    debug = _is_debug_mode()
     st.set_page_config(
         page_title="FaroLatino",
         page_icon="•",
         layout="centered",
-        initial_sidebar_state="collapsed",
+        # Sidebar collapsed in normal mode, expanded only in debug
+        initial_sidebar_state="expanded" if debug else "collapsed",
     )
 
     st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
+    st.markdown("<div class='wordmark'>FaroLatino</div>", unsafe_allow_html=True)
 
-    # Minimal header
-    st.markdown(
-        "<div style='color:#737373;font-size:0.85rem;letter-spacing:0.04em;"
-        "text-transform:uppercase;font-weight:600;margin-bottom:0.5rem;'>"
-        "FaroLatino · A&R</div>",
-        unsafe_allow_html=True,
-    )
-
-    with st.sidebar:
-        st.markdown("### Connection")
-        connection_status_badge()
-        st.markdown("---")
-        recent_runs_sidebar()
+    # Sidebar populated only in debug mode (otherwise it's collapsed AND empty)
+    if debug:
+        with st.sidebar:
+            st.markdown("### Connection")
+            connection_status_badge()
+            st.markdown("---")
+            recent_runs_sidebar()
 
     chat.render()
 
