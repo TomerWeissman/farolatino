@@ -32,17 +32,30 @@ from streamlit_app.views import chat  # noqa: E402
 
 
 # v0.dev-style: pure white, single narrow column, almost no chrome.
+# IMPORTANT: every text-color rule has !important so Streamlit's
+# OS-derived dark theme (when the user's system is in dark mode and
+# the .streamlit/config.toml didn't ship in the snapshot) doesn't
+# leak white text onto white backgrounds.
 _CUSTOM_CSS = """
 <style>
+/* Force light theme regardless of OS preference */
+:root { color-scheme: light !important; }
+
 /* Remove Streamlit chrome */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header[data-testid="stHeader"] {display: none;}
 [data-testid="stToolbar"] {display: none;}
 
-/* Pure white canvas */
-html, body, .stApp, [data-testid="stAppViewContainer"], .main {
+/* Pure white canvas — every Streamlit container layer */
+html, body,
+.stApp,
+[data-testid="stAppViewContainer"],
+.main,
+[data-testid="stMain"],
+[data-testid="block-container"] {
     background: #ffffff !important;
+    color: #0a0a0a !important;
 }
 
 /* Narrow centered column with breathing room */
@@ -51,14 +64,19 @@ html, body, .stApp, [data-testid="stAppViewContainer"], .main {
     padding: 4rem 1.5rem 8rem 1.5rem;
 }
 
-/* Typography — Inter / system stack, tight */
-html, body, [class*="css"] {
+/* Typography — Inter / system stack, tight, pinned dark */
+html, body, [class*="css"], .stMarkdown, p, li, span, div {
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    color: #0a0a0a;
+    color: #0a0a0a !important;
     -webkit-font-smoothing: antialiased;
 }
 html, body {
     letter-spacing: -0.01em;
+}
+
+/* Heading colors */
+h1, h2, h3, h4, h5, h6 {
+    color: #0a0a0a !important;
 }
 
 /* Wordmark in the top-left corner only */
@@ -109,31 +127,75 @@ html, body {
 
 /* Chat messages — assistant flush prose, user gets a tiny grey bubble */
 [data-testid="stChatMessage"] {
-    background: transparent;
-    border: none;
+    background: transparent !important;
+    border: none !important;
     padding: 0.6rem 0;
     gap: 0.75rem;
 }
-[data-testid="stChatMessage"] .stMarkdown {
+[data-testid="stChatMessage"] .stMarkdown,
+[data-testid="stChatMessage"] .stMarkdown p {
+    color: #0a0a0a !important;
     line-height: 1.65;
 }
-/* User bubble */
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) .stMarkdown > div {
-    background: #f4f4f4;
-    border-radius: 14px;
-    padding: 10px 14px;
-}
-/* Hide both avatars for cleaner look — message direction implied by alignment */
+
+/* Hide avatars for cleaner look (we use alignment instead) */
 [data-testid="stChatMessageAvatarUser"],
 [data-testid="stChatMessageAvatarAssistant"] {
-    display: none;
+    display: none !important;
 }
-/* Right-align user content */
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
-    flex-direction: row-reverse;
-}
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) > div:last-child {
+
+/* User message — flex right + tinted bubble.
+   We can't use :has() reliably here because Streamlit's chat container
+   doesn't bind a stable role attribute. Instead the chat view tags each
+   user message with class chat-user-bubble via raw markdown. */
+.chat-user-bubble {
+    display: inline-block;
+    background: #f4f4f4 !important;
+    border-radius: 14px;
+    padding: 10px 14px;
     max-width: 80%;
+    color: #0a0a0a !important;
+    margin-left: auto;
+}
+.chat-user-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0.6rem 0;
+}
+
+/* Status / "thinking" indicator */
+.chat-status {
+    color: #737373 !important;
+    font-size: 14px;
+    font-style: italic;
+    padding: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.chat-status .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #737373;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50%      { opacity: 1.0; transform: scale(1.3); }
+}
+.tool-use-line {
+    color: #737373 !important;
+    font-size: 13px;
+    padding: 4px 0;
+    border-left: 2px solid #ececec;
+    padding-left: 10px;
+    margin: 4px 0;
+}
+.tool-use-line code {
+    background: transparent !important;
+    color: #525252 !important;
+    padding: 0 !important;
+    font-size: 13px !important;
 }
 
 /* Chat input — refined, focus ring */

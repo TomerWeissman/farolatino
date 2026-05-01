@@ -1,16 +1,19 @@
 """Chat view — single-page interface (v0.dev-style minimal).
 
 Uses Streamlit's built-in `st.chat_input` for the textbox (proven to
-work end-to-end with our run logger). A small skills cheatsheet sits
-quietly at the top so the user knows the `@<skill>` syntax. The custom
-autocomplete component is on the back-burner until its IPC is fixed —
-the user-facing flow doesn't need it to be functional.
+work end-to-end with our run logger).
 
-Streaming is throttled to ~10 fps so long dossier responses don't
-re-render the markdown blob on every text chunk.
+Streaming UX:
+- Before the first text chunk arrives: show a pulsing "Thinking…"
+  placeholder so the user knows the request is in flight.
+- During tool use: render a quiet status line per tool invocation
+  ("Searching Chartmetric…" rather than "_using ToolSearch..._").
+- Streaming text is throttled to ~10 fps so long dossier responses
+  don't re-render on every chunk.
 """
 from __future__ import annotations
 
+import re
 import time
 
 import streamlit as st
@@ -27,11 +30,9 @@ def _ensure_history() -> list[dict]:
 
 
 def _skill_cheatsheet() -> None:
-    """Quiet inline list of skills above the chat. Hover for descriptions."""
     skills = list_skills()
     if not skills:
         return
-    # Render as plain text with abbr tags for native browser tooltips
     parts = []
     for s in skills:
         desc = (s.description or s.name or s.slug).replace('"', "&quot;")
@@ -44,10 +45,55 @@ def _skill_cheatsheet() -> None:
     )
 
 
+def _humanize_tool(name: str) -> str:
+    """Map raw tool names to friendly status labels."""
+    if name.startswith("mcp__farolatino__"):
+        return {
+            "mcp__farolatino__search_artists": "Searching Chartmetric",
+            "mcp__farolatino__search_artist_by_url": "Looking up artist",
+            "mcp__farolatino__get_artist_data": "Pulling artist data (14 endpoints)",
+            "mcp__farolatino__compute_prospect_score": "Scoring across 7 dimensions",
+            "mcp__farolatino__estimate_revenue": "Projecting revenue",
+            "mcp__farolatino__generate_dossier": "Building dossier",
+            "mcp__farolatino__route_alert": "Classifying alert tier",
+            "mcp__farolatino__discover_artists": "Discovering prospects",
+            "mcp__farolatino__discover_artists_multi_country": "Discovering across markets",
+            "mcp__farolatino__list_profiles": "Loading scoring profiles",
+            "mcp__farolatino__get_profile": "Loading scoring profile",
+            "mcp__farolatino__load_config": "Loading config",
+            "mcp__farolatino__cache_get": "Reading cache",
+            "mcp__farolatino__cache_set": "Writing cache",
+            "mcp__farolatino__cache_clear": "Clearing cache",
+        }.get(name, name.removeprefix("mcp__farolatino__").replace("_", " ").capitalize())
+    return {
+        "ToolSearch": "Looking up tool details",
+        "Read": "Reading file",
+        "Glob": "Searching files",
+        "Grep": "Searching content",
+        "Bash": "Running shell command",
+        "Agent": "Delegating to a subagent",
+    }.get(name, name)
+
+
+def _render_user_bubble(text: str) -> None:
+    """Right-aligned user bubble. We can't rely on st.chat_message's user
+    role styling because Streamlit's CSS hooks aren't reliable across
+    versions, so render directly with our own class."""
+    safe = (
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\n", "<br>")
+    )
+    st.markdown(
+        f"<div class='chat-user-row'><div class='chat-user-bubble'>{safe}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def render() -> None:
     history = _ensure_history()
 
-    # Empty state — show skill cheatsheet only when no chat yet
     if not history:
         st.markdown(
             "<div class='empty-state'>"
@@ -58,49 +104,80 @@ def render() -> None:
         )
         _skill_cheatsheet()
     else:
-        # Replay history
         for turn in history:
-            with st.chat_message(turn["role"]):
+            if turn["role"] == "user":
+                _render_user_bubble(turn["content"])
+            else:
                 st.markdown(turn["content"])
 
-    # The input — stock Streamlit chat_input (works end-to-end)
     user_msg = st.chat_input(
         placeholder="Type a message, or @<skill> to invoke a skill",
     )
     if not user_msg:
         return
 
-    # Append user turn
     history.append({"role": "user", "content": user_msg})
-    with st.chat_message("user"):
-        st.markdown(user_msg)
+    _render_user_bubble(user_msg)
 
-    # Stream assistant response with telemetry + chunk buffering
+    # Thinking indicator (replaced when first chunk arrives)
+    status = st.empty()
+    status.markdown(
+        "<div class='chat-status'><span class='dot'></span>Thinking…</div>",
+        unsafe_allow_html=True,
+    )
+
     logger = RunLogger(prompt=user_msg)
-    with st.chat_message("assistant"):
-        placeholder = st.empty()
-        accumulated: list[str] = []
-        last_render = 0.0
-        error_text: str | None = None
-        try:
-            for chunk in run_claude_streaming(user_msg, on_event=logger.record_event):
-                accumulated.append(chunk)
-                # Throttle markdown re-renders to ~10 fps. Streamlit re-parses
-                # the full string each call, so calling once per token causes
-                # visible jank on long responses.
+    placeholder = st.empty()
+    accumulated: list[str] = []
+    last_render = 0.0
+    error_text: str | None = None
+    has_text = False
+    tool_log: list[str] = []  # rolling list of friendly tool names
+
+    def _on_event(event: dict) -> None:
+        nonlocal tool_log
+        logger.record_event(event)
+        # Whenever we see a tool_use, update the status indicator.
+        if event.get("type") == "assistant":
+            for b in (event.get("message") or {}).get("content") or []:
+                if b.get("type") == "tool_use":
+                    label = _humanize_tool(b.get("name", "tool"))
+                    tool_log.append(label)
+                    # Show only the most recent tool to keep status concise
+                    status.markdown(
+                        f"<div class='chat-status'><span class='dot'></span>{label}…</div>",
+                        unsafe_allow_html=True,
+                    )
+
+    try:
+        for chunk in run_claude_streaming(user_msg, on_event=_on_event):
+            # Strip the auto-generated `_using <tool>..._` lines from the
+            # text stream — we already render them via the status indicator
+            # and the inline tool-use-line rendering below.
+            cleaned = re.sub(r"\n*_using `[^`]+`\.\.\._\n*", "", chunk)
+            if cleaned.strip():
+                if not has_text:
+                    has_text = True
+                    status.empty()  # remove "Thinking…" once real text arrives
+                accumulated.append(cleaned)
                 now = time.monotonic()
                 if now - last_render > 0.10:
                     placeholder.markdown("".join(accumulated))
                     last_render = now
-            # Final flush so the last chunk renders even if it landed inside
-            # the throttle window.
-            placeholder.markdown("".join(accumulated))
-        except ClaudeRunnerError as exc:
-            error_text = str(exc)
-            placeholder.error(f"⚠️ {exc}")
-        except Exception as exc:  # defensive
-            error_text = f"Unexpected error: {exc}"
-            placeholder.error(error_text)
+        placeholder.markdown("".join(accumulated))
+    except ClaudeRunnerError as exc:
+        error_text = str(exc)
+        status.empty()
+        placeholder.error(f"⚠️ {exc}")
+    except Exception as exc:
+        error_text = f"Unexpected error: {exc}"
+        status.empty()
+        placeholder.error(error_text)
+    finally:
+        # If we never received text and never errored, leave a small note
+        if not has_text and not error_text:
+            status.empty()
+            placeholder.markdown("_(no response)_")
 
     final_text = "".join(accumulated).strip() or "_(no response)_"
     if error_text:

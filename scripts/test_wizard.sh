@@ -92,7 +92,6 @@ rsync -a \
     --exclude='*.pyo' \
     --exclude='data/cache/' \
     --exclude='data/internal/' \
-    --exclude='.streamlit/' \
     --exclude='streamlit_app/.streamlit/' \
     --exclude='TOP 10*.7z' \
     --exclude='TOP 10*.7z.tmp' \
