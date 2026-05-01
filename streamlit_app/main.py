@@ -21,7 +21,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import streamlit as st  # noqa: E402
 
-from streamlit_app.components import calibration_footer, page_header  # noqa: E402
+from streamlit_app.components import (  # noqa: E402
+    calibration_footer,
+    connection_status_badge,
+    page_header,
+)
 from streamlit_app.views import compare, evaluate, similar  # noqa: E402
 
 
@@ -35,8 +39,11 @@ def main() -> None:
 
     page_header()
 
-    # Sidebar: profile selector + calibration footer
+    # Sidebar: connection status + profile selector + calibration footer
     with st.sidebar:
+        st.markdown("### Connection")
+        connection_status_badge()
+        st.markdown("---")
         st.markdown("### Scoring profile")
         profile = st.selectbox(
             "Profile",

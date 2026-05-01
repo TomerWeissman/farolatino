@@ -1,4 +1,4 @@
-"""Shared Streamlit components: header, badges, calibration status footer."""
+"""Shared Streamlit components: header, badges, status indicators."""
 from __future__ import annotations
 
 import os
@@ -9,6 +9,52 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STREAM_MULTIPLIERS_PATH = PROJECT_ROOT / "config" / "stream_multipliers.yaml"
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _ping_chartmetric() -> tuple[str, str]:
+    """Try to mint a Chartmetric access token and report status.
+
+    Returns (status, message): status in {ok, auth_failed, network_error, no_token}.
+    Cached 5 min so we don't burn the per-second rate limit on every rerun.
+    """
+    token = os.getenv("CHARTMETRIC_REFRESH_TOKEN")
+    if not token:
+        return ("no_token", "No CHARTMETRIC_REFRESH_TOKEN in .env")
+    try:
+        # Lazy import so module-load doesn't trigger network calls
+        from mcp_server.tools.chartmetric_auth import get_access_token
+        access = get_access_token()
+        if access:
+            return ("ok", "Chartmetric connected")
+        return ("auth_failed", "Chartmetric returned an empty token")
+    except ConnectionError as exc:
+        msg = str(exc)
+        if "401" in msg or "auth" in msg.lower():
+            return ("auth_failed", "Chartmetric rejected the refresh token")
+        return ("network_error", f"Cannot reach Chartmetric: {msg[:80]}")
+    except Exception as exc:
+        return ("network_error", f"Unexpected error: {str(exc)[:80]}")
+
+
+def connection_status_badge() -> None:
+    """Sidebar badge showing live Chartmetric API connection state."""
+    status, message = _ping_chartmetric()
+    color, icon, label = {
+        "ok":           ("#22c55e", "✓", "Chartmetric connected"),
+        "auth_failed":  ("#ef4444", "✗", "Token rejected"),
+        "network_error":("#eab308", "⚠", "Connection issue"),
+        "no_token":     ("#94a3b8", "—", "No token configured"),
+    }[status]
+
+    st.markdown(
+        f"<div style='background:{color}; color:white; padding:8px 12px; "
+        f"border-radius:6px; font-weight:600; margin-bottom:8px;'>"
+        f"{icon} {label}</div>",
+        unsafe_allow_html=True,
+    )
+    if status != "ok":
+        st.caption(message)
 
 
 def page_header() -> None:

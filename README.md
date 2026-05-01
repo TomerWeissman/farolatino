@@ -84,11 +84,22 @@ Calls `search_artists`, picks the top match, fetches all 14 Chartmetric endpoint
 
 ### Use the Streamlit dashboard (non-technical interface)
 
+**For non-technical testers:** see [SETUP.md](SETUP.md) — just double-click `start.command` (Mac) or `start.bat` (Windows). No commands required.
+
+**For developers:**
+
 ```bash
 streamlit run streamlit_app/main.py
 ```
 
-Opens a browser with three tabs: **Evaluate** (search an artist → see a dossier), **Compare** (two artists side-by-side), **Similar** (5-15 comparable artists for any seed). Sidebar shows the active scoring profile and model calibration freshness. Designed for users who don't write Python.
+Opens a browser with three tabs: **Evaluate** (search an artist → see a dossier), **Compare** (two artists side-by-side), **Similar** (5-15 comparable artists for any seed). Sidebar shows live Chartmetric connection status, the active scoring profile, and model calibration freshness.
+
+To dogfood the launcher in an isolated copy (no contamination of your dev `venv`/cache):
+
+```bash
+./scripts/test_wizard.sh
+# Open the printed path in Finder, double-click start.command
+```
 
 ### Use the MCP server in Claude Code
 
