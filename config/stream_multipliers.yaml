@@ -30,6 +30,11 @@
 #   /calibrate           (or scripts/expand_calibration_sample.py + the
 #                         compute/build/fit/validate scripts in order)
 
+# Status — surfaced in the Streamlit UI footer
+last_calibrated: "2026-05-01"
+calibration_sample_size: 85
+realistic_prospect_mae_pct: 32
+
 default:
   spotify: 4.0       # Anchored on full-catalog prospect-tier median ~4.4
   youtube: 3.0       # Subscriber fallback only (yt_daily_views * 30 preferred in code)

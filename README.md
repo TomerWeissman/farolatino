@@ -82,9 +82,17 @@ python scripts/collect_artist.py "Feid"
 
 Calls `search_artists`, picks the top match, fetches all 14 Chartmetric endpoints (~15s cold, throttled at 1 req/s), and dumps the assembled profile to `data/cache/collect_<cm_id>_<timestamp>.json`. Prints a coverage summary at the end.
 
+### Use the Streamlit dashboard (non-technical interface)
+
+```bash
+streamlit run streamlit_app/main.py
+```
+
+Opens a browser with three tabs: **Evaluate** (search an artist → see a dossier), **Compare** (two artists side-by-side), **Similar** (5-15 comparable artists for any seed). Sidebar shows the active scoring profile and model calibration freshness. Designed for users who don't write Python.
+
 ### Use the MCP server in Claude Code
 
-The skills in [.claude/skills/](.claude/skills/) wire the MCP tools into slash commands (`/evaluate`, `/discover`, `/compare`, `/prospect`, `/analyze`).
+The skills in [.claude/skills/](.claude/skills/) wire the MCP tools into slash commands (`/evaluate`, `/discover`, `/compare`, `/prospect`, `/analyze`, `/similar`, `/calibrate`).
 
 Register the MCP server with Claude Code (run from the project root):
 

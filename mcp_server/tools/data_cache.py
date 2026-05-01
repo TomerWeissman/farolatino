@@ -25,6 +25,9 @@ CACHE_TTL = {
     "milestones": timedelta(weeks=1),
     "insights": timedelta(days=1),
     "neighboring": timedelta(weeks=2),
+    "yt_audience": timedelta(weeks=1),
+    "tt_audience": timedelta(weeks=1),
+    "similar_genre": timedelta(weeks=2),
     "urls": timedelta(weeks=4),
     "score": timedelta(days=1),
 }

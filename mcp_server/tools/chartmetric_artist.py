@@ -168,15 +168,99 @@ def _fetch_milestones(cm_id: int) -> list:
 
 
 def _fetch_neighboring_artists(cm_id: int) -> list:
-    """GET /api/artist/:id/neighboring-artists — similar genre artists."""
+    """GET /api/artist/:id/neighboring-artists — similar artists by Chartmetric clustering.
+
+    Response shape is `{"obj": [...]}` — the list comes back directly, NOT
+    nested under `cluster_artists`. (Easy to miss; was causing empty
+    similar-artists lists in early phases.)
+    """
     try:
         data = api_get(
             f"/api/artist/{cm_id}/neighboring-artists",
-            params={"limit": 10},
+            params={"limit": 15},
         )
-        return data.get("obj", {}).get("cluster_artists", [])
+        obj = data.get("obj")
+        if isinstance(obj, list):
+            return obj
+        if isinstance(obj, dict):
+            # Defensive fallback in case the API ever changes shape
+            return obj.get("cluster_artists") or obj.get("data") or obj.get("artists") or []
+        return []
     except Exception:
         return []
+
+
+def _search_similar_artists_by_genre(
+    primary_genre: str,
+    sp_monthly_listeners: int | None,
+    exclude_cm_id: int | None = None,
+    limit: int = 10,
+) -> list:
+    """Fallback similar-artists search via genre query.
+
+    Used when /neighboring-artists returns too few results, or when the
+    cluster artists are off-genre (Chartmetric's clustering occasionally
+    returns globally-similar acts that aren't a real LATAM-music match).
+
+    Filters search results to a 3x band around the seed artist's Spotify
+    monthly listeners so the comparison is tier-appropriate.
+    """
+    if not primary_genre:
+        return []
+    try:
+        # search_artists is imported lazily to avoid circular imports
+        from mcp_server.tools.chartmetric_search import search_artists
+
+        result = search_artists(primary_genre, limit=20)
+        candidates = result.get("artists") or []
+    except Exception:
+        return []
+
+    if sp_monthly_listeners and sp_monthly_listeners > 0:
+        lo = sp_monthly_listeners / 3
+        hi = sp_monthly_listeners * 3
+    else:
+        lo, hi = 0, float("inf")
+
+    out: list[dict] = []
+    for c in candidates:
+        cm_id_val = _safe_int(c.get("cm_id"))
+        if not cm_id_val or cm_id_val == exclude_cm_id:
+            continue
+        listeners = _safe_int(c.get("sp_monthly_listeners"))
+        # Allow null-listener entries through but deprioritize them at end
+        if listeners and not (lo <= listeners <= hi):
+            continue
+        out.append({
+            "id": cm_id_val,
+            "name": c.get("name") or "",
+            "code2": (c.get("code2") or ""),
+            "image_url": c.get("image_url") or "",
+            "sp_monthly_listeners": listeners,
+            "sp_followers": _safe_int(c.get("sp_followers")),
+            "signed": bool(c.get("signed", False)),
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _merge_similar_artists(neighbors: list, fallback: list, limit: int = 10) -> list:
+    """Merge Chartmetric neighbors + genre-search fallback, dedupe by cm_id."""
+    seen: set[int] = set()
+    merged: list = []
+    for source_label, items in (("chartmetric_neighbors", neighbors), ("genre_search", fallback)):
+        for n in items:
+            if not isinstance(n, dict):
+                continue
+            cid = _safe_int(n.get("id") or n.get("cm_id"))
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            merged.append({**n, "_similarity_source": source_label})
+            if len(merged) >= limit * 2:
+                return merged
+    return merged
 
 
 def _fetch_albums(cm_id: int) -> list:
@@ -542,7 +626,12 @@ def _build_milestones(raw_milestones: list) -> list[dict]:
 
 
 def _build_neighboring(raw_neighbors: list) -> list[dict]:
-    """Convert raw neighboring artist data to our format."""
+    """Convert raw neighboring artist data to our format.
+
+    Chartmetric returns rich fields (name, country, image, social URLs,
+    Spotify monthly listeners) — keep the ones useful for ranking and
+    surfacing in a "similar artists" view.
+    """
     neighbors = []
     for n in raw_neighbors[:15]:
         if not isinstance(n, dict):
@@ -550,9 +639,14 @@ def _build_neighboring(raw_neighbors: list) -> list[dict]:
         neighbors.append({
             "name": n.get("name", ""),
             "cm_id": _safe_int(n.get("id")),
+            "country_code": (n.get("code2") or "").upper(),
+            "image_url": n.get("image_url") or "",
             "career_stage": "",
             "signed": bool(n.get("signed", False)),
             "recent_momentum": "",
+            "sp_monthly_listeners": _safe_int(n.get("sp_monthly_listeners")),
+            "sp_followers": _safe_int(n.get("sp_followers")),
+            "source": "chartmetric_neighbors",
         })
     return neighbors
 
@@ -646,6 +740,17 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
     ig_audience = _cached_fetch(cm_artist_id, "ig_audience", _fetch_ig_audience, c)
     raw_milestones = _cached_fetch(cm_artist_id, "milestones", _fetch_milestones, c)
     raw_neighbors = _cached_fetch(cm_artist_id, "neighboring", _fetch_neighboring_artists, c)
+    # Genre-search fallback for similar artists. Cached as a separate slot so
+    # we don't re-issue the search every time get_artist_data is called.
+    def _fetch_genre_search(_id):
+        # Best-effort: extract primary genre from already-fetched metadata.
+        genres = _extract_genres(metadata)
+        primary = genres[0] if genres else ""
+        listeners = _safe_int((cm_stats.get("latest") or {}).get("sp_monthly_listeners"))
+        if not primary:
+            return []
+        return _search_similar_artists_by_genre(primary, listeners or None, exclude_cm_id=cm_artist_id)
+    raw_genre_similars = _cached_fetch(cm_artist_id, "similar_genre", _fetch_genre_search, c)
     raw_albums = _cached_fetch(cm_artist_id, "albums", _fetch_albums, c)
     chart_data = _cached_fetch(cm_artist_id, "charts", _fetch_charts, c)
     raw_playlists = _cached_fetch(cm_artist_id, "playlists", _fetch_playlists, c)
@@ -751,7 +856,9 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
         # Signals
         "milestones": _build_milestones(raw_milestones),
         "noteworthy_insights": _build_noteworthy_insights(raw_insights),
-        "neighboring_artists": _build_neighboring(raw_neighbors),
+        "neighboring_artists": _build_neighboring(
+            _merge_similar_artists(raw_neighbors, raw_genre_similars, limit=15)
+        ),
 
         # Engagement
         "ig_engagement_rate": _safe_float(ig_audience.get("engagement_rate")),

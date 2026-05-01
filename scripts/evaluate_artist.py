@@ -264,8 +264,17 @@ def main() -> int:
 
     _print_summary(profile, bundle["score"], bundle["revenue"], bundle["alert"])
 
-    print("\n--- Full dossier (JSON) ---")
-    print(json.dumps(bundle["dossier"], indent=2, default=str))
+    # Render Markdown dossier (the human-readable form)
+    try:
+        from mcp_server.tools.dossier_renderer import render_dossier
+        print("\n" + "=" * 72)
+        print("  DOSSIER (Markdown)")
+        print("=" * 72)
+        print(render_dossier(bundle["dossier"], profile))
+    except Exception as exc:
+        print(f"Renderer failed: {exc}", file=sys.stderr)
+        traceback.print_exc()
+
     return 0
 
 
