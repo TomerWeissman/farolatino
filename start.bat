@@ -65,17 +65,33 @@ if not exist "venv" (
 REM 4. Activate venv
 call venv\Scripts\activate.bat
 
-REM 5. Install / update deps
+REM 5. Install / update deps. Redirect pip stderr to a log file because
+REM pip's HTTP-cache machinery emits benign-but-alarming warnings on some
+REM setups. Real errors surface via exit code; log is available if needed.
 python -c "import streamlit" >nul 2>nul
 if errorlevel 1 (
     echo.
     echo Installing dependencies ^(~60s, only on first run^)...
-    python -m pip install --upgrade pip --quiet
-    python -m pip install -r requirements.txt --quiet
+    python -m pip install --upgrade pip --quiet > "%~dp0.pip_install.log" 2>&1
+    if errorlevel 1 goto :pipfail
+    python -m pip install -r requirements.txt --quiet >> "%~dp0.pip_install.log" 2>&1
+    if errorlevel 1 goto :pipfail
     echo [OK] Dependencies installed
+    del /q "%~dp0.pip_install.log" >nul 2>nul
 ) else (
     python -m pip install -r requirements.txt --quiet >nul 2>nul
 )
+goto :launch
+
+:pipfail
+echo.
+echo [X] Dependency install failed.
+echo     Full log: %~dp0.pip_install.log
+echo.
+pause
+exit /b 1
+
+:launch
 
 REM 6. Open browser after a delay (parallel)
 start /b cmd /c "timeout /t 3 /nobreak >nul && start "" "http://localhost:8501""

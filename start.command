@@ -66,16 +66,28 @@ fi
 # shellcheck disable=SC1091
 source venv/bin/activate
 
-# 5. Install / update deps (quiet, but show progress for first install)
+# 5. Install / update deps. We capture stderr to a log file because pip's
+# HTTP-cache machinery emits a benign but alarming wall of "Cache entry
+# deserialization failed" warnings on some setups. We surface real errors
+# via the exit code; the log is available if anything actually fails.
+PIP_LOG="$SCRIPT_DIR/.pip_install.log"
 if ! python -c "import streamlit" 2>/dev/null; then
     echo
     echo "Installing dependencies (~60s, only on first run)..."
-    pip install --upgrade pip --quiet
-    pip install -r requirements.txt --quiet
+    if ! { pip install --upgrade pip --quiet > "$PIP_LOG" 2>&1 \
+        && pip install -r requirements.txt --quiet >> "$PIP_LOG" 2>&1; }; then
+        echo
+        echo "❌ Dependency install failed."
+        echo "   Full log: $PIP_LOG"
+        echo
+        read -p "Press Enter to close..."
+        exit 1
+    fi
     echo "✓ Dependencies installed"
+    rm -f "$PIP_LOG"
 else
-    # Quick refresh; usually no-op
-    pip install -r requirements.txt --quiet 2>/dev/null || true
+    # Quick refresh; usually no-op. Suppress all output.
+    pip install -r requirements.txt --quiet > /dev/null 2>&1 || true
 fi
 
 # 6. Open browser after Streamlit boots (3s delay)
