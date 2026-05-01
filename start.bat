@@ -39,6 +39,22 @@ if errorlevel 1 (
 )
 echo [OK] Python detected
 
+REM 1.5 Check Claude Code (required: chat backend invokes `claude --print`)
+where claude >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo [X] Claude Code is not installed.
+    echo.
+    echo     Install from: https://claude.com/claude-code
+    echo     After installing, run `claude login` once in a terminal.
+    echo.
+    echo     Then double-click this file again.
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] Claude Code on PATH
+
 REM 2. Check .env file
 if not exist ".env" (
     echo.

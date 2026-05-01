@@ -1,4 +1,4 @@
-"""Shared Streamlit components: header, badges, status indicators."""
+"""Shared Streamlit components: header, badges, status indicators, skill picker."""
 from __future__ import annotations
 
 import os
@@ -7,8 +7,39 @@ from pathlib import Path
 import streamlit as st
 import yaml
 
+from streamlit_app.skill_registry import list_skills
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STREAM_MULTIPLIERS_PATH = PROJECT_ROOT / "config" / "stream_multipliers.yaml"
+
+
+def skill_picker_sidebar() -> None:
+    """Sidebar list of available skills with descriptions.
+
+    Clicking a skill stages `@<slug> ` into the pending chat input via
+    session state, so the chat view can pre-fill its textbox. Always
+    visible; never hidden behind hover-only states (we use the `help`
+    parameter for an inline tooltip in addition to the visible blurb).
+    """
+    skills = list_skills()
+    if not skills:
+        st.info("No skills found in `.claude/skills/`.")
+        return
+
+    st.markdown("### Skills")
+    st.caption("Click a skill to stage it in the chat input below.")
+
+    for skill in skills:
+        if st.button(
+            f"@{skill.slug}",
+            key=f"skill_btn_{skill.slug}",
+            help=skill.description or skill.name,
+            use_container_width=True,
+        ):
+            st.session_state["pending_chat_prefix"] = f"@{skill.slug} "
+            st.rerun()
+        if skill.description:
+            st.caption(skill.description)
 
 
 @st.cache_data(show_spinner=False, ttl=300)

@@ -15,8 +15,12 @@ A web dashboard for evaluating Latin music artists — type a name, see a revenu
    - Download from <https://www.python.org/downloads/>
    - **On Windows:** during install, check the box that says "Add Python to PATH". (If you forget, just run the installer again.)
    - On Mac: the default installer works — no extra steps.
+3. **Claude Code** installed and signed in. The dashboard's chat sends questions through Claude Code, so it has to be on your computer.
+   - Download from <https://claude.com/claude-code>
+   - After installing, open Terminal (Mac) or Command Prompt (Windows) and run `claude login` once. Follow the browser prompt to sign in.
+   - You only need to do this once.
 
-That's it. No Terminal commands, no editing files.
+That's it. No Terminal commands after that, no editing files.
 
 ---
 
@@ -85,6 +89,8 @@ Just double-click `start.command` (Mac) or `start.bat` (Windows) again. After th
 | What you see | What to do |
 |---|---|
 | "Python is not installed" | Install Python 3.11+ from <https://www.python.org/downloads/>, then double-click again. |
+| "Claude Code is not installed" | Install from <https://claude.com/claude-code>, then run `claude login` once, then double-click again. |
+| "Claude Code is not logged in" | Open Terminal (Mac) or Command Prompt (Windows), run `claude login`, finish the browser flow, then go back to the dashboard. |
 | "The .env file is missing" | The folder you received should include a `.env` file. If it's missing, ask Tomer to resend it. |
 | Browser doesn't open automatically | Open <http://localhost:8501> manually in any browser. |
 | Sidebar shows red "Token rejected" | Your `.env` file is invalid or expired. Ask Tomer for a fresh one. |

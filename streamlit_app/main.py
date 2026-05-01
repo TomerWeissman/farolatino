@@ -4,10 +4,9 @@ Run with:
     source venv/bin/activate
     streamlit run streamlit_app/main.py
 
-Three tabs:
-  1. Evaluate — type an artist name, see a dossier
-  2. Compare  — pick two artists, see them side-by-side
-  3. Similar  — pick an artist, see comparable peers
+Single chat page that delegates skill execution to Claude Code via a
+subprocess wrapper. Use the sidebar to browse skills and stage their
+slugs into the chat input.
 """
 from __future__ import annotations
 
@@ -25,8 +24,9 @@ from streamlit_app.components import (  # noqa: E402
     calibration_footer,
     connection_status_badge,
     page_header,
+    skill_picker_sidebar,
 )
-from streamlit_app.views import compare, evaluate, similar  # noqa: E402
+from streamlit_app.views import chat  # noqa: E402
 
 
 def main() -> None:
@@ -39,10 +39,10 @@ def main() -> None:
 
     page_header()
 
-    # Sidebar: connection status + profile selector + calibration footer
     with st.sidebar:
         st.markdown("### Connection")
         connection_status_badge()
+
         st.markdown("---")
         st.markdown("### Scoring profile")
         profile = st.selectbox(
@@ -54,17 +54,12 @@ def main() -> None:
         st.session_state["scoring_profile"] = profile
 
         st.markdown("---")
+        skill_picker_sidebar()
+
+        st.markdown("---")
         calibration_footer()
 
-    # Tabs
-    tab_eval, tab_cmp, tab_sim = st.tabs(["🔍 Evaluate", "⚖️  Compare", "🪞 Similar"])
-
-    with tab_eval:
-        evaluate.render()
-    with tab_cmp:
-        compare.render()
-    with tab_sim:
-        similar.render()
+    chat.render()
 
 
 if __name__ == "__main__":

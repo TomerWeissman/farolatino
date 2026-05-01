@@ -39,6 +39,21 @@ if [ "$PY_OK" != "1" ]; then
 fi
 echo "✓ Python $PY_VERSION"
 
+# 1.5 Check Claude Code (required: chat backend invokes `claude --print`)
+if ! command -v claude &> /dev/null; then
+    echo
+    echo "❌ Claude Code is not installed."
+    echo
+    echo "   Install from: https://claude.com/claude-code"
+    echo "   After installing, run \`claude login\` once in a terminal."
+    echo
+    echo "   Then double-click this file again."
+    echo
+    read -p "Press Enter to close..."
+    exit 1
+fi
+echo "✓ Claude Code on PATH"
+
 # 2. Check .env file
 if [ ! -f ".env" ]; then
     echo
