@@ -19,8 +19,11 @@ user-scoped registration.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import signal
 import subprocess
+import threading
 import time
 from collections.abc import Iterator
 from datetime import date
@@ -147,9 +150,88 @@ def run_claude_streaming(
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            # Put claude --print + any children (notably the mcp_server it
+            # spawns) in their own process group. This lets us kill the
+            # whole group on completion — without it, an orphaned
+            # mcp_server child can keep the stdout pipe write-end open
+            # indefinitely, hanging our reader loop forever (real bug
+            # observed in production).
+            start_new_session=True,
         )
     except OSError as exc:
         raise ClaudeRunnerError(f"Failed to spawn `claude`: {exc}") from exc
+
+    # Watchdog: when claude --print exits, kill its process group AND every
+    # tracked descendant PID. The pgid kill (claude calls setsid() because
+    # of start_new_session=True, so pgid == proc.pid) handles the common
+    # case where mcp_server inherits claude's group. The PID-by-PID kill
+    # is defense-in-depth: an MCP server that calls setsid() itself, or
+    # double-forks, would escape the group — so we poll the tree while
+    # claude is alive and remember every descendant we see, since once
+    # claude exits its children get reparented to launchd and can't be
+    # found by ppid traversal anymore.
+    pgid = proc.pid
+    descendants: set[int] = set()
+
+    def _walk_descendants(root: int) -> set[int]:
+        """Return all transitive descendants of root via `pgrep -P`."""
+        found: set[int] = set()
+        frontier = [root]
+        while frontier:
+            nxt: list[int] = []
+            for p in frontier:
+                try:
+                    out = subprocess.check_output(
+                        ["pgrep", "-P", str(p)],
+                        text=True,
+                        stderr=subprocess.DEVNULL,
+                    ).strip()
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    continue
+                for token in out.split():
+                    if token.isdigit():
+                        cpid = int(token)
+                        if cpid not in found:
+                            found.add(cpid)
+                            nxt.append(cpid)
+            frontier = nxt
+        return found
+
+    def _kill_all(sig: int) -> None:
+        for pid in list(descendants):
+            try:
+                os.kill(pid, sig)
+            except (ProcessLookupError, PermissionError):
+                pass
+        try:
+            os.killpg(pgid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    def _watchdog() -> None:
+        # Poll until claude --print exits, accumulating descendants.
+        while True:
+            descendants.update(_walk_descendants(proc.pid))
+            try:
+                proc.wait(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        # Final sweep in case anything was spawned just before exit.
+        descendants.update(_walk_descendants(proc.pid))
+
+        _kill_all(signal.SIGTERM)
+        time.sleep(0.5)
+        _kill_all(signal.SIGKILL)
+
+        # Close stdout so any blocking readline() returns empty string.
+        try:
+            if proc.stdout:
+                proc.stdout.close()
+        except Exception:
+            pass
+
+    threading.Thread(target=_watchdog, daemon=True).start()
 
     started_at = time.time()
     # Surface the actual command line as a synthetic _debug_cmd event so the
@@ -181,7 +263,19 @@ def run_claude_streaming(
             for chunk in _extract_text(event):
                 yield chunk
     finally:
-        proc.wait(timeout=5)
+        # Belt-and-suspenders: ensure claude AND every tracked descendant
+        # is gone even if the watchdog hasn't fired yet (e.g. the iterator
+        # was abandoned by the caller).
+        descendants.update(_walk_descendants(proc.pid))
+        _kill_all(signal.SIGTERM)
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            _kill_all(signal.SIGKILL)
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
 
     if proc.returncode != 0:
         stderr = (proc.stderr.read() if proc.stderr else "").strip()
