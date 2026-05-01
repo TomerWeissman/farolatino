@@ -107,6 +107,17 @@ def run_claude_streaming(
 
     if max_turns is not None:
         cmd.extend(["--max-turns", str(max_turns)])
+
+    # `--` end-of-flags marker. Required because `--allowed-tools <tools...>`
+    # is a variadic flag in commander.js — it greedily consumes every
+    # following positional arg, including our prompt. Without `--`, a
+    # subprocess invocation like
+    #   claude ... --allowed-tools "tool1 tool2" "@evaluate Bad Bunny"
+    # results in Claude Code seeing no prompt at all and failing with
+    # "Input must be provided either through stdin or as a prompt argument".
+    # Verified with isolated A/B tests: present `--` always works, absent
+    # `--` always fails when --allowed-tools is in play.
+    cmd.append("--")
     cmd.append(prompt)
 
     try:
@@ -126,6 +137,15 @@ def run_claude_streaming(
         raise ClaudeRunnerError(f"Failed to spawn `claude`: {exc}") from exc
 
     started_at = time.time()
+    # Surface the actual command line as a synthetic _debug_cmd event so the
+    # run-log captures exactly what was executed. Saved last debugging cycle
+    # by exposing the variadic-flag bug in --allowed-tools. Cheap to keep on.
+    if on_event is not None:
+        try:
+            on_event({"type": "_debug_cmd", "argv": cmd})
+        except Exception:
+            pass
+
     try:
         for raw_line in proc.stdout or []:
             line = raw_line.strip()
