@@ -73,6 +73,38 @@ def run_claude_streaming(
         # config (so a tester's machine doesn't drag in their personal
         # Gmail/Notion MCP servers, for example).
         cmd.extend(["--mcp-config", str(MCP_CONFIG_PATH), "--strict-mcp-config"])
+
+    # Pre-authorize the tools each skill needs. Without this, claude --print
+    # asks for permission interactively (which then hangs because there's no
+    # interactive input stream). We allow all FaroLatino MCP tools plus
+    # read-only file ops + Bash (the calibrate skill shells out). We do NOT
+    # allow Edit/Write/NotebookEdit so a skill can't accidentally rewrite
+    # the codebase.
+    cmd.extend([
+        "--allowed-tools",
+        # MCP tools (one wildcard pattern would be cleaner but Claude's CLI
+        # expects exact names; list them explicitly)
+        "mcp__farolatino__cache_clear",
+        "mcp__farolatino__cache_get",
+        "mcp__farolatino__cache_set",
+        "mcp__farolatino__compute_prospect_score",
+        "mcp__farolatino__discover_artists",
+        "mcp__farolatino__discover_artists_multi_country",
+        "mcp__farolatino__estimate_revenue",
+        "mcp__farolatino__generate_dossier",
+        "mcp__farolatino__get_artist_data",
+        "mcp__farolatino__get_profile",
+        "mcp__farolatino__list_profiles",
+        "mcp__farolatino__load_config",
+        "mcp__farolatino__route_alert",
+        "mcp__farolatino__search_artist_by_url",
+        "mcp__farolatino__search_artists",
+        # Read-only file ops + agent search
+        "Read", "Glob", "Grep", "ToolSearch",
+        # Bash — needed by the calibrate skill which shells out to scripts/
+        "Bash",
+    ])
+
     if max_turns is not None:
         cmd.extend(["--max-turns", str(max_turns)])
     cmd.append(prompt)
@@ -81,6 +113,10 @@ def run_claude_streaming(
         proc = subprocess.Popen(
             cmd,
             cwd=str(PROJECT_ROOT),
+            # Detach stdin: claude waits on stdin if it isn't redirected,
+            # which causes a 3s timeout and (in some configurations) a
+            # non-zero exit even when --print is given the prompt as an arg.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
