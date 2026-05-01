@@ -18,6 +18,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from dotenv import load_dotenv  # noqa: E402
+
+# Load .env BEFORE any module that reads env vars at import time
+# (chartmetric_auth, the connection-status badge, etc.).
+load_dotenv(PROJECT_ROOT / ".env")
+
 import streamlit as st  # noqa: E402
 
 from streamlit_app.components import (  # noqa: E402
