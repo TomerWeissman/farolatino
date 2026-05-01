@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -104,6 +105,20 @@ def run_claude_streaming(
         "Bash",
     ])
     cmd.extend(["--allowed-tools", allowed])
+
+    # Inject today's date so the LLM doesn't confuse past release dates as
+    # future ones (real bug seen in prior runs: a track released 2025-05-16
+    # was described as "drops May 16" because the model didn't know the
+    # current date was 2026-05-01).
+    today = date.today().isoformat()
+    cmd.extend([
+        "--append-system-prompt",
+        (
+            f"Today's date is {today}. When you see release dates, "
+            f"compare them to today to determine whether they are past or upcoming. "
+            f"Treat dates earlier than today as already-released."
+        ),
+    ])
 
     if max_turns is not None:
         cmd.extend(["--max-turns", str(max_turns)])

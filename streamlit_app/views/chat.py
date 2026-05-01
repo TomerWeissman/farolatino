@@ -1,19 +1,17 @@
-"""Chat view — the single page in the FaroLatino dashboard.
+"""Chat view — single-page interface with @-skill autocomplete.
 
-User types into a chat box (with `@<skill>` prefix to invoke a skill).
-Each submit spawns a fresh `claude --print` subprocess; the response
-streams into a chat bubble.
-
-Multi-turn context isn't passed to Claude in v1 — every message is a
-self-contained query. The UI keeps history visually so the user can
-see prior turns.
+Uses the custom `skill_input` component for the input box. Each submit
+spawns a fresh `claude --print` subprocess; the response streams into a
+chat bubble. Multi-turn context is NOT passed to Claude in v1.
 """
 from __future__ import annotations
 
 import streamlit as st
 
 from streamlit_app.claude_runner import ClaudeRunnerError, run_claude_streaming
+from streamlit_app.components.skill_input import skill_input
 from streamlit_app.run_log import RunLogger
+from streamlit_app.skill_registry import list_skills
 
 
 def _ensure_history() -> list[dict]:
@@ -25,66 +23,60 @@ def _ensure_history() -> list[dict]:
 def render() -> None:
     history = _ensure_history()
 
-    # Header row: clear chat + small caption
-    col_left, col_right = st.columns([6, 1])
-    with col_left:
-        st.markdown(
-            "Type your message below. Use `@<skill>` (e.g. `@evaluate Bad Bunny`) "
-            "to invoke a skill — see the sidebar for the full list."
-        )
-    with col_right:
-        if st.button("Clear", help="Clear the chat history"):
-            st.session_state["chat_history"] = []
-            st.rerun()
-
     # Replay history
     for turn in history:
         with st.chat_message(turn["role"]):
             st.markdown(turn["content"])
 
-    # If a sidebar skill was clicked, stage it as a default value for the
-    # chat input. We can't directly inject into st.chat_input (no value
-    # parameter), so we show a visible "staged prefix" badge and the user
-    # types the rest.
-    pending_prefix = st.session_state.pop("pending_chat_prefix", None)
-    if pending_prefix:
-        st.session_state["staged_prefix"] = pending_prefix
-
-    staged = st.session_state.get("staged_prefix", "")
-    if staged:
-        st.info(
-            f"Staged: `{staged.strip()}` — type your context below "
-            "(e.g. an artist name) and press Enter."
+    # Empty-state hint
+    if not history:
+        st.markdown(
+            "<div style='color:#a3a3a3;text-align:center;padding:3rem 0;'>"
+            "<div style='font-size:1.4rem;font-weight:500;color:#525252;margin-bottom:0.5rem;'>"
+            "How can I help?"
+            "</div>"
+            "<div style='font-size:0.9rem;'>"
+            "Type <code style='background:#f5f5f5;padding:1px 5px;border-radius:4px;'>@</code> "
+            "to invoke a skill, or just ask a question."
+            "</div>"
+            "</div>",
+            unsafe_allow_html=True,
         )
 
-    user_msg = st.chat_input(
-        placeholder="Type a message, or @<skill> to invoke a skill",
+    # Skill list for the autocomplete component
+    skills_payload = [
+        {"slug": s.slug, "name": s.name, "description": s.description}
+        for s in list_skills()
+    ]
+
+    user_msg = skill_input(
+        skills=skills_payload,
+        placeholder="Type a message…",
+        key="chat_input_v2",
     )
+
     if not user_msg:
         return
 
-    full_prompt = (staged + user_msg).strip() if staged else user_msg.strip()
-    st.session_state.pop("staged_prefix", None)
-
-    # Render user turn immediately
-    history.append({"role": "user", "content": full_prompt})
+    # Append user turn
+    history.append({"role": "user", "content": user_msg})
     with st.chat_message("user"):
-        st.markdown(full_prompt)
+        st.markdown(user_msg)
 
-    # Stream assistant response with telemetry capture
-    logger = RunLogger(prompt=full_prompt)
+    # Stream assistant response
+    logger = RunLogger(prompt=user_msg)
     with st.chat_message("assistant"):
         placeholder = st.empty()
         accumulated: list[str] = []
         error_text: str | None = None
         try:
-            for chunk in run_claude_streaming(full_prompt, on_event=logger.record_event):
+            for chunk in run_claude_streaming(user_msg, on_event=logger.record_event):
                 accumulated.append(chunk)
                 placeholder.markdown("".join(accumulated))
         except ClaudeRunnerError as exc:
             error_text = str(exc)
             placeholder.error(f"⚠️ {exc}")
-        except Exception as exc:  # pragma: no cover — defensive
+        except Exception as exc:  # defensive
             error_text = f"Unexpected error: {exc}"
             placeholder.error(error_text)
 
@@ -95,3 +87,6 @@ def render() -> None:
         history.append({"role": "assistant", "content": final_text})
 
     logger.finalize(response_text="".join(accumulated), error=error_text)
+
+    # Force a rerun so the empty input box is rendered fresh below the new bubble.
+    st.rerun()
