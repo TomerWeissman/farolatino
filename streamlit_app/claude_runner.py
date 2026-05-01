@@ -75,15 +75,16 @@ def run_claude_streaming(
         cmd.extend(["--mcp-config", str(MCP_CONFIG_PATH), "--strict-mcp-config"])
 
     # Pre-authorize the tools each skill needs. Without this, claude --print
-    # asks for permission interactively (which then hangs because there's no
+    # asks for permission interactively (which hangs because there's no
     # interactive input stream). We allow all FaroLatino MCP tools plus
     # read-only file ops + Bash (the calibrate skill shells out). We do NOT
     # allow Edit/Write/NotebookEdit so a skill can't accidentally rewrite
     # the codebase.
-    cmd.extend([
-        "--allowed-tools",
-        # MCP tools (one wildcard pattern would be cleaner but Claude's CLI
-        # expects exact names; list them explicitly)
+    #
+    # The CLI's `--allowed-tools <tools...>` flag is variadic — pass each
+    # tool as a separate arg and the parser consumes the trailing prompt
+    # too. So we pass ONE space-separated string instead.
+    allowed = " ".join([
         "mcp__farolatino__cache_clear",
         "mcp__farolatino__cache_get",
         "mcp__farolatino__cache_set",
@@ -99,11 +100,10 @@ def run_claude_streaming(
         "mcp__farolatino__route_alert",
         "mcp__farolatino__search_artist_by_url",
         "mcp__farolatino__search_artists",
-        # Read-only file ops + agent search
         "Read", "Glob", "Grep", "ToolSearch",
-        # Bash — needed by the calibrate skill which shells out to scripts/
         "Bash",
     ])
+    cmd.extend(["--allowed-tools", allowed])
 
     if max_turns is not None:
         cmd.extend(["--max-turns", str(max_turns)])
