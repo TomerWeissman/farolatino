@@ -1,39 +1,36 @@
 ---
 name: Evaluate Artist
-description: On-demand artist evaluation — Mode 2. Enter an artist name, get a full scored dossier in under 60 seconds.
+description: Full scored A&R dossier for one artist via the composite tool.
 ---
 
 # Evaluate Artist
 
-When the user runs `/evaluate {artist name}`, perform a full on-demand evaluation:
+When the user runs `@evaluate {artist}`, the entire pipeline (search → data
+pull → score → revenue → dossier → alert) runs server-side in one tool call.
+Your only job is to invoke it and present the result.
 
 ## Steps
 
-1. **Search**: Call `mcp__farolatino__search_artists` with the artist name to resolve their Chartmetric ID.
-   - If multiple results, present the top 3 candidates showing name, Spotify monthly listeners, and followers. Ask the user to pick.
-   - If no results, suggest checking the spelling or trying a social/streaming URL with `mcp__farolatino__search_artist_by_url`.
+1. Call `mcp__farolatino__evaluate_artist(artist="<the artist name or URL>")`.
 
-2. **Data pull**: Call `mcp__farolatino__get_artist_data` with the selected CM artist ID to pull all data (metadata, cmStats, career, where-people-listen, social audience, tracks, albums, playlists, charts, milestones, insights, neighboring artists, URLs).
+2. If the response has `needs_disambiguation`, the artist name was ambiguous.
+   List the 3 candidates with name + Spotify monthly listeners and ask the
+   user which one. Then call again with `cm_id=<chosen cm_id>`.
 
-3. **Cache**: Call `mcp__farolatino__cache_set` for each data type to store the raw responses.
+3. Otherwise the response is `{"dossier": {...}, "alert": {...}, "cm_id": ...}`.
+   Present it in this order:
+   - **Tier badge** (HOT / WARM / WATCH / PASS) and **Prospect Score**
+   - One-line summary from `dossier.identity.career_stage` + top genres
+   - **Dimension breakdown** (`dossier.prospect_score.dimensions`): score,
+     weight, and one-line rationale per dimension
+   - **Revenue projection** (`dossier.revenue_projection`): 12-month figure +
+     per-platform breakdown
+   - **Top markets** (`dossier.geographic_profile`)
+   - **Recommended next steps** based on tier (from `alert`)
 
-4. **Score**: Call `mcp__farolatino__compute_prospect_score` with the assembled artist data dict and the user's active profile (ask which profile or default to "default"). This runs all 7 dimensions.
+## Rules
 
-5. **Revenue**: Call `mcp__farolatino__estimate_revenue` with the artist data to project 12-month earnings.
-
-6. **Dossier**: Call `mcp__farolatino__generate_dossier` with the artist data, score result, and revenue result.
-
-7. **Alert check**: Call `mcp__farolatino__route_alert` with the scored result to determine tier and any signal alerts.
-
-8. **Present**: Display the dossier to the user in a clear, readable format:
-   - Lead with the Prospect Score, tier badge (HOT/WARM/WATCH/PASS), and one-line summary
-   - Show the dimension breakdown with scores and rationales
-   - Show key metrics, geographic profile, revenue projection
-   - End with recommended next steps based on tier
-
-9. **LLM narrative**: Use the prompt from `prompts/scoring_rationale.txt` to generate a human-readable scoring rationale, and `prompts/dossier_narrative.txt` for the executive summary.
-
-## Notes
-- Target: complete evaluation in under 60 seconds
-- If Chartmetric tools are not yet connected, report which tools are missing and show what the output would look like using cached/mock data if available
-- Always show confidence level — flag if data is incomplete
+- The composite tool is the only data source you need.
+- Do **not** Read internal files. Do **not** use the Agent tool. Do **not** Bash.
+- If the composite returns `error`, surface it to the user verbatim — don't
+  try to work around it manually.

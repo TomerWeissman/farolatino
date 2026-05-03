@@ -53,6 +53,7 @@ def _humanize_tool(name: str) -> str:
     """Map raw tool names to friendly status labels."""
     if name.startswith("mcp__farolatino__"):
         return {
+            "mcp__farolatino__evaluate_artist": "Evaluating artist (full pipeline)",
             "mcp__farolatino__search_artists": "Searching Chartmetric",
             "mcp__farolatino__search_artist_by_url": "Looking up artist",
             "mcp__farolatino__get_artist_data": "Pulling artist data (14 endpoints)",

@@ -21,5 +21,9 @@ from mcp_server.tools import chartmetric_search  # noqa: E402, F401
 from mcp_server.tools import chartmetric_artist  # noqa: E402, F401
 from mcp_server.tools import chartmetric_discovery  # noqa: E402, F401
 
+# Composite tools — chain multiple primitive tools server-side so the model
+# makes only one MCP call per skill (vs. 6+ in the unfactored flow).
+from mcp_server.tools import composite_evaluate  # noqa: E402, F401
+
 if __name__ == "__main__":
     mcp.run()

@@ -41,6 +41,56 @@ def _claude_path() -> str | None:
     return shutil.which("claude")
 
 
+# --- Per-skill profiles -----------------------------------------------------
+# Composite tools (one server-side tool that does the whole pipeline) get a
+# tight allowlist and zero thinking budget so the model can't cascade into
+# Bash/Agent retries. Generic prompts (no @skill) keep the full toolbox.
+
+_DEFAULT_ALLOWED_TOOLS = [
+    "mcp__farolatino__cache_clear",
+    "mcp__farolatino__cache_get",
+    "mcp__farolatino__cache_set",
+    "mcp__farolatino__compute_prospect_score",
+    "mcp__farolatino__discover_artists",
+    "mcp__farolatino__discover_artists_multi_country",
+    "mcp__farolatino__estimate_revenue",
+    "mcp__farolatino__evaluate_artist",
+    "mcp__farolatino__generate_dossier",
+    "mcp__farolatino__get_artist_data",
+    "mcp__farolatino__get_profile",
+    "mcp__farolatino__list_profiles",
+    "mcp__farolatino__load_config",
+    "mcp__farolatino__route_alert",
+    "mcp__farolatino__search_artist_by_url",
+    "mcp__farolatino__search_artists",
+    "Read", "Glob", "Grep", "ToolSearch",
+    "Bash",
+]
+
+_SKILL_PROFILES: dict[str, dict] = {
+    "@evaluate": {
+        "allowed_tools": [
+            "mcp__farolatino__evaluate_artist",
+            "mcp__farolatino__search_artist_by_url",  # URL-direct entry
+            "Read",       # for prompts/*.txt narrative templates only
+            "ToolSearch", # in case Claude Code defers tool schemas
+        ],
+        "max_thinking_tokens": 0,  # composite is deterministic
+    },
+}
+
+
+def _resolve_skill_profile(prompt: str) -> dict:
+    """Return per-skill flags. Falls back to the generic profile."""
+    head = prompt.strip().lower().split()[0] if prompt.strip() else ""
+    if head in _SKILL_PROFILES:
+        return _SKILL_PROFILES[head]
+    return {
+        "allowed_tools": _DEFAULT_ALLOWED_TOOLS,
+        "max_thinking_tokens": 8000,
+    }
+
+
 def run_claude_streaming(
     prompt: str,
     *,
@@ -78,41 +128,20 @@ def run_claude_streaming(
         # Gmail/Notion MCP servers, for example).
         cmd.extend(["--mcp-config", str(MCP_CONFIG_PATH), "--strict-mcp-config"])
 
-    # Pre-authorize the tools each skill needs. Without this, claude --print
-    # asks for permission interactively (which hangs because there's no
-    # interactive input stream). We allow all FaroLatino MCP tools plus
-    # read-only file ops + Bash (the calibrate skill shells out). We do NOT
-    # allow Edit/Write/NotebookEdit so a skill can't accidentally rewrite
-    # the codebase.
+    # Per-skill profile: skills with deterministic composite tools (e.g.
+    # @evaluate → mcp__farolatino__evaluate_artist) get a TIGHT allowlist
+    # and zero thinking budget — the pipeline is server-side, the model
+    # just needs to call one tool and present the result. Letting the
+    # model see Bash/Agent/Glob in this mode invites cascading retries
+    # (we observed a single @evaluate run cost $0.88 / 354s / 19 tool
+    # calls when the model fell back to Agent + Bash to reshape data).
     #
-    # The CLI's `--allowed-tools <tools...>` flag is variadic — pass each
+    # The `--allowed-tools <tools...>` flag is variadic — pass each
     # tool as a separate arg and the parser consumes the trailing prompt
     # too. So we pass ONE space-separated string instead.
-    allowed = " ".join([
-        "mcp__farolatino__cache_clear",
-        "mcp__farolatino__cache_get",
-        "mcp__farolatino__cache_set",
-        "mcp__farolatino__compute_prospect_score",
-        "mcp__farolatino__discover_artists",
-        "mcp__farolatino__discover_artists_multi_country",
-        "mcp__farolatino__estimate_revenue",
-        "mcp__farolatino__generate_dossier",
-        "mcp__farolatino__get_artist_data",
-        "mcp__farolatino__get_profile",
-        "mcp__farolatino__list_profiles",
-        "mcp__farolatino__load_config",
-        "mcp__farolatino__route_alert",
-        "mcp__farolatino__search_artist_by_url",
-        "mcp__farolatino__search_artists",
-        "Read", "Glob", "Grep", "ToolSearch",
-        "Bash",
-    ])
-    cmd.extend(["--allowed-tools", allowed])
-
-    # Enable extended thinking. Without this, claude --print runs in a non-
-    # thinking mode and emits no `thinking` content blocks at all. We expose
-    # the reasoning to the user via a collapsible panel in the chat view.
-    cmd.extend(["--max-thinking-tokens", "8000"])
+    profile = _resolve_skill_profile(prompt)
+    cmd.extend(["--allowed-tools", " ".join(profile["allowed_tools"])])
+    cmd.extend(["--max-thinking-tokens", str(profile["max_thinking_tokens"])])
 
     # Inject today's date so the LLM doesn't confuse past release dates as
     # future ones (real bug seen in prior runs: a track released 2025-05-16

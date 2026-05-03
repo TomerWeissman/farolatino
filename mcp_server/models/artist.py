@@ -4,7 +4,7 @@ ArtistProfile is the central model — Chartmetric tools populate it,
 scoring engine consumes it. All fields are Optional so partial data works.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 
 
@@ -191,6 +191,16 @@ class DimensionResult:
     rationale: str  # one-line explanation for the dossier
 
 
+def _from_dict(cls, item: dict):
+    """Construct a dataclass instance from a dict, ignoring keys that aren't
+    fields of the dataclass. Without this, any extra key from the upstream
+    Chartmetric payload (or a model-rewritten payload) would raise
+    `TypeError: <Cls>.__init__() got an unexpected keyword argument`.
+    """
+    valid = {f.name for f in fields(cls)}
+    return cls(**{k: v for k, v in item.items() if k in valid})
+
+
 def build_artist(data: dict) -> ArtistProfile:
     """Build an ArtistProfile from a dict, handling nested dataclass fields."""
     nested_mappings = {
@@ -205,11 +215,14 @@ def build_artist(data: dict) -> ArtistProfile:
         "neighboring_artists": NeighboringArtist,
     }
 
+    valid_top = {f.name for f in fields(ArtistProfile)}
     processed = {}
     for key, value in data.items():
+        if key not in valid_top:
+            continue  # silently drop unknown top-level keys (forward-compat)
         if key in nested_mappings and isinstance(value, list):
             cls = nested_mappings[key]
-            processed[key] = [cls(**item) if isinstance(item, dict) else item for item in value]
+            processed[key] = [_from_dict(cls, item) if isinstance(item, dict) else item for item in value]
         else:
             processed[key] = value
 
