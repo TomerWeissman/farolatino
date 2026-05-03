@@ -1,154 +1,95 @@
-# FaroLatino A&R Pipeline
+# FaroAI
 
-AI-assisted artist scouting pipeline for FaroLatino, a Latin music distributor. Scores Latin artists on a 7-dimension Prospect Score, projects revenue potential, and produces investment-ready dossiers — all from Chartmetric data, surfaced as Claude Code skills via an MCP server.
+The A&R assistant for **FaroLatino**, an independent Latin-music
+distributor. Type an artist name → see a prospect score across 7
+dimensions, a 12-month revenue projection, geographic profile, and tier
+classification (HOT / WARM / WATCH / PASS).
 
-Status: data-collection layer verified end-to-end against live Chartmetric. Scoring calibration and dossier tuning come next, ahead of the May 5, 2026 Colombia field test.
+Built on Chartmetric data, with optional Spotify and YouTube
+integrations for cross-validation.
 
-## Architecture
+---
 
-```
-Claude Code skills (analyze/compare/discover/evaluate/prospect)
-        |
-        v
-  MCP server (mcp_server/server.py)
-        |
-        +-- chartmetric_auth.py     # token refresh + 1 req/s throttle
-        +-- chartmetric_search.py   # name/URL -> cm_id
-        +-- chartmetric_artist.py   # 14-endpoint ArtistProfile
-        +-- chartmetric_discovery.py
-        +-- data_cache.py           # per-endpoint TTL cache
-        +-- scoring/                # 7 dimension scorers + engine
-        +-- revenue_model.py
-        +-- dossier_generator.py
-        +-- alert_router.py
-        +-- config_manager.py
-```
+## Install (for the FaroLatino team)
 
-### Prospect Score (0-100)
+**[→ Download the latest release](https://github.com/TomerWeissman/farolatino/releases/latest)**
 
-| Dimension | Weight | Source |
-|---|---|---|
-| Momentum | 25% | streaming + social diff% |
-| Geographic Fit | 20% | where-people-listen, market tiers |
-| Revenue Potential | 20% | listeners x CPM rates |
-| Timing | 15% | noteworthy-insights, milestones |
-| Content Velocity | 8% | tracks endpoint (recent releases) |
-| Engagement Quality | 7% | IG/TikTok engagement, follower:listener ratio |
-| Platform Diversification | 5% | active platforms |
+Then follow [SETUP.md](SETUP.md) — 4 steps, ~10 minutes, mostly clicking
+installers. The only Terminal command is `claude login` once.
 
-Four scoring profiles (`default`, `emerging_momentum`, `revenue_focus`, `latam_expansion`) re-weight the dimensions for different scouting briefs (see [config/profiles.yaml](config/profiles.yaml)).
+You'll need:
+- **Python 3.11+** ([download](https://www.python.org/downloads/))
+- **Claude Code** ([download](https://claude.com/claude-code))
+- **A Chartmetric refresh token** (paste it inside the app on first launch)
 
-Tier thresholds: HOT >=85, WARM >=70, WATCH >=55, PASS otherwise (see [config/alerts.yaml](config/alerts.yaml)).
+After install, double-click `start.command` (Mac) or `start.bat`
+(Windows) any time you want to use the dashboard.
 
-## Setup
+---
 
-Requires **Python 3.11+** (developed on 3.14) and a Chartmetric refresh token.
+## What's inside
+
+The dashboard ships with five tabs in the left sidebar:
+
+- **FaroAI** — chat. Type `@evaluate <artist>` for a full dossier,
+  `@similar <artist>` for comparable artists, or any free-form A&R
+  question.
+- **Skills** — view, edit, add, or delete the `@`-skills the chat uses.
+- **Memory** — the persona / system prompt the assistant runs with,
+  plus a reasoning history of past chats.
+- **Files** — calibration YAMLs (revenue model, scoring profiles),
+  cached Chartmetric responses, and the internal royalty datasets
+  used for calibration.
+- **Connections** — live status of every external API (Chartmetric,
+  Spotify, YouTube). Click a row to add or update credentials inline.
+
+---
+
+## For developers
+
+Clone the repo and use `scripts/start_dev.sh` for hot-reloading dev
+mode (uvicorn `--reload` on `:8000`, Next.js dev server on `:3000`).
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+git clone https://github.com/TomerWeissman/farolatino.git
+cd farolatino
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# fill in CHARTMETRIC_REFRESH_TOKEN at minimum (see Credentials below)
+./scripts/start_dev.sh
 ```
 
-### Credentials
-
-| API | What you need | Where to get it |
-|---|---|---|
-| **Chartmetric** (required) | refresh token | Chartmetric account → API settings → "Generate refresh token". For FaroLatino, request from Julio (`julio@farolatino.com`). |
-| **Spotify** (optional, deferred) | `client_id` + `client_secret` | https://developer.spotify.com/dashboard → Create app → Web API. |
-| **YouTube OAuth** (optional, deferred) | `client_id` + `client_secret` + refresh token | https://console.cloud.google.com → enable YouTube Data API v3 → create "OAuth client ID" of type **Desktop app** → run `python scripts/youtube_oauth_bootstrap.py`, paste the printed token into `.env`. |
-
-Without Chartmetric, the test suite still runs (mocks); `collect_artist.py` will fail. Spotify and YouTube are wired but unused in v1.
-
-## Usage
-
-A standalone walkthrough for verifying every piece on a fresh machine lives in [TESTING.md](TESTING.md).
-
-### Run the test suite (no credentials needed)
+Tests:
 
 ```bash
 pytest tests/ -q
 ```
 
-42 tests against fixtures in `tests/mock_data/`. Should pass on a fresh clone with no `.env`.
+Architecture notes are in [docs/](docs/).
 
-### Collect a full ArtistProfile from a name (needs Chartmetric)
+### Repository layout
+
+```
+api/                # FastAPI backend (web layer; serves both /api and the SPA)
+core/               # Pure-Python helpers (claude_runner, run_log, paths)
+mcp_server/         # MCP tools the chat invokes (Chartmetric, scoring, revenue)
+web/                # Next.js + Tailwind + shadcn frontend (web/out/ is committed)
+config/             # Calibration YAMLs (scoring profiles, stream multipliers, ...)
+data/               # Cached Chartmetric responses + internal datasets (gitignored)
+.claude/skills/     # @-skill markdown files
+scripts/            # build_release.sh, build_web.sh, start_dev.sh, test_wizard.sh
+tests/              # pytest suite (61 tests covering scoring, revenue, composites)
+```
+
+### Building a release
 
 ```bash
-python scripts/collect_artist.py "Feid"
+./scripts/build_release.sh          # produces dist/farolatino-vX.Y.Z.zip
+git tag v0.1.0 && git push --tags   # CI builds + uploads to GitHub Releases
 ```
 
-Calls `search_artists`, picks the top match, fetches all 14 Chartmetric endpoints (~15s cold, throttled at 1 req/s), and dumps the assembled profile to `data/cache/collect_<cm_id>_<timestamp>.json`. Prints a coverage summary at the end.
+---
 
-### Use the Streamlit dashboard (non-technical interface)
+## Contact
 
-**For non-technical testers:** see [SETUP.md](SETUP.md) — just double-click `start.command` (Mac) or `start.bat` (Windows). No commands required.
-
-**For developers:**
-
-```bash
-streamlit run streamlit_app/main.py
-```
-
-Opens a browser with three tabs: **Evaluate** (search an artist → see a dossier), **Compare** (two artists side-by-side), **Similar** (5-15 comparable artists for any seed). Sidebar shows live Chartmetric connection status, the active scoring profile, and model calibration freshness.
-
-To dogfood the launcher in an isolated copy (no contamination of your dev `venv`/cache):
-
-```bash
-./scripts/test_wizard.sh
-# Open the printed path in Finder, double-click start.command
-```
-
-### Use the MCP server in Claude Code
-
-The skills in [.claude/skills/](.claude/skills/) wire the MCP tools into slash commands (`/evaluate`, `/discover`, `/compare`, `/prospect`, `/analyze`, `/similar`, `/calibrate`).
-
-Register the MCP server with Claude Code (run from the project root):
-
-```bash
-claude mcp add farolatino -s user -- $(pwd)/venv/bin/python -m mcp_server.server
-```
-
-Then in Claude Code:
-
-```
-/evaluate "Ryan Castro"
-```
-
-To verify the server starts cleanly outside Claude Code:
-
-```bash
-python -m mcp_server.server   # should hang waiting for stdio input — Ctrl-C to exit
-```
-
-## Layout
-
-```
-mcp_server/         # MCP server: tools, scorers, models
-config/             # YAML configs (profiles, market tiers, CPM rates, alerts)
-prompts/            # Prompt templates for narrative outputs
-scripts/            # CLI utilities (collect_artist, oauth_bootstrap)
-tests/              # Pytest suite + mock fixtures
-docs/PRD_v1.md      # Product requirements doc
-.claude/skills/     # Claude Code slash commands (analyze, evaluate, ...)
-```
-
-## Data sources
-
-Chartmetric is the single source of truth for v1. Per-artist enrichment hits 14 endpoints:
-
-```
-metadata, cmStats, career, cpp, stat/spotify, instagram-audience-stats,
-milestones, neighboring-artists, albums, spotify_top_daily/charts,
-spotify/current/playlists, tracks, where-people-listen, noteworthy-insights
-```
-
-Spotify Web API and YouTube Data API are wired but unused — deferred until a Chartmetric gap forces them.
-
-## Operational notes
-
-- Chartmetric hard rate limit is **1 req/s**; enforced module-wide in [mcp_server/tools/chartmetric_auth.py](mcp_server/tools/chartmetric_auth.py).
-- All API responses are cached locally under `data/cache/<cm_id>/<endpoint>.json` with per-data-type TTLs (streaming stats: 1 day, tracks: 2 weeks, etc.).
-- `.env` and OAuth tokens are gitignored; never commit credentials.
+Questions, ideas, or running into something the troubleshooting section
+of [SETUP.md](SETUP.md) doesn't cover: open an issue or DM Tomer.

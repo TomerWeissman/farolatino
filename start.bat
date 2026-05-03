@@ -16,13 +16,16 @@ echo.
 REM 1. Check Python
 where python >nul 2>nul
 if errorlevel 1 (
-    echo [X] Python is not installed.
+    echo --------------------------------------------------------
+    echo   Python isn't installed yet.
+    echo --------------------------------------------------------
     echo.
-    echo     Please install Python 3.11 or later from:
-    echo     https://www.python.org/downloads/
-    echo     IMPORTANT: Check "Add Python to PATH" during install.
+    echo   Download Python 3.11 or newer from:
+    echo       https://www.python.org/downloads/
     echo.
-    echo     After installing, double-click this file again.
+    echo   IMPORTANT: check "Add Python to PATH" in the installer.
+    echo.
+    echo   After installing, double-click start.bat again.
     echo.
     pause
     exit /b 1
@@ -31,8 +34,12 @@ if errorlevel 1 (
 REM Check Python version >= 3.11
 python -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>nul
 if errorlevel 1 (
-    echo [X] Python 3.11 or later is required.
-    echo     Install from: https://www.python.org/downloads/
+    echo --------------------------------------------------------
+    echo   Your Python is too old ^(need 3.11 or newer^).
+    echo --------------------------------------------------------
+    echo.
+    echo   Install a newer version from:
+    echo       https://www.python.org/downloads/
     echo.
     pause
     exit /b 1
@@ -42,31 +49,26 @@ echo [OK] Python detected
 REM 1.5 Check Claude Code (required: chat backend invokes `claude --print`)
 where claude >nul 2>nul
 if errorlevel 1 (
+    echo --------------------------------------------------------
+    echo   Claude Code isn't installed yet.
+    echo --------------------------------------------------------
     echo.
-    echo [X] Claude Code is not installed.
+    echo   FaroAI uses Claude Code as its chat engine.
     echo.
-    echo     Install from: https://claude.com/claude-code
-    echo     After installing, run `claude login` once in a terminal.
-    echo.
-    echo     Then double-click this file again.
+    echo   1. Install it from:  https://claude.com/claude-code
+    echo   2. Open Terminal/PowerShell and run once:  claude login
+    echo   3. Double-click start.bat again
     echo.
     pause
     exit /b 1
 )
 echo [OK] Claude Code on PATH
 
-REM 2. Check .env file
+REM 2. .env file - auto-create empty if missing. The user adds API keys
+REM    via the in-app Connections page once the dashboard opens.
 if not exist ".env" (
-    echo.
-    echo [X] The .env file is missing.
-    echo.
-    echo     Drop the .env file you were sent into this folder:
-    echo     %~dp0
-    echo.
-    echo     Then double-click this file again.
-    echo.
-    pause
-    exit /b 1
+    echo First-time setup: creating an empty .env ^(you'll add API keys in the app^)...
+    type nul > ".env"
 )
 echo [OK] .env present
 

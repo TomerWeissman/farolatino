@@ -1,0 +1,54 @@
+# Builds a release zip and uploads it to the matching GitHub Release
+# whenever a tag like `v0.1.0` is pushed:
+#
+#   git tag v0.1.0
+#   git push --tags
+#
+# After this completes, the Releases page at
+# https://github.com/<owner>/<repo>/releases will have a
+# `farolatino-v0.1.0.zip` asset that end-users download per SETUP.md.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # needed to create the release + upload the asset
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # so build_release.sh can find tags
+
+      - name: Sanity-check the prebuilt frontend
+        run: |
+          if [ ! -f "web/out/index.html" ]; then
+            echo "::error::web/out/index.html is missing — run scripts/build_web.sh and commit the result before tagging."
+            exit 1
+          fi
+
+      - name: Build release zip
+        run: ./scripts/build_release.sh "${GITHUB_REF_NAME}"
+
+      - name: Compute asset path
+        id: asset
+        run: |
+          path=$(ls dist/farolatino-*.zip | head -1)
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$path")" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release + upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.asset.outputs.path }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false

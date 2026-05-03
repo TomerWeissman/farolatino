@@ -1,100 +1,105 @@
-# Setup Guide — FaroLatino A&R Dashboard
+# Setup Guide — FaroAI
 
-A short, non-technical guide to running the dashboard on your computer. **You'll be done in 2-3 minutes the first time, ~10 seconds every time after.**
+A 4-step install for the FaroLatino A&R dashboard. Plan for ~10 minutes
+the first time. After that, double-click and you're in.
 
----
-
-## What you're testing
-
-A web dashboard for evaluating Latin music artists — type a name, see a revenue projection, prospect tier, and competitive landscape.
-
-## What you need
-
-1. **The folder you were sent** (contains the dashboard code + a pre-configured `.env` file with API access).
-2. **Python 3.11 or later** installed on your computer. If you don't have it:
-   - Download from <https://www.python.org/downloads/>
-   - **On Windows:** during install, check the box that says "Add Python to PATH". (If you forget, just run the installer again.)
-   - On Mac: the default installer works — no extra steps.
-3. **Claude Code** installed and signed in. The dashboard's chat sends questions through Claude Code, so it has to be on your computer.
-   - Download from <https://claude.com/claude-code>
-   - After installing, open Terminal (Mac) or Command Prompt (Windows) and run `claude login` once. Follow the browser prompt to sign in.
-   - You only need to do this once.
-
-That's it. No Terminal commands after that, no editing files.
+You don't need to be technical. The only Terminal command you'll ever
+type is `claude login` — once.
 
 ---
 
-## Mac instructions
+## Step 1 — Download FaroAI
 
-1. Unzip / open the folder you were sent.
-2. **Double-click `start.command`.**
-3. Terminal will open and run automatically. The first time, it spends ~60-90 seconds installing dependencies — you'll see lines scrolling. Subsequent runs take ~10 seconds.
-4. Your browser will open to the dashboard automatically.
+Open the [Releases page](https://github.com/TomerWeissman/farolatino/releases/latest)
+and download `farolatino-vX.Y.Z.zip`. Double-click the zip to unpack it
+into a folder. Drag that folder somewhere stable — your `Documents`
+folder is a fine home.
 
-### If macOS warns "can't be opened from unidentified developer"
+> **Mac**: the first time you run anything inside, macOS may say "this
+> can't be opened because the developer can't be verified." Right-click
+> the script → **Open** → confirm. Only needed once.
+>
+> **Windows**: SmartScreen may say "Windows protected your PC." Click
+> **More info** → **Run anyway**. Only needed once.
 
-This happens once because the file isn't signed by Apple.
+## Step 2 — Install Python 3.11+
 
-- **Right-click** (or Control-click) `start.command` → choose **Open**.
-- A second warning will appear with an **Open** button — click it.
-- Future double-clicks work normally.
+Open <https://www.python.org/downloads/> and click the big yellow
+**Download Python** button. Run the installer.
 
----
+> **Windows specifically**: tick the **Add Python to PATH** checkbox at
+> the bottom of the installer's first screen. If you forget, re-run the
+> installer and tick it.
 
-## Windows instructions
+To check it worked: open Terminal (Mac) or PowerShell (Windows) and
+type `python3 --version` (Mac) or `python --version` (Windows). You
+should see `Python 3.11.x` or higher.
 
-1. Unzip / open the folder you were sent.
-2. **Double-click `start.bat`.**
-3. A black command-prompt window will open and run automatically. The first time, it spends ~60-90 seconds installing dependencies. Subsequent runs take ~10 seconds.
-4. Your browser will open to the dashboard automatically.
+## Step 3 — Install Claude Code
 
-### If Windows SmartScreen warns "Windows protected your PC"
+Open <https://claude.com/claude-code> and follow the install
+instructions for your platform. Then in a Terminal / PowerShell window,
+run once:
 
-- Click **More info**.
-- Click the **Run anyway** button that appears.
-- Future double-clicks work normally.
+```
+claude login
+```
 
----
+Follow the browser prompts to sign in to your Anthropic account. This
+is the only Terminal command you'll need to type.
 
-## What you'll see
+## Step 4 — Launch FaroAI
 
-When the dashboard loads:
+In the FaroAI folder you unzipped:
 
-- **Top:** "FaroLatino A&R Dashboard"
-- **Sidebar:** a green "✓ Chartmetric connected" badge means the API is working.
-- **Three tabs:**
-  - **Evaluate** — type any artist's name, see a full report.
-  - **Compare** — pick two artists, see them side-by-side.
-  - **Similar** — pick an artist, see comparable peers.
+- **Mac**: double-click `start.command`.
+- **Windows**: double-click `start.bat`.
 
-Try typing **"Feid"** in the Evaluate tab to see a sample dossier.
+A Terminal window opens, runs setup (~60s the first time, ~5s
+afterward), and your browser opens automatically to the dashboard.
 
----
-
-## Stopping the dashboard
-
-- **Mac:** close the Terminal window, or click into it and press `Ctrl+C`.
-- **Windows:** close the command-prompt window.
-
----
-
-## Restarting
-
-Just double-click `start.command` (Mac) or `start.bat` (Windows) again. After the first run, dependencies are already installed — it'll launch in seconds.
+> If the Terminal window says "Python isn't installed" or "Claude Code
+> isn't installed", scroll back up — those mean Step 2 or 3 didn't
+> stick. Fix and double-click again.
 
 ---
 
-## If something goes wrong
+## Step 5 (in the app) — Add your API keys
 
-| What you see | What to do |
-|---|---|
-| "Python is not installed" | Install Python 3.11+ from <https://www.python.org/downloads/>, then double-click again. |
-| "Claude Code is not installed" | Install from <https://claude.com/claude-code>, then run `claude login` once, then double-click again. |
-| "Claude Code is not logged in" | Open Terminal (Mac) or Command Prompt (Windows), run `claude login`, finish the browser flow, then go back to the dashboard. |
-| "The .env file is missing" | The folder you received should include a `.env` file. If it's missing, ask Tomer to resend it. |
-| Browser doesn't open automatically | Open <http://localhost:8501> manually in any browser. |
-| Sidebar shows red "Token rejected" | Your `.env` file is invalid or expired. Ask Tomer for a fresh one. |
-| Sidebar shows yellow "Connection issue" | Check your internet connection, then refresh the page. |
-| Port 8501 already in use | Another copy is already running. Close other browser tabs / Terminal windows showing the dashboard. |
+When FaroAI first opens you'll see the chat. Click **Connections** in
+the left sidebar. Each row is one external service:
 
-If none of these match, take a screenshot of whatever error you see and send it to Tomer.
+- **Chartmetric** — required. Click the row to expand it, paste your
+  refresh token, click **Save**. The status badge flips green.
+- **Spotify, YouTube** — optional. Add them the same way for richer
+  cross-validation when you ask FaroAI about an artist.
+
+That's it. Click **FaroAI** in the sidebar to go back to the chat and
+ask `@evaluate Bad Bunny` or any artist name.
+
+---
+
+## Quitting
+
+Close the Terminal window where `start.command` / `start.bat` is
+running, or hit `Ctrl+C` inside it. The browser tab can stay open —
+it'll just show a connection error until you launch again.
+
+## Updating
+
+Download the new release zip from the same Releases page. Replace the
+folder. Your API keys live in `.env` inside the folder, so re-using the
+old `.env` keeps your credentials. (Or just add them again from the
+Connections page — takes a minute.)
+
+## Troubleshooting
+
+| What you see | What it means | Fix |
+|---|---|---|
+| Terminal closes immediately | Probably a "Python not installed" error you missed | Double-click again, watch the Terminal window — the message stays up until you press Enter |
+| "Address already in use" | A previous FaroAI is still running | Quit the old Terminal window, then double-click again — the launcher kills stale processes automatically on relaunch |
+| Browser opens to "This site can't be reached" | Launcher hasn't finished booting yet | Wait ~5 seconds, refresh the page |
+| Chat says "Backend closed the stream..." | Connection issue between the page and the launcher | Quit Terminal + relaunch |
+
+If you're stuck, send a screenshot of the Terminal window — it has the
+error message verbatim, which is enough for me to debug remotely.

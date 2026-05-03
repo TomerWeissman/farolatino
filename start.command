@@ -17,55 +17,58 @@ echo
 
 # 1. Check Python
 if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is not installed."
+    echo "──────────────────────────────────────────────────────────"
+    echo "  Python isn't installed yet."
+    echo "──────────────────────────────────────────────────────────"
     echo
-    echo "   Please install Python 3.11 or later from:"
-    echo "   https://www.python.org/downloads/"
+    echo "  Download Python 3.11 or newer from:"
+    echo "      https://www.python.org/downloads/"
     echo
-    echo "   After installing, double-click this file again."
+    echo "  Click the big yellow 'Download Python' button, run the"
+    echo "  installer, then double-click start.command again."
     echo
-    read -p "Press Enter to close..."
+    read -p "  Press Enter to close..."
     exit 1
 fi
 
 PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
 PY_OK=$(python3 -c 'import sys; print(1 if sys.version_info >= (3,11) else 0)')
 if [ "$PY_OK" != "1" ]; then
-    echo "❌ Python 3.11+ required (you have $PY_VERSION)."
-    echo "   Install from: https://www.python.org/downloads/"
+    echo "──────────────────────────────────────────────────────────"
+    echo "  Your Python is too old (you have $PY_VERSION, need 3.11+)."
+    echo "──────────────────────────────────────────────────────────"
     echo
-    read -p "Press Enter to close..."
+    echo "  Install a newer version from:"
+    echo "      https://www.python.org/downloads/"
+    echo
+    read -p "  Press Enter to close..."
     exit 1
 fi
 echo "✓ Python $PY_VERSION"
 
 # 1.5 Check Claude Code (required: chat backend invokes `claude --print`)
 if ! command -v claude &> /dev/null; then
+    echo "──────────────────────────────────────────────────────────"
+    echo "  Claude Code isn't installed yet."
+    echo "──────────────────────────────────────────────────────────"
     echo
-    echo "❌ Claude Code is not installed."
+    echo "  FaroAI uses Claude Code as its chat engine."
     echo
-    echo "   Install from: https://claude.com/claude-code"
-    echo "   After installing, run \`claude login\` once in a terminal."
+    echo "  1. Install it from:  https://claude.com/claude-code"
+    echo "  2. Open Terminal and run once:  claude login"
+    echo "  3. Double-click start.command again"
     echo
-    echo "   Then double-click this file again."
-    echo
-    read -p "Press Enter to close..."
+    read -p "  Press Enter to close..."
     exit 1
 fi
 echo "✓ Claude Code on PATH"
 
-# 2. Check .env file
+# 2. .env file — auto-create empty if missing. The user adds API keys
+#    via the in-app Connections page once the dashboard opens; no need
+#    to edit a hidden file before launch.
 if [ ! -f ".env" ]; then
-    echo
-    echo "❌ The .env file is missing."
-    echo
-    echo "   Drop the .env file you were sent into this folder:"
-    echo "   $SCRIPT_DIR"
-    echo
-    echo "   Then double-click this file again."
-    echo
-    read -p "Press Enter to close..."
-    exit 1
+    echo "First-time setup: creating an empty .env (you'll add API keys in the app)..."
+    touch ".env"
 fi
 echo "✓ .env present"
 
