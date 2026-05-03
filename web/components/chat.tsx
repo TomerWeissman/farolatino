@@ -266,13 +266,6 @@ export function Chat() {
     });
   }
 
-  function onPickSkill(slug: string) {
-    setDraft((d) => {
-      const prefix = `@${slug} `;
-      // Don't double-prefix.
-      return d.startsWith(prefix) ? d : prefix + d.replace(/^@\S+\s*/, "");
-    });
-  }
 
   return (
     <div className="chat-shell">
@@ -280,7 +273,7 @@ export function Chat() {
         <div>
           <div className="empty-greet">How can I help?</div>
           <div className="empty-hint">
-            Type a message, or pick a skill below.
+            Type a message, or use <code>@</code> to pick a skill.
           </div>
         </div>
       ) : (
@@ -313,7 +306,6 @@ export function Chat() {
         draft={draft}
         setDraft={setDraft}
         skills={skills}
-        onPickSkill={onPickSkill}
         onSend={send}
         disabled={live.kind === "streaming"}
       />
@@ -416,18 +408,17 @@ function ChatInputZone({
   draft,
   setDraft,
   skills,
-  onPickSkill,
   onSend,
   disabled,
 }: {
   draft: string;
   setDraft: (s: string) => void;
   skills: SkillSummary[];
-  onPickSkill: (slug: string) => void;
   onSend: (s: string) => void;
   disabled: boolean;
 }) {
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
   const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -442,6 +433,15 @@ function ChatInputZone({
   useEffect(() => {
     setActiveIdx(0);
   }, [trigger?.query, trigger == null]);
+
+  // Keep the highlighted skill in view when the user arrow-keys past
+  // the popup's visible window. Without this, the active row scrolls
+  // off-screen and the user can't see what they're about to pick.
+  useEffect(() => {
+    if (trigger === null) return;
+    const el = popupRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    el?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx, trigger]);
 
   // Filter skills by the @-query (slug then name then description).
   const matches: SkillSummary[] = trigger
@@ -474,24 +474,9 @@ function ChatInputZone({
   return (
     <div className="chat-input-zone">
       <div className="chat-input-inner">
-        {skills.length > 0 && (
-          <div className="skill-row">
-            {skills.map((s) => (
-              <button
-                key={s.slug}
-                type="button"
-                className="skill-chip"
-                title={s.description || s.name}
-                onClick={() => onPickSkill(s.slug)}
-              >
-                @{s.slug}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="chat-input-shell" style={{ position: "relative" }}>
           {popupOpen && (
-            <div className="autocomplete-popup">
+            <div className="autocomplete-popup" ref={popupRef}>
               <Command
                 shouldFilter={false}
                 onKeyDown={(e) => {
@@ -543,7 +528,7 @@ function ChatInputZone({
               // Small delay so a click on a popup item still fires.
               setTimeout(() => setTrigger(null), 100);
             }}
-            placeholder="Type a message, or pick a skill above"
+            placeholder="Type a message, or @ to pick a skill"
             rows={2}
             disabled={disabled}
             onKeyDown={(e) => {
