@@ -3,7 +3,7 @@
 Spawns `claude --print --verbose --output-format stream-json` with the
 project root as cwd, so Claude Code resolves skills (`.claude/skills/`)
 and MCP servers from the user's existing configuration. Yields text
-chunks suitable for `st.write_stream`.
+chunks for the FastAPI SSE chat endpoint to relay to the browser.
 
 Why a subprocess: keeps skill discovery, MCP routing, and auth in
 Claude Code's hands. We don't reimplement any of it.
