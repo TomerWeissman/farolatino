@@ -47,6 +47,17 @@ footer {visibility: hidden;}
 header[data-testid="stHeader"] {display: none;}
 [data-testid="stToolbar"] {display: none;}
 
+/* Hide the "RUNNING / STOP" status badge in the top-right. Streamlit
+   re-runs the script on every UI interaction (expander toggle, link
+   click, scroll within a managed component) — the badge would flash
+   constantly and read as "always loading" to a non-technical user.
+   We keep our own per-message status pill ("Thinking…" / "Searching
+   Chartmetric…") which is more meaningful. */
+[data-testid="stStatusWidget"] { display: none !important; }
+[data-testid="stConnectionStatus"] { display: none !important; }
+/* Also kill the top-of-page progress bar that flashes on each rerun */
+[data-testid="stDecoration"] { display: none !important; }
+
 /* Pure white canvas — every Streamlit container layer */
 html, body,
 .stApp,
