@@ -20,13 +20,13 @@ import time
 
 import streamlit as st
 
-from streamlit_app.claude_runner import (
+from core.claude_runner import (
     THINKING_PREFIX,
     ClaudeRunnerError,
     run_claude_streaming,
 )
-from streamlit_app.run_log import RunLogger
-from streamlit_app.skill_registry import list_skills
+from core.run_log import RunLogger
+from core.skill_registry import list_skills
 
 
 def _ensure_history() -> list[dict]:

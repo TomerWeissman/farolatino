@@ -8,8 +8,8 @@ from pathlib import Path
 import streamlit as st
 import yaml
 
-from streamlit_app.run_log import load_recent
-from streamlit_app.skill_registry import list_skills
+from core.run_log import load_recent
+from core.skill_registry import list_skills
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STREAM_MULTIPLIERS_PATH = PROJECT_ROOT / "config" / "stream_multipliers.yaml"
