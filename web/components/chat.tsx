@@ -135,7 +135,10 @@ export function Chat() {
     saveConversation(updatedConv);
     setConversation(updatedConv);
 
-    setHistory((h) => [...h, userTurn]);
+    // History is updated via the subscribeToConversations sync handler
+    // — it loads conversation.turns into history. Adding setHistory
+    // here on top of that double-appends the user turn (real bug user
+    // reported: "messages I write sometimes appear twice").
     setDraft("");
     setLive({
       kind: "streaming",
@@ -254,10 +257,9 @@ export function Chat() {
         status: ev.status,
       },
     };
-    setHistory((h) => [...h, assistantTurn]);
-    // Persist the assistant turn to the active conversation. Without
-    // this, navigating away and back would leave the user message
-    // visible but the response gone.
+    // Persist the assistant turn — the saveConversation event handler
+    // syncs `history` from the new turns. (Don't also setHistory here;
+    // see the matching note in send() about the double-render bug.)
     setConversation((c) => {
       if (!c) return c;
       const updated: Conversation = { ...c, turns: [...c.turns, assistantTurn] };
