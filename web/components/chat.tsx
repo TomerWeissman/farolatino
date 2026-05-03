@@ -535,12 +535,13 @@ function ChatInputZone({
               if (popupOpen && matches.length > 0) {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  setActiveIdx((i) => (i + 1) % matches.length);
+                  // Clamp at the bottom — no wrap to the top.
+                  setActiveIdx((i) => Math.min(i + 1, matches.length - 1));
                   return;
                 }
                 if (e.key === "ArrowUp") {
                   e.preventDefault();
-                  setActiveIdx((i) => (i - 1 + matches.length) % matches.length);
+                  setActiveIdx((i) => Math.max(i - 1, 0));
                   return;
                 }
                 if (e.key === "Enter" && !e.shiftKey) {
