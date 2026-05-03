@@ -90,16 +90,38 @@ export function Chat() {
       startedAt: Date.now(),
     });
 
+    // Visible observability for the user AND a clear log line for us.
+    // Without this, a silent fetch failure looks identical to "still
+    // thinking" — the user reports "stuck for 60s" but we have no idea
+    // whether the request even left the browser.
+    console.log(`[chat] sending: ${JSON.stringify(trimmed).slice(0, 80)}`);
+
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    let receivedAny = false;
     try {
       for await (const ev of streamChat(trimmed, ctrl.signal)) {
+        if (!receivedAny) {
+          receivedAny = true;
+          console.log(`[chat] first event: ${ev.kind}`);
+        }
         applyEvent(ev);
+      }
+      if (!receivedAny) {
+        console.warn("[chat] stream closed without yielding any events");
+        setLive({
+          kind: "error",
+          message: "Backend closed the stream without sending anything. Check the terminal where start.command is running.",
+        });
       }
     } catch (e: unknown) {
       const err = e as { name?: string; message?: string };
+      console.error("[chat] stream error:", err);
       if (err?.name !== "AbortError") {
-        setLive({ kind: "error", message: err?.message ?? "stream failed" });
+        setLive({
+          kind: "error",
+          message: err?.message ?? "stream failed (open DevTools → Network for details)",
+        });
       }
     } finally {
       abortRef.current = null;

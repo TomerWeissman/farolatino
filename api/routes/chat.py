@@ -142,7 +142,13 @@ async def post_chat(req: ChatRequest):
             log.info("chat client disconnected mid-stream (run_id=%s)", logger.run_id)
             raise
 
-    return EventSourceResponse(_emit())
+    # `ping` makes sse-starlette emit a `: ping\n\n` comment every N seconds.
+    # Chromium-based browsers buffer SSE responses until the wire-level
+    # buffer hits a threshold (~1KB) — for a slow @evaluate run that
+    # produces tiny tool_use events, the user's chat would silently sit on
+    # "Thinking…" for the full duration even though events are queued. The
+    # heartbeat keeps bytes flowing so the browser flushes early events.
+    return EventSourceResponse(_emit(), ping=2)
 
 
 def _strip_using_markers(chunk: str) -> str:

@@ -40,21 +40,28 @@ export async function* streamChat(
   prompt: string,
   signal?: AbortSignal,
 ): AsyncIterableIterator<ChatEvent> {
+  console.log(`[api] POST /api/chat (${prompt.length} chars)`);
   const r = await fetch(`${BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     body: JSON.stringify({ prompt }),
     signal,
   });
+  console.log(`[api] response: ${r.status} ${r.statusText} (body=${!!r.body})`);
   if (!r.ok || !r.body) {
     throw new Error(`/api/chat ${r.status}`);
   }
   const reader = r.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let chunkNum = 0;
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      console.log(`[api] stream done after ${chunkNum} chunks`);
+      break;
+    }
+    chunkNum++;
     buffer += decoder.decode(value, { stream: true });
     // SSE messages are separated by blank lines. Process whole messages
     // only — the next chunk may complete a partial message.
