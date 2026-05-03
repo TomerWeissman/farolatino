@@ -119,18 +119,76 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* === Layout ============================================================ */
-.wordmark {
-  position: fixed;
-  top: 16px;
-  left: 24px;
+/* === Sidebar layout ===================================================
+   The whole app lives in a flex container: a fixed-width <Sidebar />
+   on the left, and the per-page <main> content on the right. The
+   sidebar's wordmark replaces the previous fixed top-left wordmark.
+*/
+:root {
+  --sidebar-w: 240px;
+}
+
+.app-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.main-col {
+  flex: 1;
+  min-width: 0;       /* prevent overflow when content is wider than column */
+  position: relative;
+}
+
+.sidebar {
+  flex-shrink: 0;
+  width: var(--sidebar-w);
+  border-right: 1px solid var(--border-soft);
+  background: var(--bg-subtle);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  z-index: 50;
+}
+.sidebar-wordmark {
   font-size: 12px;
   color: var(--text-faint);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   font-weight: 500;
-  z-index: 100;
   user-select: none;
+  padding: 6px 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background-color 0.12s, color 0.12s;
+}
+.sidebar-link:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.sidebar-link-active {
+  background: #ececec;
+  color: var(--text);
+  font-weight: 500;
 }
 
 .chat-shell {
@@ -138,6 +196,28 @@ body {
   margin: 0 auto;
   padding: 4rem 24px 12rem 24px;
   min-height: 100vh;
+}
+
+/* === Generic page shell (Skills / Memory / Files) ====================== */
+.page-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 3rem 32px 6rem 32px;
+}
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+.page-subtitle {
+  color: var(--text-faint);
+  font-size: 0.95rem;
+  margin: 0 0 24px;
+}
+.page-empty {
+  color: var(--text-faint);
+  margin-top: 24px;
 }
 
 /* === Empty state ======================================================= */
@@ -243,18 +323,20 @@ body {
 }
 
 /* === Sticky chat input zone ============================================ */
-/* Floating bottom container with a fade so prose doesn't bleed through. */
+/* Floating bottom container with a fade so prose doesn't bleed through.
+   `left: var(--sidebar-w)` keeps the input from spanning under the
+   sidebar. */
 .chat-input-zone {
   position: fixed;
   bottom: 0;
-  left: 0;
+  left: var(--sidebar-w);
   right: 0;
   padding: 24px 16px 24px 16px;
   background: linear-gradient(to bottom,
     rgba(255,255,255,0) 0%,
     rgba(255,255,255,0.95) 25%,
     var(--bg) 100%);
-  z-index: 50;
+  z-index: 40;
 }
 .chat-input-inner {
   max-width: 720px;

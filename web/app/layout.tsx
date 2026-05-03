@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { Sidebar } from "@/components/sidebar";
 
 // Use the bundled Geist fonts that create-next-app shipped — no Google
 // runtime fetch (would break offline / static-export end-users).
@@ -28,8 +29,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        <div className="wordmark">FaroLatino</div>
-        {children}
+        <div className="app-shell">
+          <Sidebar />
+          <main className="main-col">{children}</main>
+        </div>
       </body>
     </html>
   );
