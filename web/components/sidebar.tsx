@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus } from "lucide-react";
+import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus, Plug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type Conversation,
@@ -18,10 +18,11 @@ import {
 const SIDEBAR_WIDTH = 240;
 
 const NAV = [
-  { href: "/",        label: "FaroAI",  icon: MessageSquare },
-  { href: "/skills",  label: "Skills",  icon: BookOpen },
-  { href: "/memory",  label: "Memory",  icon: Brain },
-  { href: "/files",   label: "Files",   icon: FolderOpen },
+  { href: "/",            label: "FaroAI",      icon: MessageSquare },
+  { href: "/skills",      label: "Skills",      icon: BookOpen },
+  { href: "/memory",      label: "Memory",      icon: Brain },
+  { href: "/files",       label: "Files",       icon: FolderOpen },
+  { href: "/connections", label: "Connections", icon: Plug },
 ];
 
 export function Sidebar() {

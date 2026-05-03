@@ -26,5 +26,10 @@ from mcp_server.tools import chartmetric_discovery  # noqa: E402, F401
 from mcp_server.tools import composite_evaluate  # noqa: E402, F401
 from mcp_server.tools import composite_similar  # noqa: E402, F401
 
+# Spotify + YouTube — direct API integrations for cross-validation against
+# Chartmetric's daily snapshot. Both auto-handle auth via .env credentials.
+from mcp_server.tools import spotify_search  # noqa: E402, F401
+from mcp_server.tools import youtube_search  # noqa: E402, F401
+
 if __name__ == "__main__":
     mcp.run()

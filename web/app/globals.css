@@ -704,6 +704,88 @@ button.sidebar-link {
   white-space: nowrap;
 }
 
+/* === Connections page ================================================== */
+.connections-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.connections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.connection-row {
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.connection-row-ok    { border-color: #cfe9d7; background: #f6fbf7; }
+.connection-row-warn  { border-color: #f5dfbb; background: #fcf7ee; }
+.connection-row-err   { border-color: #f4c8c8; background: #fcf3f3; }
+.connection-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.connection-row-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+.connection-row-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.connection-status-ok   { color: #166534; background: #dcfce7; }
+.connection-status-warn { color: #92400e; background: #fef3c7; }
+.connection-status-err  { color: #991b1b; background: #fee2e2; }
+.connection-row-detail {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.connection-row-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.connection-row-meta code {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+.connection-row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+  align-self: flex-start;
+}
+.connection-row-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* === Empty state ======================================================= */
 .empty-greet {
   font-size: 1.6rem;
