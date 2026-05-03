@@ -62,10 +62,38 @@ app.include_router(runs.router, prefix="/api", tags=["runs"])
 
 # Static SPA mount. Only attached if `web/out/` exists, so a fresh clone
 # without a frontend build still boots (the API alone is usable).
+#
+# Cache strategy: HTML must be re-fetched every load (the hashed JS/CSS
+# references inside change with each build); static asset files have
+# content-hashed names so they're safe to cache forever. Without this, a
+# user who upgraded the repo would see their browser serve a stale
+# index.html that points at JS bundles that no longer exist on disk —
+# the chat would silently fail to mount and look like the page is hung.
+class _CachingStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        # `path` is the relative URL within the mount: "" for "/", else
+        # things like "index.html" or "_next/static/.../foo.css".
+        # When html=True and the request hits a directory (like "/"),
+        # Starlette serves the inner index.html but get_response is still
+        # called with the raw "" path — so we check the resolved
+        # content-type rather than the URL path.
+        ctype = resp.headers.get("content-type", "")
+        if "html" in ctype:
+            # HTML must always be re-fetched: it references hashed JS/CSS
+            # assets that change on each frontend rebuild. A stale cached
+            # index.html points at JS bundles that no longer exist.
+            resp.headers["cache-control"] = "no-store, must-revalidate"
+        elif path.startswith("_next/static/") or path.startswith("/_next/static/"):
+            # Hashed asset filenames are content-addressed → safe forever.
+            resp.headers["cache-control"] = "public, max-age=31536000, immutable"
+        return resp
+
+
 _WEB_OUT = PROJECT_ROOT / "web" / "out"
 if _WEB_OUT.is_dir():
     app.mount(
         "/",
-        StaticFiles(directory=str(_WEB_OUT), html=True),
+        _CachingStaticFiles(directory=str(_WEB_OUT), html=True),
         name="spa",
     )

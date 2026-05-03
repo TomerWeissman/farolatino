@@ -30,16 +30,28 @@ type LiveState =
       thinking: string[];
       toolStatus: string | null;
       tools: { name: string; label: string }[];
+      startedAt: number; // monotonic-ish ms; drives the elapsed timer
     }
   | { kind: "error"; message: string };
+
+// Re-render budget for streaming text. Without this, every text delta
+// triggers a setState → ReactMarkdown re-parses the whole accumulated
+// string. For a long dossier (~2-3K chars across hundreds of chunks)
+// that's hundreds of re-parses; the UI feels sluggish even though the
+// network is fast. Same throttle the Streamlit version used.
+const TEXT_THROTTLE_MS = 100;
 
 export function Chat() {
   const [history, setHistory] = useState<Turn[]>([]);
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [draft, setDraft] = useState("");
   const [live, setLive] = useState<LiveState>({ kind: "idle" });
+  const [elapsed, setElapsed] = useState(0); // seconds since stream start
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Pending-text buffer so we can throttle the React render rate.
+  const pendingTextRef = useRef("");
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load skills once for the picker. Best-effort — we don't block the UI.
   useEffect(() => {
@@ -51,12 +63,32 @@ export function Chat() {
     scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [history.length, live]);
 
+  // Tick the elapsed-seconds display while streaming, so the user
+  // sees "Thinking… (8s)" instead of an indefinitely pulsing spinner.
+  useEffect(() => {
+    if (live.kind !== "streaming") {
+      setElapsed(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - live.startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [live.kind, live.kind === "streaming" ? live.startedAt : 0]);
+
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || live.kind === "streaming") return;
     setHistory((h) => [...h, { role: "user", content: trimmed }]);
     setDraft("");
-    setLive({ kind: "streaming", text: "", thinking: [], toolStatus: null, tools: [] });
+    setLive({
+      kind: "streaming",
+      text: "",
+      thinking: [],
+      toolStatus: null,
+      tools: [],
+      startedAt: Date.now(),
+    });
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -74,7 +106,27 @@ export function Chat() {
     }
   }
 
+  function flushPendingText() {
+    const pending = pendingTextRef.current;
+    if (!pending) return;
+    pendingTextRef.current = "";
+    setLive((s) => {
+      if (s.kind !== "streaming") return s;
+      return { ...s, text: s.text + pending, toolStatus: null };
+    });
+    flushTimerRef.current = null;
+  }
+
   function applyEvent(ev: ChatEvent) {
+    if (ev.kind === "text") {
+      // Buffer text deltas; flush at most TEXT_THROTTLE_MS apart so
+      // ReactMarkdown doesn't re-parse on every chunk.
+      pendingTextRef.current += ev.delta;
+      if (!flushTimerRef.current) {
+        flushTimerRef.current = setTimeout(flushPendingText, TEXT_THROTTLE_MS);
+      }
+      return;
+    }
     setLive((s) => {
       if (s.kind !== "streaming") return s;
       switch (ev.kind) {
@@ -86,17 +138,25 @@ export function Chat() {
           };
         case "thinking":
           return { ...s, thinking: [...s.thinking, ev.delta] };
-        case "text":
-          return { ...s, text: s.text + ev.delta, toolStatus: null };
         case "result":
-          // Commit the in-flight turn to history; reset live to idle.
-          // setLive runs in its own setter call to avoid stacking
-          // inside this dispatch.
-          finalizeTurn(s, ev);
+          // Flush any pending text BEFORE finalizing so we don't drop
+          // the tail of the response on the floor.
+          if (pendingTextRef.current) {
+            const pendingTail = pendingTextRef.current;
+            pendingTextRef.current = "";
+            if (flushTimerRef.current) {
+              clearTimeout(flushTimerRef.current);
+              flushTimerRef.current = null;
+            }
+            finalizeTurn({ ...s, text: s.text + pendingTail }, ev);
+          } else {
+            finalizeTurn(s, ev);
+          }
           return { kind: "idle" };
         case "error":
-          return s; // handled below via setLive("error")
+          return s;
       }
+      return s;
     });
     if (ev.kind === "error") {
       setLive({ kind: "error", message: ev.message });
@@ -154,6 +214,7 @@ export function Chat() {
               text={live.text}
               thinking={live.thinking}
               toolStatus={live.toolStatus}
+              elapsedSec={elapsed}
             />
           )}
           {live.kind === "error" && (
@@ -190,11 +251,19 @@ function LiveAssistant({
   text,
   thinking,
   toolStatus,
+  elapsedSec,
 }: {
   text: string;
   thinking: string[];
   toolStatus: string | null;
+  elapsedSec: number;
 }) {
+  // After 3s of waiting with no text and no tool fired, append elapsed
+  // seconds so the user knows time is passing — Streamlit's silent dot
+  // pulse felt indefinite, several test users said the chat "felt stuck".
+  const showTimer = elapsedSec >= 3;
+  const baseLabel = toolStatus ?? "Thinking…";
+  const statusLabel = showTimer ? `${baseLabel} (${elapsedSec}s)` : baseLabel;
   return (
     <div className="chat-assistant">
       {thinking.length > 0 && <ReasoningPanel blocks={thinking} />}
@@ -203,13 +272,13 @@ function LiveAssistant({
       ) : (
         <div className="chat-status">
           <span className="dot" />
-          {toolStatus ?? "Thinking…"}
+          {statusLabel}
         </div>
       )}
       {text && toolStatus && (
         <div className="chat-status">
           <span className="dot" />
-          {toolStatus}
+          {statusLabel}
         </div>
       )}
     </div>
