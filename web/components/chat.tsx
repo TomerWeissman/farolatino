@@ -3,9 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Plus } from "lucide-react";
 
 import { fetchSkills, streamChat } from "@/lib/api";
 import type { ChatEvent, SkillSummary, Turn } from "@/lib/types";
+import {
+  type Conversation,
+  createConversation,
+  getActiveConversationId,
+  getConversation,
+  saveConversation,
+  setActiveConversationId,
+  subscribeToConversations,
+} from "@/lib/conversations";
 import {
   Collapsible,
   CollapsibleContent,
@@ -47,6 +57,7 @@ export function Chat() {
   const [draft, setDraft] = useState("");
   const [live, setLive] = useState<LiveState>({ kind: "idle" });
   const [elapsed, setElapsed] = useState(0); // seconds since stream start
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Pending-text buffer so we can throttle the React render rate.
@@ -57,6 +68,42 @@ export function Chat() {
   useEffect(() => {
     fetchSkills().then(setSkills).catch(() => {});
   }, []);
+
+  // Restore the active conversation on mount + whenever the sidebar's
+  // conversation list changes (e.g., the user clicked a different
+  // conversation). The "active" id lives in localStorage so it survives
+  // page navigation between /skills and / etc.
+  useEffect(() => {
+    const sync = () => {
+      const id = getActiveConversationId();
+      if (!id) {
+        setConversation(null);
+        setHistory([]);
+        return;
+      }
+      const c = getConversation(id);
+      if (c) {
+        setConversation(c);
+        setHistory(c.turns);
+      } else {
+        // Stale active id (deleted from another tab); clear.
+        setActiveConversationId(null);
+        setConversation(null);
+        setHistory([]);
+      }
+    };
+    sync();
+    const unsub = subscribeToConversations(sync);
+    return unsub;
+  }, []);
+
+  function startNewChat() {
+    if (live.kind === "streaming") return;
+    setActiveConversationId(null);
+    setConversation(null);
+    setHistory([]);
+    setLive({ kind: "idle" });
+  }
 
   // Auto-scroll to bottom whenever history grows or the stream ticks.
   useEffect(() => {
@@ -79,7 +126,24 @@ export function Chat() {
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || live.kind === "streaming") return;
-    setHistory((h) => [...h, { role: "user", content: trimmed }]);
+
+    // Lazy-create a conversation on the first message so empty chats
+    // don't pollute the sidebar. Subsequent turns append to the same one.
+    let active = conversation;
+    if (!active) {
+      active = createConversation(trimmed);
+      setActiveConversationId(active.id);
+      setConversation(active);
+    }
+    const userTurn: Turn = { role: "user", content: trimmed };
+    const updatedConv: Conversation = {
+      ...active,
+      turns: [...active.turns, userTurn],
+    };
+    saveConversation(updatedConv);
+    setConversation(updatedConv);
+
+    setHistory((h) => [...h, userTurn]);
     setDraft("");
     setLive({
       kind: "streaming",
@@ -186,21 +250,28 @@ export function Chat() {
   }
 
   function finalizeTurn(s: Extract<LiveState, { kind: "streaming" }>, ev: Extract<ChatEvent, { kind: "result" }>) {
-    setHistory((h) => [
-      ...h,
-      {
-        role: "assistant",
-        content: s.text || "_(no response)_",
-        thinking: s.thinking.length ? s.thinking : undefined,
-        toolCalls: s.tools.length ? s.tools : undefined,
-        result: {
-          run_id: ev.run_id,
-          duration_s: ev.duration_s,
-          cost_usd: ev.cost_usd,
-          status: ev.status,
-        },
+    const assistantTurn: Turn = {
+      role: "assistant",
+      content: s.text || "_(no response)_",
+      thinking: s.thinking.length ? s.thinking : undefined,
+      toolCalls: s.tools.length ? s.tools : undefined,
+      result: {
+        run_id: ev.run_id,
+        duration_s: ev.duration_s,
+        cost_usd: ev.cost_usd,
+        status: ev.status,
       },
-    ]);
+    };
+    setHistory((h) => [...h, assistantTurn]);
+    // Persist the assistant turn to the active conversation. Without
+    // this, navigating away and back would leave the user message
+    // visible but the response gone.
+    setConversation((c) => {
+      if (!c) return c;
+      const updated: Conversation = { ...c, turns: [...c.turns, assistantTurn] };
+      saveConversation(updated);
+      return updated;
+    });
   }
 
   function onPickSkill(slug: string) {
@@ -213,6 +284,21 @@ export function Chat() {
 
   return (
     <div className="chat-shell">
+      {/* "New chat" button — only when there's an active conversation
+          so the empty state isn't cluttered. */}
+      {conversation && (
+        <div className="chat-toolbar">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={startNewChat}
+            disabled={live.kind === "streaming"}
+            title="Start a new conversation"
+          >
+            <Plus size={14} /> New chat
+          </button>
+        </div>
+      )}
       {history.length === 0 && live.kind === "idle" ? (
         <div>
           <div className="empty-greet">How can I help?</div>
