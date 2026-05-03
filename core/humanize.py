@@ -1,8 +1,7 @@
 """Map raw tool names to friendly status labels.
 
-Lives in core/ so both the FastAPI backend (api/routes/chat.py) and the
-legacy Streamlit view (streamlit_app/views/chat.py) read from the same
-table — no risk of one drifting from the other.
+Used by api/routes/chat.py to attach human-readable labels to SSE
+tool_use events the frontend renders as status pills.
 """
 from __future__ import annotations
 

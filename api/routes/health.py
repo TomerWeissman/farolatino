@@ -1,6 +1,5 @@
 """GET /api/health — Chartmetric token + claude-binary check.
 
-Mirrors the logic of the old streamlit_app/components/_ping_chartmetric.
 Cached for 5 min so we don't burn Chartmetric's per-second rate limit
 on every page load.
 """
