@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Plus } from "lucide-react";
 
 import { fetchSkills, streamChat } from "@/lib/api";
 import type { ChatEvent, SkillSummary, Turn } from "@/lib/types";
@@ -97,13 +96,6 @@ export function Chat() {
     return unsub;
   }, []);
 
-  function startNewChat() {
-    if (live.kind === "streaming") return;
-    setActiveConversationId(null);
-    setConversation(null);
-    setHistory([]);
-    setLive({ kind: "idle" });
-  }
 
   // Auto-scroll to bottom whenever history grows or the stream ticks.
   useEffect(() => {
@@ -284,21 +276,6 @@ export function Chat() {
 
   return (
     <div className="chat-shell">
-      {/* "New chat" button — only when there's an active conversation
-          so the empty state isn't cluttered. */}
-      {conversation && (
-        <div className="chat-toolbar">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={startNewChat}
-            disabled={live.kind === "streaming"}
-            title="Start a new conversation"
-          >
-            <Plus size={14} /> New chat
-          </button>
-        </div>
-      )}
       {history.length === 0 && live.kind === "idle" ? (
         <div>
           <div className="empty-greet">How can I help?</div>

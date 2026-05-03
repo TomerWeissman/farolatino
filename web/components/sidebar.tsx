@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2 } from "lucide-react";
+import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type Conversation,
@@ -49,6 +49,11 @@ export function Sidebar() {
     if (pathname !== "/") router.push("/");
   }
 
+  function startNewChat() {
+    setActiveConversationId(null);
+    if (pathname !== "/") router.push("/");
+  }
+
   function remove(e: React.MouseEvent, id: string) {
     e.stopPropagation();
     if (!confirm("Delete this conversation? This can't be undone.")) return;
@@ -74,6 +79,15 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <button
+          type="button"
+          className="sidebar-link sidebar-link-action"
+          onClick={startNewChat}
+          title="Clear the chat and start a new conversation"
+        >
+          <Plus size={16} strokeWidth={1.75} />
+          <span>New chat</span>
+        </button>
       </nav>
 
       {conversations.length > 0 && (

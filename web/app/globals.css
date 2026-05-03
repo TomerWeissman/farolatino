@@ -430,11 +430,21 @@ body {
   border-color: var(--border-dash, #d4d4d4);
 }
 
-/* Chat top-bar (sits above the messages, holds "+ New chat") */
-.chat-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
+/* "New chat" sits in the sidebar below the 4 nav items. It uses the
+   same .sidebar-link layout as the nav links so the row alignment
+   matches; this tweak just removes the active-state styling and gives
+   it the standard button reset. */
+button.sidebar-link {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  /* Slightly de-emphasize so it doesn't compete with the route nav */
+  margin-top: 6px;
+}
+.sidebar-link-action {
+  color: var(--text-faint);
 }
 
 /* Dialog form bits — reused by Skills + future pages */
