@@ -157,6 +157,13 @@ fi
     done
 ) &
 
+# 6b. Kill any stale uvicorn from a previous failed launch. Without this,
+#     a second start.command silently fails to bind :8501 (the old
+#     process still owns the port) and the browser ends up talking to
+#     stale code. We saw this in production: two uvicorn PIDs alive
+#     simultaneously, the new one inert.
+pkill -f "uvicorn api.main:app --host 127.0.0.1 --port 8501" 2>/dev/null && sleep 1 || true
+
 # 7. Launch FastAPI (single process serves both /api/* and the static SPA
 #    mounted from web/out/). Port 8501 keeps muscle memory + bookmarks
 #    from the previous Streamlit setup.

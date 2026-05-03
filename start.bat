@@ -137,6 +137,13 @@ if not exist "%~dp0web\out\index.html" (
 REM 6. Open browser after a delay (parallel)
 start /b cmd /c "timeout /t 3 /nobreak >nul && start "" "http://localhost:8501""
 
+REM 6b. Kill any stale Python process holding :8501 from a previous launch.
+REM     Without this, the second start.bat run silently fails to bind and
+REM     the browser ends up talking to stale code.
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":8501.*LISTENING" 2^>nul') do (
+    taskkill /F /PID %%P >nul 2>nul
+)
+
 REM 7. Launch FastAPI - single process serves /api/* and the static SPA.
 echo.
 echo Starting dashboard...

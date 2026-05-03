@@ -63,22 +63,31 @@ export async function* streamChat(
     }
     chunkNum++;
     buffer += decoder.decode(value, { stream: true });
-    // SSE messages are separated by blank lines. Process whole messages
-    // only — the next chunk may complete a partial message.
-    let idx;
-    while ((idx = buffer.indexOf("\n\n")) !== -1) {
-      const block = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
+    // SSE messages are separated by a blank line. The spec allows either
+    // `\n\n` or `\r\n\r\n` and individual ASGI implementations differ —
+    // sse-starlette specifically emits CRLF, which an `indexOf("\n\n")`
+    // never matches, so 20 chunks of perfectly valid SSE yielded zero
+    // events on the previous build. Match both with a regex.
+    let m;
+    while ((m = SSE_BOUNDARY.exec(buffer)) !== null) {
+      const block = buffer.slice(0, m.index);
+      buffer = buffer.slice(m.index + m[0].length);
       const ev = parseSseBlock(block);
       if (ev) yield ev;
     }
   }
 }
 
+// `\r?\n\r?\n` matches the message terminator in either CRLF or LF form.
+// `g` flag is intentionally absent — we slice the buffer between hits, so
+// each iteration uses a fresh exec from index 0.
+const SSE_BOUNDARY = /\r?\n\r?\n/;
+const SSE_LINE = /\r?\n/;
+
 function parseSseBlock(block: string): ChatEvent | null {
   let event = "message";
   const dataLines: string[] = [];
-  for (const line of block.split("\n")) {
+  for (const line of block.split(SSE_LINE)) {
     if (line.startsWith("event:")) event = line.slice(6).trim();
     else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
     // ignore comments + id: + retry:
