@@ -293,10 +293,17 @@
     ta.focus();
   }
 
+  // Submit counter — incremented on each submission so Streamlit sees a
+  // distinct value object even when the user submits the same text twice
+  // in a row. Without this, Streamlit's component runtime would equality-
+  // check the returned value and skip the rerun on a duplicate submit.
+  let submitCounter = 0;
+
   function submit() {
     const v = ta.value.trim();
     if (!v) return;
-    Streamlit.setComponentValue(v);
+    submitCounter++;
+    Streamlit.setComponentValue({ message: v, nonce: submitCounter });
     ta.value = "";
     closePopup();
     syncFrameHeight();

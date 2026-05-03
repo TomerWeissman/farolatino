@@ -40,12 +40,14 @@ def skill_input(
     placeholder: str = "Type a message…",
     key: str | None = None,
     height: int = 110,
-) -> str | None:
-    """Render the chat input. Returns the submitted message or None.
+) -> dict | None:
+    """Render the chat input. Returns `{"message": str, "nonce": int}` or None.
+
+    The frontend bumps `nonce` on every submission so Streamlit's value-equality
+    check doesn't suppress reruns when the user submits the same message twice
+    in a row. The caller dedups by tracking `nonce` in `st.session_state`.
 
     `skills` is a list of dicts, each with `slug`, `name`, `description`.
-    Returns the raw message string (including any `@<slug>` prefix) when
-    the user presses Enter; returns None on every other rerun.
     """
     return _component_func(
         skills=skills,

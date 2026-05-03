@@ -1,7 +1,9 @@
 """Chat view — single-page interface (v0.dev-style minimal).
 
-Uses Streamlit's built-in `st.chat_input` for the textbox (proven to
-work end-to-end with our run logger).
+Uses our custom `skill_input` component for the textbox so the user gets
+@-autocomplete on skill names (with arrow-key navigation, Enter-to-pick,
+hover descriptions). The component returns `{"message": ..., "nonce": ...}`
+and we dedup by nonce so re-renders don't double-process a submission.
 
 Streaming UX:
 - Before the first text chunk arrives: show a pulsing "Thinking…"
@@ -23,6 +25,7 @@ from streamlit_app.claude_runner import (
     ClaudeRunnerError,
     run_claude_streaming,
 )
+from streamlit_app.components.skill_input import skill_input
 from streamlit_app.run_log import RunLogger
 from streamlit_app.skill_registry import list_skills
 
@@ -54,6 +57,7 @@ def _humanize_tool(name: str) -> str:
     if name.startswith("mcp__farolatino__"):
         return {
             "mcp__farolatino__evaluate_artist": "Evaluating artist (full pipeline)",
+            "mcp__farolatino__find_similar_artists": "Finding similar artists",
             "mcp__farolatino__search_artists": "Searching Chartmetric",
             "mcp__farolatino__search_artist_by_url": "Looking up artist",
             "mcp__farolatino__get_artist_data": "Pulling artist data (14 endpoints)",
@@ -127,9 +131,25 @@ def render() -> None:
                         )
                 st.markdown(turn["content"])
 
-    user_msg = st.chat_input(
-        placeholder="Type a message, or @<skill> to invoke a skill",
+    # Skill registry → list of {slug, name, description} for the autocomplete
+    skills_for_input = [
+        {"slug": s.slug, "name": s.name or s.slug, "description": s.description or ""}
+        for s in list_skills()
+    ]
+    submission = skill_input(
+        skills=skills_for_input,
+        placeholder="Type a message, or @ for skills",
+        key="chat_input",
     )
+    # Dedup by nonce: Streamlit equality-checks component values, so a re-render
+    # would otherwise re-process the same submission on every interaction.
+    user_msg: str | None = None
+    if isinstance(submission, dict):
+        nonce = submission.get("nonce")
+        last_nonce = st.session_state.get("last_chat_nonce", 0)
+        if nonce and nonce > last_nonce:
+            st.session_state["last_chat_nonce"] = nonce
+            user_msg = (submission.get("message") or "").strip() or None
     if not user_msg:
         return
 

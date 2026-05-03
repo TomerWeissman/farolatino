@@ -31,6 +31,20 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MCP_CONFIG_PATH = PROJECT_ROOT / ".mcp.json"
+PERSONA_PATH = PROJECT_ROOT / "FAROAI.md"
+
+
+def _load_persona() -> str:
+    """Read FAROAI.md so the model answers as the FaroAI A&R assistant.
+
+    Re-read on every chat turn — edits to FAROAI.md take effect on the next
+    message with no restart required. Returns "" silently if the file is
+    missing (we fall back to Claude Code's default behavior).
+    """
+    try:
+        return PERSONA_PATH.read_text(encoding="utf-8").strip()
+    except (FileNotFoundError, OSError):
+        return ""
 
 
 class ClaudeRunnerError(Exception):
@@ -55,6 +69,7 @@ _DEFAULT_ALLOWED_TOOLS = [
     "mcp__farolatino__discover_artists_multi_country",
     "mcp__farolatino__estimate_revenue",
     "mcp__farolatino__evaluate_artist",
+    "mcp__farolatino__find_similar_artists",
     "mcp__farolatino__generate_dossier",
     "mcp__farolatino__get_artist_data",
     "mcp__farolatino__get_profile",
@@ -75,7 +90,15 @@ _SKILL_PROFILES: dict[str, dict] = {
             "Read",       # for prompts/*.txt narrative templates only
             "ToolSearch", # in case Claude Code defers tool schemas
         ],
-        "max_thinking_tokens": 0,  # composite is deterministic
+        "max_thinking_tokens": 0,
+    },
+    "@similar": {
+        "allowed_tools": [
+            "mcp__farolatino__find_similar_artists",
+            "mcp__farolatino__search_artist_by_url",
+            "ToolSearch",
+        ],
+        "max_thinking_tokens": 0,
     },
 }
 
@@ -143,19 +166,20 @@ def run_claude_streaming(
     cmd.extend(["--allowed-tools", " ".join(profile["allowed_tools"])])
     cmd.extend(["--max-thinking-tokens", str(profile["max_thinking_tokens"])])
 
-    # Inject today's date so the LLM doesn't confuse past release dates as
-    # future ones (real bug seen in prior runs: a track released 2025-05-16
-    # was described as "drops May 16" because the model didn't know the
-    # current date was 2026-05-01).
+    # Inject the FaroAI persona + today's date as the appended system prompt.
+    # FAROAI.md is the user-editable memory file at the project root: it
+    # defines the assistant's identity, scope, capabilities, and what it
+    # should refuse. Without this, the model answers as generic Claude Code
+    # ("I'm Claude, an AI assistant...") instead of as FaroAI.
     today = date.today().isoformat()
-    cmd.extend([
-        "--append-system-prompt",
-        (
-            f"Today's date is {today}. When you see release dates, "
-            f"compare them to today to determine whether they are past or upcoming. "
-            f"Treat dates earlier than today as already-released."
-        ),
-    ])
+    persona = _load_persona()
+    date_note = (
+        f"Today's date is {today}. When you see release dates, compare them "
+        f"to today to determine whether they are past or upcoming. Treat "
+        f"dates earlier than today as already-released."
+    )
+    appended = f"{persona}\n\n---\n\n{date_note}" if persona else date_note
+    cmd.extend(["--append-system-prompt", appended])
 
     if max_turns is not None:
         cmd.extend(["--max-turns", str(max_turns)])
