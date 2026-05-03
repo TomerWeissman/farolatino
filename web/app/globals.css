@@ -220,6 +220,169 @@ body {
   margin-top: 24px;
 }
 
+/* === Skills page ======================================================= */
+.skills-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.skills-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-right: 1px solid var(--border-soft);
+  padding-right: 12px;
+}
+.skills-list-item {
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.skills-list-item:hover {
+  background: var(--bg-hover);
+}
+.skills-list-item-active {
+  background: var(--bg-bubble);
+  border-color: var(--border-soft);
+}
+.skills-list-slug {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+}
+.skills-list-name {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.skills-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.skills-editor-meta {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  padding: 6px 4px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.skills-editor-textarea {
+  width: 100%;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  padding: 14px 16px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.skills-editor-textarea:focus {
+  border-color: var(--text);
+  box-shadow: var(--shadow-input-focus);
+}
+.skills-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skills-editor-status {
+  font-size: 13px;
+  color: #16a34a;  /* green */
+}
+.skills-editor-status-err {
+  color: #dc2626;
+}
+
+/* Buttons (shared across pages, simple variant set) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+.btn-primary:hover:not(:disabled) {
+  background: #1f1f1f;
+}
+.btn-danger {
+  background: var(--bg);
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.btn-danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* Dialog form bits — reused by Skills + future pages */
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0;
+}
+.dialog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.dialog-input {
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dialog-input:focus {
+  border-color: var(--text);
+  box-shadow: var(--shadow-input-focus);
+}
+.dialog-error {
+  color: #dc2626;
+  font-size: 13px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
 /* === Empty state ======================================================= */
 .empty-greet {
   font-size: 1.6rem;

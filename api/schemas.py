@@ -12,6 +12,28 @@ class SkillSummary(BaseModel):
     description: str
 
 
+class SkillDetail(BaseModel):
+    slug: str
+    name: str
+    description: str
+    body: str  # raw markdown (without frontmatter)
+    full_markdown: str  # frontmatter + body, what gets written to disk
+
+
+class SkillUpdate(BaseModel):
+    """Body for PUT /api/skills/{slug}. We accept the full markdown
+    (including frontmatter) so the user can edit name/description without
+    a separate roundtrip."""
+    full_markdown: str
+
+
+class SkillCreate(BaseModel):
+    slug: str
+    name: str
+    description: str
+    body: str = ""  # optional starter body; we add a default if empty
+
+
 class HealthStatus(BaseModel):
     chartmetric: str  # "ok" | "missing_creds" | "auth_failed" | "error"
     chartmetric_detail: str | None = None
