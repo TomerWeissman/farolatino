@@ -38,8 +38,40 @@ from streamlit_app.views import chat  # noqa: E402
 # leak white text onto white backgrounds.
 _CUSTOM_CSS = """
 <style>
-/* Force light theme regardless of OS preference */
-:root { color-scheme: light !important; }
+/* === Design tokens =====================================================
+   Single source of truth for color, spacing, radius, type. Edit these to
+   adjust the whole UI; downstream rules just reference var(...).
+   Tuned to match the Claude.ai feel: pure white, generous whitespace,
+   soft borders, gentle radius, dark text, muted secondaries. */
+:root {
+    color-scheme: light !important;
+    --bg:           #ffffff;
+    --bg-subtle:    #fafafa;
+    --bg-bubble:    #f4f4f4;   /* user bubble + code bg */
+    --bg-hover:     #f2f2f2;
+    --text:         #0a0a0a;
+    --text-muted:   #525252;
+    --text-faint:   #737373;
+    --text-soft:    #a3a3a3;
+    --border:       #e5e5e5;
+    --border-soft:  #ececec;
+    --border-dash:  #d4d4d4;
+    --radius-sm:    8px;
+    --radius:       12px;
+    --radius-lg:    16px;
+    --radius-input: 16px;
+    --space-1:      4px;
+    --space-2:      8px;
+    --space-3:      12px;
+    --space-4:      16px;
+    --space-5:      24px;
+    --space-6:      32px;
+    --font-sans:    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-size-md: 15px;
+    --font-size-sm: 13px;
+    --font-size-xs: 12px;
+    --shadow-input-focus: 0 0 0 3px rgba(0,0,0,0.06);
+}
 
 /* Remove Streamlit chrome */
 #MainMenu {visibility: hidden;}
@@ -58,45 +90,40 @@ header[data-testid="stHeader"] {display: none;}
 /* Also kill the top-of-page progress bar that flashes on each rerun */
 [data-testid="stDecoration"] { display: none !important; }
 
-/* Pure white canvas — every Streamlit container layer */
+/* === Canvas + layout ================================================== */
 html, body,
 .stApp,
 [data-testid="stAppViewContainer"],
 .main,
 [data-testid="stMain"],
 [data-testid="block-container"] {
-    background: #ffffff !important;
-    color: #0a0a0a !important;
+    background: var(--bg) !important;
+    color: var(--text) !important;
 }
 
-/* Narrow centered column with breathing room */
+/* Centered narrow column. Bottom padding leaves room for the sticky chat
+   input so the last message isn't covered. */
 .main .block-container {
-    max-width: 640px;
-    padding: 4rem 1.5rem 8rem 1.5rem;
+    max-width: 720px;
+    padding: 4rem var(--space-5) 10rem var(--space-5);
 }
 
 /* Typography — Inter / system stack, tight, pinned dark */
 html, body, [class*="css"], .stMarkdown, p, li, span, div {
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    color: #0a0a0a !important;
+    font-family: var(--font-sans);
+    color: var(--text) !important;
     -webkit-font-smoothing: antialiased;
 }
-html, body {
-    letter-spacing: -0.01em;
-}
-
-/* Heading colors */
-h1, h2, h3, h4, h5, h6 {
-    color: #0a0a0a !important;
-}
+html, body { letter-spacing: -0.01em; }
+h1, h2, h3, h4, h5, h6 { color: var(--text) !important; }
 
 /* Wordmark in the top-left corner only */
 .wordmark {
     position: fixed;
-    top: 1rem;
-    left: 1.25rem;
-    font-size: 12px;
-    color: #737373;
+    top: var(--space-4);
+    left: var(--space-5);
+    font-size: var(--font-size-xs);
+    color: var(--text-faint);
     letter-spacing: 0.05em;
     text-transform: uppercase;
     font-weight: 500;
@@ -107,87 +134,134 @@ h1, h2, h3, h4, h5, h6 {
 /* Empty state — vertically centered greeting */
 .empty-state {
     text-align: center;
-    padding: 3.5rem 0 1.5rem;
+    padding: 3.5rem 0 var(--space-5);
 }
 .empty-greet {
     font-size: 1.6rem;
     font-weight: 500;
-    color: #0a0a0a;
+    color: var(--text);
     letter-spacing: -0.02em;
 }
 .empty-hint {
-    color: #737373;
+    color: var(--text-faint);
     font-size: 0.9rem;
-    margin-top: 0.4rem;
+    margin-top: var(--space-1);
 }
 
-/* Skill cheatsheet — quiet pills with native tooltips */
+/* Skill cheatsheet (empty state, hover-tooltip pills) */
 .skills-row {
     text-align: center;
-    margin: 1.25rem 0 0;
-    color: #a3a3a3;
+    margin: var(--space-5) 0 0;
+    color: var(--text-soft);
     font-size: 0.85rem;
     line-height: 1.9;
 }
 .skill-pill {
-    color: #525252;
+    color: var(--text-muted);
     font-weight: 500;
     cursor: help;
-    border-bottom: 1px dotted #d4d4d4;
+    border-bottom: 1px dotted var(--border-dash);
 }
 
-/* Chat messages — assistant flush prose, user gets a tiny grey bubble */
+/* === Skill picker row (above the input, always visible during chat) ==== */
+/* st.button cells in the picker row — slim chips, no borders, hover lift. */
+[data-testid="stHorizontalBlock"] [data-testid="stButton"] > button[kind="secondary"] {
+    background: var(--bg) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-muted) !important;
+    border-radius: 999px !important;
+    padding: 6px 12px !important;
+    font-size: var(--font-size-sm) !important;
+    font-weight: 500 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+}
+[data-testid="stHorizontalBlock"] [data-testid="stButton"] > button[kind="secondary"]:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--border-dash) !important;
+    color: var(--text) !important;
+}
+.skill-queued {
+    display: inline-block;
+    background: var(--bg-bubble);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-bottom: var(--space-2);
+}
+
+/* === Chat messages ===================================================== */
 [data-testid="stChatMessage"] {
     background: transparent !important;
     border: none !important;
-    padding: 0.6rem 0;
-    gap: 0.75rem;
+    padding: var(--space-2) 0;
+    gap: var(--space-3);
 }
 [data-testid="stChatMessage"] .stMarkdown,
 [data-testid="stChatMessage"] .stMarkdown p {
-    color: #0a0a0a !important;
+    color: var(--text) !important;
     line-height: 1.65;
 }
-
-/* Hide avatars for cleaner look (we use alignment instead) */
 [data-testid="stChatMessageAvatarUser"],
 [data-testid="stChatMessageAvatarAssistant"] {
     display: none !important;
 }
 
-/* User message — flex right + tinted bubble.
-   We can't use :has() reliably here because Streamlit's chat container
-   doesn't bind a stable role attribute. Instead the chat view tags each
-   user message with class chat-user-bubble via raw markdown. */
+/* User message — right-aligned tinted bubble. */
 .chat-user-bubble {
     display: inline-block;
-    background: #f4f4f4 !important;
-    border-radius: 14px;
-    padding: 10px 14px;
+    background: var(--bg-bubble) !important;
+    border-radius: var(--radius-lg);
+    padding: 10px 16px;
     max-width: 80%;
-    color: #0a0a0a !important;
+    color: var(--text) !important;
     margin-left: auto;
+    line-height: 1.5;
 }
 .chat-user-row {
     display: flex;
     justify-content: flex-end;
-    margin: 0.6rem 0;
+    margin: var(--space-3) 0;
+}
+
+/* Assistant prose — flush, looser line-height for readability */
+[data-testid="stChatMessage"]:not(:has(.chat-user-bubble)) .stMarkdown {
+    line-height: 1.7;
+}
+.stMarkdown table {
+    border-collapse: collapse;
+    margin: var(--space-3) 0;
+    font-size: var(--font-size-sm);
+}
+.stMarkdown table th, .stMarkdown table td {
+    border-top: 1px solid var(--border-soft) !important;
+    border-bottom: 1px solid var(--border-soft) !important;
+    border-left: none !important;
+    border-right: none !important;
+    padding: 8px 12px;
+}
+.stMarkdown table th {
+    background: var(--bg-subtle) !important;
+    font-weight: 600;
+    text-align: left;
 }
 
 /* Status / "thinking" indicator */
 .chat-status {
-    color: #737373 !important;
+    color: var(--text-faint) !important;
     font-size: 14px;
     font-style: italic;
-    padding: 0.5rem 0;
+    padding: var(--space-2) 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
 }
 .chat-status .dot {
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: #737373;
+    background: var(--text-faint);
     animation: pulse 1.2s ease-in-out infinite;
 }
 @keyframes pulse {
@@ -195,83 +269,105 @@ h1, h2, h3, h4, h5, h6 {
     50%      { opacity: 1.0; transform: scale(1.3); }
 }
 .tool-use-line {
-    color: #737373 !important;
-    font-size: 13px;
-    padding: 4px 0;
-    border-left: 2px solid #ececec;
+    color: var(--text-faint) !important;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) 0;
+    border-left: 2px solid var(--border-soft);
     padding-left: 10px;
-    margin: 4px 0;
+    margin: var(--space-1) 0;
 }
 .tool-use-line code {
     background: transparent !important;
-    color: #525252 !important;
+    color: var(--text-muted) !important;
     padding: 0 !important;
-    font-size: 13px !important;
+    font-size: var(--font-size-sm) !important;
 }
 
-/* Reasoning panel — dimmed, italic, inside an st.expander.
-   Renders the model's thinking blocks: visible only when the user opens the
-   panel, so it doesn't compete with the answer for attention. */
+/* Reasoning panel (collapsible thinking blocks) */
 .reasoning-panel {
-    color: #525252 !important;
+    color: var(--text-muted) !important;
     font-size: 13.5px !important;
     line-height: 1.55;
     font-style: italic;
-    padding: 4px 2px;
+    padding: var(--space-1) 2px;
 }
 .reasoning-sep {
     border: none;
-    border-top: 1px dashed #e5e5e5;
+    border-top: 1px dashed var(--border);
     margin: 10px 0;
 }
+[data-testid="stExpander"] {
+    border: none !important;
+    background: transparent !important;
+}
 [data-testid="stExpander"] summary {
-    font-size: 12.5px !important;
-    color: #737373 !important;
+    font-size: var(--font-size-xs) !important;
+    color: var(--text-faint) !important;
     font-weight: 500 !important;
 }
 
-/* Chat input — refined, focus ring */
-[data-testid="stChatInput"] textarea {
-    border: 1px solid #e5e5e5 !important;
-    border-radius: 14px !important;
-    background: #ffffff !important;
-    color: #0a0a0a !important;
-    font-size: 15px !important;
-    padding: 12px 16px !important;
+/* === Chat input — sticky at the viewport bottom (Claude-style) ========== */
+/* Streamlit normally puts the input inline below the script; we float it
+   to the bottom so the last message is always visible above it. The bottom
+   container also gets a fade-out backdrop so content doesn't bleed through. */
+[data-testid="stBottom"] {
+    background: linear-gradient(to bottom,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.95) 25%,
+        var(--bg) 100%) !important;
+    padding-bottom: var(--space-5) !important;
+}
+[data-testid="stChatInput"] {
+    max-width: 720px !important;
+    margin: 0 auto !important;
+}
+[data-testid="stChatInput"] > div {
+    background: var(--bg) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-input) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     transition: border-color 0.15s, box-shadow 0.15s;
 }
-[data-testid="stChatInput"] textarea:focus {
-    border-color: #0a0a0a !important;
-    box-shadow: 0 0 0 2px rgba(0,0,0,0.06) !important;
+[data-testid="stChatInput"] > div:focus-within {
+    border-color: var(--text) !important;
+    box-shadow: var(--shadow-input-focus);
+}
+[data-testid="stChatInput"] textarea {
+    border: none !important;
+    background: transparent !important;
+    color: var(--text) !important;
+    font-size: var(--font-size-md) !important;
+    padding: 14px 16px !important;
+    min-height: 56px !important;
 }
 [data-testid="stChatInput"] textarea::placeholder {
-    color: #a3a3a3 !important;
+    color: var(--text-soft) !important;
 }
 
 /* Sidebar (only visible in ?debug=1 mode) — quiet */
 section[data-testid="stSidebar"] {
-    background: #fafafa !important;
-    border-right: 1px solid #ececec;
+    background: var(--bg-subtle) !important;
+    border-right: 1px solid var(--border-soft);
 }
 section[data-testid="stSidebar"] .stMarkdown h3 {
     font-size: 0.78rem;
-    color: #737373;
+    color: var(--text-faint);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: 600;
-    margin-top: 1rem;
+    margin-top: var(--space-4);
 }
 
 /* Soften misc Streamlit elements */
 code {
-    background: #f4f4f4;
-    color: #262626;
+    background: var(--bg-bubble);
+    color: var(--text);
     padding: 1px 5px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-size: 0.88em;
 }
 hr {
-    border-color: #ececec !important;
+    border-color: var(--border-soft) !important;
 }
 </style>
 """

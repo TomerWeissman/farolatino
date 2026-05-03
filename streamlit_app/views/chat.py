@@ -25,7 +25,6 @@ from streamlit_app.claude_runner import (
     ClaudeRunnerError,
     run_claude_streaming,
 )
-from streamlit_app.components.skill_input import skill_input
 from streamlit_app.run_log import RunLogger
 from streamlit_app.skill_registry import list_skills
 
@@ -37,6 +36,9 @@ def _ensure_history() -> list[dict]:
 
 
 def _skill_cheatsheet() -> None:
+    """Static skill cheatsheet shown only on the empty state. The interactive
+    picker row (`_render_skill_picker_row`) replaces this once the user is
+    chatting."""
     skills = list_skills()
     if not skills:
         return
@@ -50,6 +52,38 @@ def _skill_cheatsheet() -> None:
         "<div class='skills-row'>" + " · ".join(parts) + "</div>",
         unsafe_allow_html=True,
     )
+
+
+def _render_skill_picker_row() -> None:
+    """Render a row of clickable skill buttons just above the chat input.
+
+    Clicking a button stores `@<slug>` in session_state["pending_skill_prefix"];
+    the next message the user types gets that prefix prepended automatically.
+    A pending prefix is shown as a small chip so it's clear what's queued.
+    """
+    skills = list_skills()
+    if not skills:
+        return
+
+    pending = st.session_state.get("pending_skill_prefix", "")
+    if pending:
+        col_chip, col_clear = st.columns([8, 1])
+        col_chip.markdown(
+            f"<div class='skill-queued'>{pending} → next message</div>",
+            unsafe_allow_html=True,
+        )
+        if col_clear.button("✕", key="skillpick_clear", help="Clear queued skill"):
+            st.session_state.pop("pending_skill_prefix", None)
+            st.rerun()
+
+    cols = st.columns(len(skills))
+    for col, s in zip(cols, skills):
+        with col:
+            label = f"@{s.slug}"
+            if st.button(label, key=f"skillpick_{s.slug}", help=s.description or s.name or s.slug,
+                          use_container_width=True):
+                st.session_state["pending_skill_prefix"] = label
+                st.rerun()
 
 
 def _humanize_tool(name: str) -> str:
@@ -131,25 +165,24 @@ def render() -> None:
                         )
                 st.markdown(turn["content"])
 
-    # Skill registry → list of {slug, name, description} for the autocomplete
-    skills_for_input = [
-        {"slug": s.slug, "name": s.name or s.slug, "description": s.description or ""}
-        for s in list_skills()
-    ]
-    submission = skill_input(
-        skills=skills_for_input,
-        placeholder="Type a message, or @ for skills",
-        key="chat_input",
-    )
-    # Dedup by nonce: Streamlit equality-checks component values, so a re-render
-    # would otherwise re-process the same submission on every interaction.
-    user_msg: str | None = None
-    if isinstance(submission, dict):
-        nonce = submission.get("nonce")
-        last_nonce = st.session_state.get("last_chat_nonce", 0)
-        if nonce and nonce > last_nonce:
-            st.session_state["last_chat_nonce"] = nonce
-            user_msg = (submission.get("message") or "").strip() or None
+    # Render the skill picker row above the input. We use st.chat_input
+    # (native, sticky at the bottom of the viewport, instant load) instead
+    # of an iframe component — the previous custom component had a frame
+    # height that jumped when its popup opened, shoving the textarea
+    # around the page and adding 1-2s of boot delay on every load.
+    _render_skill_picker_row()
+
+    typed = st.chat_input(placeholder="Type a message, or pick a skill above")
+    if not typed:
+        return
+
+    # If the user clicked a skill pill, prepend it (unless they already typed
+    # a @-prefix themselves — don't double up).
+    pending = st.session_state.pop("pending_skill_prefix", "")
+    if pending and not typed.lstrip().startswith("@"):
+        user_msg = f"{pending} {typed}".strip()
+    else:
+        user_msg = typed.strip()
     if not user_msg:
         return
 
