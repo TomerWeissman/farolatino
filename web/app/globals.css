@@ -481,6 +481,128 @@ body {
   overflow-y: auto;
 }
 
+/* === Files page ======================================================== */
+.files-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 24px;
+}
+.files-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  transition: color 0.12s, border-color 0.12s;
+}
+.files-tab:hover {
+  color: var(--text);
+}
+.files-tab-active {
+  color: var(--text);
+  border-bottom-color: var(--text);
+  font-weight: 500;
+}
+.files-tab-hint {
+  font-size: 11px;
+  color: var(--text-soft);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-right: 1px solid var(--border-soft);
+  padding-right: 12px;
+}
+.files-list-item {
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.files-list-item:hover {
+  background: var(--bg-hover);
+}
+.files-list-item-active {
+  background: var(--bg-bubble);
+  border-color: var(--border-soft);
+}
+.files-list-name {
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted);
+}
+.files-list-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.files-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.files-filter {
+  width: 100%;
+  margin-bottom: 16px;
+}
+.files-cache-list {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.files-cache-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.files-cache-table th,
+.files-cache-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+}
+.files-cache-table th {
+  background: var(--bg-subtle);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.files-cache-table tr:last-child td {
+  border-bottom: none;
+}
+.files-cache-table tr:hover td {
+  background: var(--bg-hover);
+}
+.files-cache-mtime {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
 /* === Empty state ======================================================= */
 .empty-greet {
   font-size: 1.6rem;
