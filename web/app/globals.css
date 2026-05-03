@@ -383,6 +383,104 @@ body {
   border-radius: 8px;
 }
 
+/* === Memory page ======================================================= */
+.memory-section {
+  margin-bottom: 48px;
+}
+.memory-section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.memory-section-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+.memory-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.memory-run {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.memory-run-trigger {
+  display: grid;
+  grid-template-columns: 24px 80px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 13.5px;
+  transition: background-color 0.12s;
+}
+.memory-run-trigger:hover {
+  background: var(--bg-hover);
+}
+.memory-run-icon {
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.memory-run-time {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.memory-run-prompt {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.memory-run-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.memory-run-content {
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-subtle);
+}
+.memory-run-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.memory-run-response {
+  margin-top: 16px;
+  font-size: 13px;
+}
+.memory-run-response > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.memory-run-response-pre {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 /* === Empty state ======================================================= */
 .empty-greet {
   font-size: 1.6rem;
