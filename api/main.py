@@ -25,7 +25,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # .env BEFORE importing anything that reads env vars (chartmetric, etc.).
 load_dotenv(PROJECT_ROOT / ".env")
 
-from api.routes import health, persona, skills  # noqa: E402
+from api.routes import chat, health, persona, runs, skills  # noqa: E402
 
 app = FastAPI(
     title="FaroAI",
@@ -56,6 +56,8 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["meta"])
 app.include_router(skills.router, prefix="/api", tags=["chat"])
 app.include_router(persona.router, prefix="/api", tags=["chat"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(runs.router, prefix="/api", tags=["runs"])
 
 
 # Static SPA mount. Only attached if `web/out/` exists, so a fresh clone

@@ -86,36 +86,7 @@ def _render_skill_picker_row() -> None:
                 st.rerun()
 
 
-def _humanize_tool(name: str) -> str:
-    """Map raw tool names to friendly status labels."""
-    if name.startswith("mcp__farolatino__"):
-        return {
-            "mcp__farolatino__evaluate_artist": "Evaluating artist (full pipeline)",
-            "mcp__farolatino__find_similar_artists": "Finding similar artists",
-            "mcp__farolatino__search_artists": "Searching Chartmetric",
-            "mcp__farolatino__search_artist_by_url": "Looking up artist",
-            "mcp__farolatino__get_artist_data": "Pulling artist data (14 endpoints)",
-            "mcp__farolatino__compute_prospect_score": "Scoring across 7 dimensions",
-            "mcp__farolatino__estimate_revenue": "Projecting revenue",
-            "mcp__farolatino__generate_dossier": "Building dossier",
-            "mcp__farolatino__route_alert": "Classifying alert tier",
-            "mcp__farolatino__discover_artists": "Discovering prospects",
-            "mcp__farolatino__discover_artists_multi_country": "Discovering across markets",
-            "mcp__farolatino__list_profiles": "Loading scoring profiles",
-            "mcp__farolatino__get_profile": "Loading scoring profile",
-            "mcp__farolatino__load_config": "Loading config",
-            "mcp__farolatino__cache_get": "Reading cache",
-            "mcp__farolatino__cache_set": "Writing cache",
-            "mcp__farolatino__cache_clear": "Clearing cache",
-        }.get(name, name.removeprefix("mcp__farolatino__").replace("_", " ").capitalize())
-    return {
-        "ToolSearch": "Looking up tool details",
-        "Read": "Reading file",
-        "Glob": "Searching files",
-        "Grep": "Searching content",
-        "Bash": "Running shell command",
-        "Agent": "Delegating to a subagent",
-    }.get(name, name)
+from core.humanize import humanize_tool as _humanize_tool  # noqa: E402, F401
 
 
 def _render_user_bubble(text: str) -> None:
