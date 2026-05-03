@@ -287,6 +287,22 @@ body {
 }
 .chat-input-shell textarea::placeholder { color: var(--text-soft); }
 
+/* === Autocomplete popup (drop-up above the textarea) =================== */
+.autocomplete-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid #d4d4d4;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  padding: 4px;
+  z-index: 60;
+}
+
 /* === Skill picker chips ================================================ */
 .skill-row {
   display: flex;

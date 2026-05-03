@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -11,6 +11,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 // Live state of the in-flight assistant turn — separate from `history`
 // so we re-render only the streaming bits at high frequency without
@@ -229,6 +236,28 @@ function ReasoningPanel({ blocks }: { blocks: string[] }) {
   );
 }
 
+/**
+ * Find the `@<token>` the cursor is currently anchored to (no whitespace
+ * between the @ and the caret). Returns {start, query} or null.
+ *
+ * This is what makes typeahead work: as the user types after `@`, we slice
+ * the query out and feed it to cmdk for filtering.
+ */
+function findActiveTrigger(
+  value: string,
+  caret: number,
+): { start: number; query: string } | null {
+  const before = value.slice(0, caret);
+  const at = before.lastIndexOf("@");
+  if (at === -1) return null;
+  const between = before.slice(at + 1);
+  // Reject if there's whitespace between the @ and caret.
+  if (/\s/.test(between)) return null;
+  // The @ must be at start-of-string or preceded by whitespace.
+  if (at > 0 && !/\s/.test(before[at - 1])) return null;
+  return { start: at, query: between };
+}
+
 function ChatInputZone({
   draft,
   setDraft,
@@ -244,6 +273,50 @@ function ChatInputZone({
   onSend: (s: string) => void;
   disabled: boolean;
 }) {
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // Recompute the active @-trigger from the textarea state.
+  const refreshTrigger = useCallback(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    setTrigger(findActiveTrigger(ta.value, ta.selectionStart ?? ta.value.length));
+  }, []);
+
+  // Reset highlight when the popup closes or the query changes.
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [trigger?.query, trigger == null]);
+
+  // Filter skills by the @-query (slug then name then description).
+  const matches: SkillSummary[] = trigger
+    ? rankSkills(skills, trigger.query)
+    : [];
+
+  const popupOpen = trigger !== null;
+
+  function insertSkill(slug: string) {
+    if (!trigger) return;
+    const ta = taRef.current;
+    if (!ta) return;
+    const before = draft.slice(0, trigger.start);
+    const after = draft.slice(ta.selectionStart ?? draft.length);
+    const inserted = `@${slug} `;
+    const newValue = before + inserted + after;
+    const newCaret = before.length + inserted.length;
+    setDraft(newValue);
+    setTrigger(null);
+    // Restore caret position after React commits the new value.
+    requestAnimationFrame(() => {
+      const t = taRef.current;
+      if (t) {
+        t.focus();
+        t.setSelectionRange(newCaret, newCaret);
+      }
+    });
+  }
+
   return (
     <div className="chat-input-zone">
       <div className="chat-input-inner">
@@ -262,14 +335,91 @@ function ChatInputZone({
             ))}
           </div>
         )}
-        <div className="chat-input-shell">
+        <div className="chat-input-shell" style={{ position: "relative" }}>
+          {popupOpen && (
+            <div className="autocomplete-popup">
+              <Command
+                shouldFilter={false}
+                onKeyDown={(e) => {
+                  // cmdk handles arrow keys, but we need to forward Enter
+                  // and Esc out via the textarea handler — so swallow none
+                  // here and let the textarea onKeyDown drive it.
+                  e.stopPropagation();
+                }}
+              >
+                <CommandList>
+                  {matches.length === 0 ? (
+                    <CommandEmpty>No matching skills</CommandEmpty>
+                  ) : (
+                    <CommandGroup>
+                      {matches.map((s, i) => (
+                        <CommandItem
+                          key={s.slug}
+                          value={s.slug}
+                          onSelect={() => insertSkill(s.slug)}
+                          onMouseEnter={() => setActiveIdx(i)}
+                          data-active={i === activeIdx}
+                          className="data-[active=true]:bg-accent"
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">@{s.slug}</span>
+                            <span className="text-xs text-muted-foreground line-clamp-2">
+                              {s.description || s.name}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </div>
+          )}
           <textarea
+            ref={taRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              // Defer trigger recompute so selectionStart reflects post-change.
+              requestAnimationFrame(refreshTrigger);
+            }}
+            onSelect={refreshTrigger}
+            onClick={refreshTrigger}
+            onBlur={() => {
+              // Small delay so a click on a popup item still fires.
+              setTimeout(() => setTrigger(null), 100);
+            }}
             placeholder="Type a message, or pick a skill above"
             rows={2}
             disabled={disabled}
             onKeyDown={(e) => {
+              if (popupOpen && matches.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setActiveIdx((i) => (i + 1) % matches.length);
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActiveIdx((i) => (i - 1 + matches.length) % matches.length);
+                  return;
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  insertSkill(matches[activeIdx].slug);
+                  return;
+                }
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  insertSkill(matches[activeIdx].slug);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setTrigger(null);
+                  return;
+                }
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 onSend(draft);
@@ -280,4 +430,26 @@ function ChatInputZone({
       </div>
     </div>
   );
+}
+
+function rankSkills(skills: SkillSummary[], query: string): SkillSummary[] {
+  const q = query.toLowerCase();
+  if (!q) return skills;
+  // Tier ranking: slug-startsWith > slug-contains > name-startsWith > name-contains > desc-contains
+  const ranked = skills
+    .map((s) => {
+      const slug = s.slug.toLowerCase();
+      const name = (s.name || "").toLowerCase();
+      const desc = (s.description || "").toLowerCase();
+      let tier = -1;
+      if (slug.startsWith(q)) tier = 0;
+      else if (slug.includes(q)) tier = 1;
+      else if (name.startsWith(q)) tier = 2;
+      else if (name.includes(q)) tier = 3;
+      else if (desc.includes(q)) tier = 4;
+      return tier === -1 ? null : { skill: s, tier };
+    })
+    .filter((x): x is { skill: SkillSummary; tier: number } => x !== null);
+  ranked.sort((a, b) => a.tier - b.tier || a.skill.slug.localeCompare(b.skill.slug));
+  return ranked.map((r) => r.skill);
 }
