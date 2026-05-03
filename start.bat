@@ -84,7 +84,7 @@ call venv\Scripts\activate.bat
 REM 5. Install / update deps. Redirect pip stderr to a log file because
 REM pip's HTTP-cache machinery emits benign-but-alarming warnings on some
 REM setups. Real errors surface via exit code; log is available if needed.
-python -c "import streamlit" >nul 2>nul
+python -c "import fastapi" >nul 2>nul
 if errorlevel 1 (
     echo.
     echo Installing dependencies ^(~60s, only on first run^)...
@@ -128,14 +128,20 @@ exit /b 1
 
 :launch
 
+REM 5c. Sanity-check the prebuilt frontend.
+if not exist "%~dp0web\out\index.html" (
+    echo [!] web\out\ is missing - frontend won't be served.
+    echo     Re-clone the repo or run scripts\build_web.sh to rebuild it.
+)
+
 REM 6. Open browser after a delay (parallel)
 start /b cmd /c "timeout /t 3 /nobreak >nul && start "" "http://localhost:8501""
 
-REM 7. Launch Streamlit
+REM 7. Launch FastAPI - single process serves /api/* and the static SPA.
 echo.
 echo Starting dashboard...
 echo (Browser will open automatically. Close this window or press Ctrl+C to stop.)
 echo.
-streamlit run streamlit_app/main.py --server.headless=true
+python -m uvicorn api.main:app --host 127.0.0.1 --port 8501 --log-level warning
 
 pause

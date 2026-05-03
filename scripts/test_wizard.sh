@@ -100,6 +100,8 @@ rsync -a \
     --exclude='dist/' \
     --exclude='build/' \
     --exclude='communications/' \
+    --exclude='web/node_modules/' \
+    --exclude='web/.next/' \
     "$PROJECT_ROOT/" "$DEST/"
 
 # Sanity check: did .env make it (it must, otherwise the test is meaningless)

@@ -86,7 +86,7 @@ source venv/bin/activate
 # deserialization failed" warnings on some setups. We surface real errors
 # via the exit code; the log is available if anything actually fails.
 PIP_LOG="$SCRIPT_DIR/.pip_install.log"
-if ! python -c "import streamlit" 2>/dev/null; then
+if ! python -c "import fastapi" 2>/dev/null; then
     echo
     echo "Installing dependencies (~60s, only on first run)..."
     if ! { pip install --upgrade pip --quiet > "$PIP_LOG" 2>&1 \
@@ -138,15 +138,30 @@ cat > "$SCRIPT_DIR/.mcp.json" <<EOF
 EOF
 echo "✓ MCP config ready"
 
-# 6. Open browser after Streamlit boots (3s delay)
+# 5c. Sanity-check the prebuilt frontend. We ship web/out/ in the repo so
+#     end-users don't need Node. If it's missing, fall back to the API-only
+#     mode (browser will land on FastAPI's docs page) and surface a hint.
+if [ ! -f "$SCRIPT_DIR/web/out/index.html" ]; then
+    echo "⚠️  web/out/ is missing — frontend won't be served."
+    echo "    Re-clone the repo or run scripts/build_web.sh to rebuild it."
+fi
+
+# 6. Open browser once uvicorn responds (poll /api/health)
 (
-    sleep 3
-    open http://localhost:8501 2>/dev/null || true
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        if curl -s -o /dev/null --max-time 1 http://127.0.0.1:8501/api/health 2>/dev/null; then
+            open http://localhost:8501 2>/dev/null || true
+            break
+        fi
+        sleep 0.5
+    done
 ) &
 
-# 7. Launch Streamlit
+# 7. Launch FastAPI (single process serves both /api/* and the static SPA
+#    mounted from web/out/). Port 8501 keeps muscle memory + bookmarks
+#    from the previous Streamlit setup.
 echo
 echo "Starting dashboard..."
 echo "(Browser will open automatically. Press Ctrl+C in this window to stop.)"
 echo
-streamlit run streamlit_app/main.py --server.headless=true
+uvicorn api.main:app --host 127.0.0.1 --port 8501 --log-level warning
