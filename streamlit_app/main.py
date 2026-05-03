@@ -198,6 +198,27 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 13px !important;
 }
 
+/* Reasoning panel — dimmed, italic, inside an st.expander.
+   Renders the model's thinking blocks: visible only when the user opens the
+   panel, so it doesn't compete with the answer for attention. */
+.reasoning-panel {
+    color: #525252 !important;
+    font-size: 13.5px !important;
+    line-height: 1.55;
+    font-style: italic;
+    padding: 4px 2px;
+}
+.reasoning-sep {
+    border: none;
+    border-top: 1px dashed #e5e5e5;
+    margin: 10px 0;
+}
+[data-testid="stExpander"] summary {
+    font-size: 12.5px !important;
+    color: #737373 !important;
+    font-weight: 500 !important;
+}
+
 /* Chat input — refined, focus ring */
 [data-testid="stChatInput"] textarea {
     border: 1px solid #e5e5e5 !important;

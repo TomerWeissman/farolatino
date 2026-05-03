@@ -9,20 +9,20 @@ When the user runs `/analyze {artist name}`, run an internal artist analysis:
 
 ## Steps
 
-1. **Search**: Call `chartmetric_search` to resolve the artist's CM ID (same as /evaluate step 1).
+1. **Search**: Call `mcp__farolatino__search_artists` to resolve the artist's CM ID (same as /evaluate step 1).
 
-2. **Public data pull**: Call `chartmetric_artist` to get all public data.
+2. **Public data pull**: Call `mcp__farolatino__get_artist_data` to get all public data.
 
 3. **Internal data**: Look for matching internal data in `data/internal/` (revenue reports, CPM actuals, deal terms). Match by artist name or internal ID.
 
-4. **Score**: Call `compute_prospect_score` — even for managed artists, scoring shows where they stand relative to the market.
+4. **Score**: Call `mcp__farolatino__compute_prospect_score` — even for managed artists, scoring shows where they stand relative to the market.
 
-5. **Revenue comparison**: Call `estimate_revenue` for the projected revenue, then compare against actual internal revenue data:
+5. **Revenue comparison**: Call `mcp__farolatino__estimate_revenue` for the projected revenue, then compare against actual internal revenue data:
    - Show projected vs. actual, with % deviation
    - Identify which markets/platforms have the biggest gap between projected and actual
    - Flag optimization opportunities (e.g., "Growing audience in Brazil but no Deezer distribution")
 
-6. **Generate dossier**: Call `generate_dossier` with the enriched data.
+6. **Generate dossier**: Call `mcp__farolatino__generate_dossier` with the enriched data.
 
 7. **Present**: Display the analysis with a focus on:
    - Public metrics health check (are they growing, stable, declining?)

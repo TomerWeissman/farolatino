@@ -109,6 +109,11 @@ def run_claude_streaming(
     ])
     cmd.extend(["--allowed-tools", allowed])
 
+    # Enable extended thinking. Without this, claude --print runs in a non-
+    # thinking mode and emits no `thinking` content blocks at all. We expose
+    # the reasoning to the user via a collapsible panel in the chat view.
+    cmd.extend(["--max-thinking-tokens", "8000"])
+
     # Inject today's date so the LLM doesn't confuse past release dates as
     # future ones (real bug seen in prior runs: a track released 2025-05-16
     # was described as "drops May 16" because the model didn't know the
@@ -288,8 +293,19 @@ def run_claude_streaming(
         )
 
 
+# Sentinel prefix that marks a chunk as a thinking delta rather than visible
+# response text. The chat view splits on this and routes thinking deltas to
+# the collapsible Reasoning panel. Chosen to be unlikely to appear in real
+# model output but human-readable if it ever leaks through.
+THINKING_PREFIX = "\x01THINK\x01"
+
+
 def _extract_text(event: dict) -> Iterator[str]:
-    """Pull user-visible text out of one stream-json event."""
+    """Pull user-visible text out of one stream-json event.
+
+    Yields plain text deltas for assistant text blocks; thinking-block deltas
+    are prefixed with THINKING_PREFIX so the consumer can split them out.
+    """
     etype = event.get("type")
 
     if etype == "assistant":
@@ -300,6 +316,13 @@ def _extract_text(event: dict) -> Iterator[str]:
                 text = block.get("text", "")
                 if text:
                     yield text
+            elif btype == "thinking":
+                # Claude's stream-json delivers full thinking blocks (not
+                # incremental deltas) per assistant event. Prefix the whole
+                # block; chat.py reassembles them in render order.
+                thinking = block.get("thinking", "")
+                if thinking:
+                    yield f"{THINKING_PREFIX}{thinking}"
             elif btype == "tool_use":
                 tool_name = block.get("name", "tool")
                 yield f"\n\n_using `{tool_name}`..._\n\n"

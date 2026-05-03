@@ -18,7 +18,11 @@ import time
 
 import streamlit as st
 
-from streamlit_app.claude_runner import ClaudeRunnerError, run_claude_streaming
+from streamlit_app.claude_runner import (
+    THINKING_PREFIX,
+    ClaudeRunnerError,
+    run_claude_streaming,
+)
 from streamlit_app.run_log import RunLogger
 from streamlit_app.skill_registry import list_skills
 
@@ -108,6 +112,18 @@ def render() -> None:
             if turn["role"] == "user":
                 _render_user_bubble(turn["content"])
             else:
+                blocks = turn.get("thinking") or []
+                if blocks:
+                    with st.expander("💭 Reasoning", expanded=False):
+                        st.markdown(
+                            "<div class='reasoning-panel'>"
+                            + "<hr class='reasoning-sep'>".join(
+                                b.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+                                for b in blocks
+                            )
+                            + "</div>",
+                            unsafe_allow_html=True,
+                        )
                 st.markdown(turn["content"])
 
     user_msg = st.chat_input(
@@ -127,33 +143,55 @@ def render() -> None:
     )
 
     logger = RunLogger(prompt=user_msg)
+    # Reasoning panel placeholder is reserved ABOVE the response so it appears
+    # in natural reading order. We populate it the moment the first thinking
+    # block arrives; it stays empty (and invisible) on prompts where the model
+    # doesn't think.
+    thinking_slot = st.empty()
     placeholder = st.empty()
     accumulated: list[str] = []
+    thinking_blocks: list[str] = []
     last_render = 0.0
     error_text: str | None = None
     has_text = False
-    tool_log: list[str] = []  # rolling list of friendly tool names
 
     def _on_event(event: dict) -> None:
-        nonlocal tool_log
         logger.record_event(event)
         # Whenever we see a tool_use, update the status indicator.
         if event.get("type") == "assistant":
             for b in (event.get("message") or {}).get("content") or []:
                 if b.get("type") == "tool_use":
                     label = _humanize_tool(b.get("name", "tool"))
-                    tool_log.append(label)
-                    # Show only the most recent tool to keep status concise
                     status.markdown(
                         f"<div class='chat-status'><span class='dot'></span>{label}…</div>",
                         unsafe_allow_html=True,
                     )
 
+    def _render_thinking() -> None:
+        if not thinking_blocks:
+            return
+        with thinking_slot.container():
+            with st.expander("💭 Reasoning", expanded=False):
+                st.markdown(
+                    "<div class='reasoning-panel'>"
+                    + "<hr class='reasoning-sep'>".join(
+                        block.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+                        for block in thinking_blocks
+                    )
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+
     try:
         for chunk in run_claude_streaming(user_msg, on_event=_on_event):
+            # Route thinking deltas to the Reasoning panel; everything else is
+            # response text.
+            if chunk.startswith(THINKING_PREFIX):
+                thinking_blocks.append(chunk[len(THINKING_PREFIX):])
+                _render_thinking()
+                continue
             # Strip the auto-generated `_using <tool>..._` lines from the
-            # text stream — we already render them via the status indicator
-            # and the inline tool-use-line rendering below.
+            # text stream — we already render them via the status indicator.
             cleaned = re.sub(r"\n*_using `[^`]+`\.\.\._\n*", "", chunk)
             if cleaned.strip():
                 if not has_text:
@@ -183,6 +221,14 @@ def render() -> None:
     if error_text:
         history.append({"role": "assistant", "content": f"⚠️ {error_text}"})
     else:
-        history.append({"role": "assistant", "content": final_text})
+        history.append({
+            "role": "assistant",
+            "content": final_text,
+            "thinking": list(thinking_blocks),
+        })
 
-    logger.finalize(response_text="".join(accumulated), error=error_text)
+    logger.finalize(
+        response_text="".join(accumulated),
+        error=error_text,
+        thinking_blocks=thinking_blocks,
+    )

@@ -11,19 +11,19 @@ When the user runs `/prospect {country}` (e.g., `/prospect Peru` or `/prospect P
 
 1. **Resolve country**: Map the input to an ISO 3166-1 alpha-2 code (e.g., "Peru" → "PE", "Colombia" → "CO"). If ambiguous, ask for clarification.
 
-2. **Load config**: Call `load_config("search_criteria")` as the base, then override `countries` with just the target country. Load the active profile weights.
+2. **Load config**: Call `mcp__farolatino__load_config("search_criteria")` as the base, then override `countries` with just the target country. Load the active profile weights.
 
-3. **Discovery**: Call `chartmetric_discovery` with the country-specific filters:
+3. **Discovery**: Call `mcp__farolatino__discover_artists` with the country-specific filters:
    - `code2` = target country
    - All other filters from search_criteria (genres, unsigned_only, career_stages, etc.)
    - Also run `artist/anr/by/social-index` and `artist/anr/by/playlists` filtered to the target country
 
 4. **Score and rank**: For each candidate:
-   - Pull full data via `chartmetric_artist`
-   - Call `compute_prospect_score` — D2 Geographic Fit will naturally favor this market since we're looking at artists whose audience IS in this country
+   - Pull full data via `mcp__farolatino__get_artist_data`
+   - Call `mcp__farolatino__compute_prospect_score` — D2 Geographic Fit will naturally favor this market since we're looking at artists whose audience IS in this country
    - Cache results
 
-5. **Top prospects**: Take the top 15, run `estimate_revenue` and `generate_dossier` for each.
+5. **Top prospects**: Take the top 15, run `mcp__farolatino__estimate_revenue` and `mcp__farolatino__generate_dossier` for each.
 
 6. **Market report**: Present results as a market prospecting report:
    - Market overview: how many unsigned artists found, score distribution

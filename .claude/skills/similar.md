@@ -9,7 +9,7 @@ When the user runs `/similar {artist name}`, return a ranked list of 5-10 artist
 
 ## Steps
 
-1. **Resolve seed.** Call `chartmetric_search` with the artist name to get their `cm_id`.
+1. **Resolve seed.** Call `mcp__farolatino__search_artists` with the artist name to get their `cm_id`.
    - If multiple matches: present top 3 (name, sp_monthly_listeners, country) and ask the user to pick.
    - If no match: suggest checking spelling or try a Spotify URL.
 
@@ -19,10 +19,10 @@ When the user runs `/similar {artist name}`, return a ranked list of 5-10 artist
    - Name + country code
    - Career stage (when known)
    - Spotify monthly listeners (band: tier-similar, smaller, larger)
-   - Source label (`chartmetric_neighbors` or `genre_search`) so the user knows why we picked them
+   - Source label (`mcp__farolatino__get_artist_data` or `genre_search`) so the user knows why we picked them
    - A quick "evaluate" link/instruction (`/evaluate {name}` to dive deeper on any one)
 
-4. **Optional — score them.** If the user asks for "the best similar artists," loop through the top 5-10 and call `compute_prospect_score` + `estimate_revenue` on each, then sort by score. **Cost:** this triggers full `get_artist_data` calls for each — at 14 endpoints throttled at 1 req/s that's ~16s per artist. Confirm with the user before running on more than 3 candidates.
+4. **Optional — score them.** If the user asks for "the best similar artists," loop through the top 5-10 and call `mcp__farolatino__compute_prospect_score` + `mcp__farolatino__estimate_revenue` on each, then sort by score. **Cost:** this triggers full `get_artist_data` calls for each — at 14 endpoints throttled at 1 req/s that's ~16s per artist. Confirm with the user before running on more than 3 candidates.
 
 5. **Return.**
    - Markdown table with name, country, monthly_listeners, career_stage, source.

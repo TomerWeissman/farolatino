@@ -9,17 +9,17 @@ When the user runs `/compare {prospect name} vs {managed artist name}`, run a co
 
 ## Steps
 
-1. **Resolve both artists**: Call `chartmetric_search` for each artist name. Confirm both are found.
+1. **Resolve both artists**: Call `mcp__farolatino__search_artists` for each artist name. Confirm both are found.
 
-2. **Data pull**: Call `chartmetric_artist` for both artists.
+2. **Data pull**: Call `mcp__farolatino__get_artist_data` for both artists.
 
 3. **Internal data**: For the managed artist, load internal data from `data/internal/` (revenue, deal terms).
 
-4. **Score both**: Call `compute_prospect_score` for each artist using the same profile.
+4. **Score both**: Call `mcp__farolatino__compute_prospect_score` for each artist using the same profile.
 
-5. **Revenue for both**: Call `estimate_revenue` for both. For the managed artist, include actual revenue comparison if internal data is available.
+5. **Revenue for both**: Call `mcp__farolatino__estimate_revenue` for both. For the managed artist, include actual revenue comparison if internal data is available.
 
-6. **Generate dossiers**: Call `generate_dossier` for both artists.
+6. **Generate dossiers**: Call `mcp__farolatino__generate_dossier` for both artists.
 
 7. **Comparative analysis**: Use the prompt from `prompts/comparison.txt` to generate a side-by-side analysis covering:
    - Metric comparison (listeners, followers, growth rates)

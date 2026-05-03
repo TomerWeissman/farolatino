@@ -97,6 +97,14 @@ def recent_runs_sidebar(limit: int = 10) -> None:
             st.markdown("**Response:**")
             st.markdown(r.response_text or "_(empty)_")
 
+            blocks = getattr(r, "thinking_blocks", []) or []
+            if blocks:
+                with st.expander(f"💭 Reasoning ({len(blocks)} block{'s' if len(blocks) != 1 else ''})", expanded=False):
+                    for i, block in enumerate(blocks):
+                        if i > 0:
+                            st.markdown("---")
+                        st.markdown(block)
+
             with st.expander("Full event trace", expanded=False):
                 st.code(json.dumps(r.events, indent=2, default=str), language="json")
 

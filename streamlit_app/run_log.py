@@ -36,6 +36,7 @@ class RunRecord:
     event_count: int = 0
     cost_usd: float | None = None
     events: list[dict] = field(default_factory=list)
+    thinking_blocks: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         """Short one-line summary for the sidebar list."""
@@ -79,6 +80,7 @@ class RunLogger:
         self,
         response_text: str,
         error: str | None = None,
+        thinking_blocks: list[str] | None = None,
     ) -> RunRecord:
         if error:
             status = "error"
@@ -100,6 +102,7 @@ class RunLogger:
             event_count=len(self.events),
             cost_usd=self.cost_usd,
             events=self.events,
+            thinking_blocks=list(thinking_blocks or []),
         )
 
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

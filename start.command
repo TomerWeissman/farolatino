@@ -101,8 +101,24 @@ if ! python -c "import streamlit" 2>/dev/null; then
     echo "✓ Dependencies installed"
     rm -f "$PIP_LOG"
 else
-    # Quick refresh; usually no-op. Suppress all output.
-    pip install -r requirements.txt --quiet > /dev/null 2>&1 || true
+    # Quick refresh; usually a no-op. We skip it entirely if requirements.txt
+    # hasn't changed since the venv was last refreshed (tracked via a hash
+    # stamp in venv/.req_hash). On a slow network, pip's silent resolver can
+    # otherwise take 60-120s with no output — looks like the launcher hung.
+    REQ_HASH=$(shasum -a 256 requirements.txt 2>/dev/null | awk '{print $1}')
+    STAMP_FILE="venv/.req_hash"
+    PREV_HASH=$(cat "$STAMP_FILE" 2>/dev/null || echo "")
+    if [ "$REQ_HASH" != "$PREV_HASH" ]; then
+        echo "Refreshing dependencies (requirements changed)..."
+        if pip install -r requirements.txt --quiet > "$PIP_LOG" 2>&1; then
+            echo "$REQ_HASH" > "$STAMP_FILE"
+            rm -f "$PIP_LOG"
+            echo "✓ Dependencies refreshed"
+        else
+            echo "⚠️  Refresh failed — continuing with existing packages."
+            echo "    Log: $PIP_LOG"
+        fi
+    fi
 fi
 
 # 5b. Generate .mcp.json so `claude --print` can spawn the FaroLatino
