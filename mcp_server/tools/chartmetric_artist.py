@@ -803,6 +803,11 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
         "record_label": metadata.get("record_label"),
         "distributor": None,
         "image_url": metadata.get("image_url"),
+        # `code2` is Chartmetric's ISO-3166-1 alpha-2 country field. Was
+        # previously dropped on the floor here; downstream consumers
+        # (composite_similar's country filter, the dossier's geographic
+        # profile) need it.
+        "country_code": (metadata.get("code2") or "").upper() or None,
 
         # Streaming & social metrics
         "sp_monthly_listeners": _safe_int(latest.get("sp_monthly_listeners")),

@@ -38,6 +38,31 @@ def _pick_unambiguous(search_result: dict) -> dict | None:
     return None
 
 
+# Countries whose music markets are part of the Latin scene FaroLatino
+# scouts in. When the seed is one of these, we filter neighbors to this
+# whole set rather than just exact-country match — most "neighbors" of a
+# PR superstar like Bad Bunny are global US/CA pop stars (audience
+# overlap, not genre), so an exact-PR filter would leave basically only
+# the seed itself in the list. The cluster catches Karol G (CO) for a
+# Bad Bunny (PR) seed, etc.
+_LATIN_MARKETS = frozenset({
+    "PR", "MX", "CO", "AR", "ES", "VE", "DO", "CL", "EC", "PE",
+    "UY", "PY", "BO", "CU", "GT", "HN", "NI", "CR", "PA", "SV", "BR",
+})
+
+
+def _filter_set(seed_country: str | None) -> frozenset[str] | None:
+    """Return the country set we'll filter neighbors against, or None to
+    skip filtering. Latin seeds use the cluster; everyone else uses an
+    exact country match (since we don't have other regional clusters
+    defined and exact match is the safer default)."""
+    if not seed_country:
+        return None
+    if seed_country in _LATIN_MARKETS:
+        return _LATIN_MARKETS
+    return frozenset({seed_country})
+
+
 def _tier_band(seed_listeners: int, peer_listeners: int) -> str:
     """Classify a peer relative to the seed's monthly-listener tier."""
     if not seed_listeners or not peer_listeners:
@@ -91,11 +116,36 @@ def find_similar_artists(
         return {"error": f"get_artist_data failed: {artist_data.get('error')}"}
 
     seed_listeners = int(artist_data.get("sp_monthly_listeners") or 0)
+    seed_country = artist_data.get("country_code")
 
-    # Step 3 — annotate neighbors with tier band so the model can summarize
-    raw_neighbors = artist_data.get("neighboring_artists") or []
+    # Step 3 — country-cluster post-filter to drop cross-genre noise.
+    # Chartmetric's neighbor clustering is by audience overlap, so global
+    # Latin superstars appear next to global pop stars (Bad Bunny -> Justin
+    # Bieber, Trueno -> Brent Rivera) — useless for Latin A&R. Filter to
+    # countries in the same music-market cluster as the seed.
+    # Also drop the seed itself: Chartmetric's neighbor list often
+    # includes the artist as their own first "neighbor".
+    # Fallback: if filtering leaves zero matches, keep the full unfiltered
+    # list (better noisy results than empty results).
+    raw_neighbors = [
+        n for n in (artist_data.get("neighboring_artists") or [])
+        if n.get("cm_id") != cm_id  # exclude self
+    ]
+    countries = _filter_set(seed_country)
+    if countries is not None:
+        filtered = [
+            n for n in raw_neighbors
+            if (n.get("country_code") or "").upper() in countries
+        ]
+        country_filter_applied = len(filtered) > 0
+        candidate_pool = filtered if country_filter_applied else raw_neighbors
+    else:
+        country_filter_applied = False
+        candidate_pool = raw_neighbors
+
+    # Step 3b — annotate with tier band so the model can summarize
     neighbors = []
-    for n in raw_neighbors[: min(limit, 20)]:
+    for n in candidate_pool[: min(limit, 20)]:
         peer_listeners = int(n.get("sp_monthly_listeners") or 0)
         neighbors.append({
             **n,
@@ -111,13 +161,14 @@ def find_similar_artists(
         "seed": {
             "name": artist_data.get("name"),
             "cm_id": cm_id,
-            "country_code": artist_data.get("country_code"),
+            "country_code": seed_country,
             "career_stage": artist_data.get("career_stage"),
             "genres": artist_data.get("genres", []),
             "sp_monthly_listeners": seed_listeners,
         },
         "neighbors": neighbors,
         "tier_distribution": bands,
+        "country_filter_applied": country_filter_applied,
         "summary": (
             f"{bands['tier-similar']} tier-similar, "
             f"{bands['smaller']} smaller, "
