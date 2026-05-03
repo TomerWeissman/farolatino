@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus, Plug } from "lucide-react";
+import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus, Plug, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type Conversation,
@@ -14,6 +14,7 @@ import {
   setActiveConversationId,
   subscribeToConversations,
 } from "@/lib/conversations";
+import { useActiveStreamIds } from "@/lib/streams";
 
 const SIDEBAR_WIDTH = 240;
 
@@ -30,6 +31,9 @@ export function Sidebar() {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Set of conversation ids that have an in-flight stream — drives the
+  // little spinner next to streaming conversations in the recent list.
+  const activeStreamIds = useActiveStreamIds();
 
   // Read the conversation list + active id on mount + on every change
   // event (driven by chat.tsx's saveConversation calls + cross-tab via
@@ -107,6 +111,9 @@ export function Sidebar() {
                   onClick={() => pick(c.id)}
                   title={c.title}
                 >
+                  {activeStreamIds.has(c.id) && (
+                    <Loader2 size={12} className="spin" aria-label="thinking" />
+                  )}
                   <span className="sidebar-history-title">{c.title}</span>
                   <button
                     type="button"

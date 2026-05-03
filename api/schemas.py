@@ -46,6 +46,10 @@ class PersonaPayload(BaseModel):
 
 class ChatRequest(BaseModel):
     prompt: str
+    # Pass to continue an existing claude session (multi-turn). When the
+    # frontend gets a result event back, it stashes the session_id on the
+    # conversation and sends it on the next turn.
+    resume_session_id: str | None = None
 
 
 class RunSummary(BaseModel):

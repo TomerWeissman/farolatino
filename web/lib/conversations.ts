@@ -24,6 +24,10 @@ export type Conversation = {
   createdAt: number; // epoch ms
   updatedAt: number;
   turns: StoredTurn[];
+  // claude --print's session_id from the most recent assistant turn.
+  // Passed as `resume_session_id` on the next user message so the
+  // model continues the same context instead of starting fresh.
+  claudeSessionId?: string;
 };
 
 type Blob = { conversations: Record<string, Conversation> };

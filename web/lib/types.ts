@@ -24,6 +24,11 @@ export type ResultEvent = {
   cost_usd: number | null;
   tool_calls: string[];
   thinking_block_count: number;
+  // claude --print's session_id from the init event. The frontend stashes
+  // it on the conversation so the next turn can pass it as
+  // resume_session_id and the model has prior context (otherwise "yes"
+  // / "go ahead" follow-ups land in a brand-new session).
+  session_id: string | null;
 };
 
 export type ErrorEvent = { kind: "error"; message: string };

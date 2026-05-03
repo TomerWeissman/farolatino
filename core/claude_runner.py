@@ -119,6 +119,7 @@ def run_claude_streaming(
     *,
     max_turns: int | None = None,
     on_event: callable | None = None,
+    resume_session_id: str | None = None,
 ) -> Iterator[str]:
     """Run `claude --print` and yield text deltas as they arrive.
 
@@ -128,6 +129,10 @@ def run_claude_streaming(
         on_event: optional callback invoked for every parsed JSON event from
             stream-json (system, assistant, user/tool_result, result, ...).
             Used by the run-log telemetry to capture full traces.
+        resume_session_id: if provided, pass `--resume <id>` so claude
+            continues an existing conversation rather than starting fresh.
+            Without this, "yes" / "go ahead" follow-ups land in a brand-new
+            session that has no idea what they refer to.
 
     Yields:
         Text chunks. Concatenate all chunks for the full response.
@@ -144,6 +149,8 @@ def run_claude_streaming(
         )
 
     cmd = [binary, "--print", "--verbose", "--output-format", "stream-json"]
+    if resume_session_id:
+        cmd.extend(["--resume", resume_session_id])
     if MCP_CONFIG_PATH.exists():
         # `--strict-mcp-config` ensures we use ONLY the FaroLatino MCP
         # server — no inheritance from the user's global Claude Code

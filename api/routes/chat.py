@@ -63,7 +63,7 @@ async def post_chat(req: ChatRequest):
     # State carried across the worker thread → SSE generator boundary.
     accumulated_text: list[str] = []
     thinking_blocks: list[str] = []
-    state: dict = {"error": None}
+    state: dict = {"error": None, "session_id": None}
 
     def _push(item) -> None:
         """Thread-safe enqueue from the worker thread."""
@@ -72,9 +72,17 @@ async def post_chat(req: ChatRequest):
     def _on_event(event: dict) -> None:
         """Forwarded into RunLogger (telemetry) AND used to surface
         tool_use events to the client BEFORE the corresponding text
-        chunk arrives — gives the UI a chance to update the status pill."""
+        chunk arrives — gives the UI a chance to update the status pill.
+        Also captures the session_id from the system/init event so the
+        frontend can pass it back as resume_session_id on follow-up turns."""
         logger.record_event(event)
-        if event.get("type") != "assistant":
+        etype = event.get("type")
+        if etype == "system" and event.get("subtype") == "init":
+            sid = event.get("session_id")
+            if sid:
+                state["session_id"] = sid
+            return
+        if etype != "assistant":
             return
         for block in (event.get("message") or {}).get("content") or []:
             if block.get("type") == "tool_use":
@@ -87,7 +95,11 @@ async def post_chat(req: ChatRequest):
 
     def _worker() -> None:
         try:
-            for chunk in run_claude_streaming(prompt, on_event=_on_event):
+            for chunk in run_claude_streaming(
+                prompt,
+                on_event=_on_event,
+                resume_session_id=req.resume_session_id,
+            ):
                 if chunk.startswith(THINKING_PREFIX):
                     delta = chunk[len(THINKING_PREFIX):]
                     thinking_blocks.append(delta)
@@ -133,6 +145,7 @@ async def post_chat(req: ChatRequest):
                 "cost_usd": record.cost_usd,
                 "tool_calls": record.tool_calls,
                 "thinking_block_count": len(record.thinking_blocks),
+                "session_id": state["session_id"],  # for frontend to stash + resume on next turn
             })
         except asyncio.CancelledError:
             # Client disconnected mid-stream. The watchdog in

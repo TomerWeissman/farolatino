@@ -39,12 +39,15 @@ export async function fetchRun(runId: string) {
 export async function* streamChat(
   prompt: string,
   signal?: AbortSignal,
+  opts?: { resumeSessionId?: string | null },
 ): AsyncIterableIterator<ChatEvent> {
-  console.log(`[api] POST /api/chat (${prompt.length} chars)`);
+  console.log(`[api] POST /api/chat (${prompt.length} chars${opts?.resumeSessionId ? ", resuming" : ""})`);
+  const body: Record<string, unknown> = { prompt };
+  if (opts?.resumeSessionId) body.resume_session_id = opts.resumeSessionId;
   const r = await fetch(`${BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify(body),
     signal,
   });
   console.log(`[api] response: ${r.status} ${r.statusText} (body=${!!r.body})`);
