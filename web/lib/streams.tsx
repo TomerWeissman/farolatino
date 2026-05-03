@@ -233,6 +233,11 @@ export function useConversationStream(conversationId: string | null) {
   const ctx = useContext(StreamCtx);
   if (!ctx) throw new Error("useConversationStream outside ConversationStreamsProvider");
   const snapshot = conversationId ? ctx.getSnapshot(conversationId) : null;
+  // Note: the hook binds these to the id at call time — only safe when
+  // the caller already has an established conversation. For the
+  // first-message-in-a-new-conversation case (where the id is created
+  // synchronously in send()), use useStreams() and pass the freshly-
+  // minted id directly.
   const startTurn = useCallback(
     (prompt: string) => {
       if (conversationId) ctx.startTurn(conversationId, prompt);
@@ -243,6 +248,14 @@ export function useConversationStream(conversationId: string | null) {
     if (conversationId) ctx.cancelTurn(conversationId);
   }, [ctx, conversationId]);
   return { snapshot, startTurn, cancelTurn };
+}
+
+/** Raw provider access — for callers that need to start a stream with
+ *  a conversation id that didn't exist at render time. */
+export function useStreams(): Ctx {
+  const ctx = useContext(StreamCtx);
+  if (!ctx) throw new Error("useStreams outside ConversationStreamsProvider");
+  return ctx;
 }
 
 export function useActiveStreamIds(): Set<string> {

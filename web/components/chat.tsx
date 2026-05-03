@@ -15,7 +15,7 @@ import {
   setActiveConversationId,
   subscribeToConversations,
 } from "@/lib/conversations";
-import { useConversationStream, type StreamSnapshot } from "@/lib/streams";
+import { useConversationStream, useStreams, type StreamSnapshot } from "@/lib/streams";
 import {
   Collapsible,
   CollapsibleContent,
@@ -40,7 +40,12 @@ export function Chat() {
   // navigation between routes and supports multiple parallel streams
   // (one per conversation), so navigating away or starting a new chat
   // doesn't kill ongoing thinking.
-  const { snapshot, startTurn } = useConversationStream(conversation?.id ?? null);
+  const { snapshot } = useConversationStream(conversation?.id ?? null);
+  // Raw provider access — needed because send() can MINT a new
+  // conversation id and start a stream against it in the same call,
+  // before any re-render has bound `useConversationStream` to that
+  // new id.
+  const streams = useStreams();
 
   // Skills for the @-typeahead.
   useEffect(() => {
@@ -114,8 +119,9 @@ export function Chat() {
     saveConversation(updated);
     setConversation(updated);
     setDraft("");
-    // Hand off to the streams provider — survives navigation.
-    startTurn(trimmed);
+    // Hand off to the streams provider, calling with the active id
+    // directly (which may have just been created in this same call).
+    streams.startTurn(active.id, trimmed);
   }
 
   // The "history" we render is the conversation's persisted turns plus

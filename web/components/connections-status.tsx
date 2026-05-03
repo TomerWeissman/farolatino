@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, ExternalLink, Loader2, ChevronDown, ChevronUp, Save, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const API = "/api";
@@ -16,6 +16,15 @@ type Connection = {
   docs_url?: string;
 };
 
+type EnvVar = {
+  name: string;
+  populated: boolean;
+  preview: string | null;
+  length: number;
+};
+
+type EnvBundle = { vars: EnvVar[] };
+
 const STATUS_META: Record<Status, { icon: React.ReactNode; label: string; tone: "ok" | "warn" | "err" }> = {
   ok:              { icon: <CheckCircle2 size={16} />, label: "Connected",        tone: "ok" },
   missing_creds:   { icon: <AlertTriangle size={16} />, label: "Not configured",  tone: "warn" },
@@ -27,17 +36,26 @@ const STATUS_META: Record<Status, { icon: React.ReactNode; label: string; tone: 
 
 export function ConnectionsStatus() {
   const [items, setItems] = useState<Connection[] | null>(null);
+  const [envVars, setEnvVars] = useState<Record<string, EnvVar>>({});
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
-      // Bust the 60s server-side cache by appending a timestamp.
-      const r = await fetch(`${API}/connections?t=${Date.now()}`, { cache: "no-store" });
-      if (!r.ok) throw new Error(`/api/connections ${r.status}`);
-      setItems(await r.json());
+      // Fire both reads in parallel.
+      const [connRes, envRes] = await Promise.all([
+        fetch(`${API}/connections?t=${Date.now()}`, { cache: "no-store" }),
+        fetch(`${API}/env?t=${Date.now()}`, { cache: "no-store" }),
+      ]);
+      if (!connRes.ok) throw new Error(`/api/connections ${connRes.status}`);
+      if (!envRes.ok) throw new Error(`/api/env ${envRes.status}`);
+      const conns: Connection[] = await connRes.json();
+      const envs: EnvBundle = await envRes.json();
+      setItems(conns);
+      setEnvVars(Object.fromEntries(envs.vars.map((v) => [v.name, v])));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "load failed");
     } finally {
@@ -49,13 +67,24 @@ export function ConnectionsStatus() {
     reload();
   }, [reload]);
 
+  const onSavedEnv = useCallback(async (newVars: EnvVar[]) => {
+    // Update local env preview, then re-ping connections so the row's
+    // status reflects the new credentials.
+    setEnvVars((prev) => {
+      const next = { ...prev };
+      for (const v of newVars) next[v.name] = v;
+      return next;
+    });
+    await reload();
+  }, [reload]);
+
   return (
     <div className="page-shell">
       <header className="connections-header">
         <div>
           <h1 className="page-title">Connections</h1>
           <p className="page-subtitle">
-            External APIs the dashboard uses, with live status.
+            External APIs the dashboard uses. Click a row to view or edit its credentials.
           </p>
         </div>
         <button
@@ -74,7 +103,14 @@ export function ConnectionsStatus() {
       {items && (
         <div className="connections-list">
           {items.map((c) => (
-            <ConnectionRow key={c.name} c={c} />
+            <ConnectionRow
+              key={c.name}
+              c={c}
+              envVars={envVars}
+              expanded={expanded === c.name}
+              onToggle={() => setExpanded((e) => (e === c.name ? null : c.name))}
+              onSavedEnv={onSavedEnv}
+            />
           ))}
         </div>
       )}
@@ -82,37 +118,49 @@ export function ConnectionsStatus() {
       {!items && !err && <div className="page-empty">Pinging providers…</div>}
 
       <p className="page-subtitle" style={{ marginTop: 32, fontSize: 12 }}>
-        Status is cached server-side for 60s. To update credentials, edit the
-        <code> .env </code>
-        file at the project root and restart <code>start.command</code>.
+        Edits are written to the project&apos;s <code>.env</code> file. Status is
+        cached server-side for 60s; saving credentials clears the cache so the
+        next ping reflects your changes.
       </p>
     </div>
   );
 }
 
-function ConnectionRow({ c }: { c: Connection }) {
+function ConnectionRow({
+  c,
+  envVars,
+  expanded,
+  onToggle,
+  onSavedEnv,
+}: {
+  c: Connection;
+  envVars: Record<string, EnvVar>;
+  expanded: boolean;
+  onToggle: () => void;
+  onSavedEnv: (vars: EnvVar[]) => void;
+}) {
   const meta = STATUS_META[c.status] ?? STATUS_META.unknown;
+  const hasEditable = c.env_vars.length > 0;
   return (
     <div className={cn("connection-row", `connection-row-${meta.tone}`)}>
-      <div className="connection-row-head">
+      <button
+        type="button"
+        className="connection-row-head connection-row-head-button"
+        onClick={onToggle}
+        disabled={!hasEditable}
+      >
         <div className="connection-row-name">{c.name}</div>
         <div className={cn("connection-row-status", `connection-status-${meta.tone}`)}>
           {meta.icon}
           {meta.label}
         </div>
-      </div>
+        {hasEditable && (
+          <span className="connection-row-chevron">
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        )}
+      </button>
       {c.detail && <div className="connection-row-detail">{c.detail}</div>}
-      {c.env_vars.length > 0 && c.status !== "ok" && (
-        <div className="connection-row-meta">
-          Set in <code>.env</code>:&nbsp;
-          {c.env_vars.map((v, i) => (
-            <span key={v}>
-              <code>{v}</code>
-              {i < c.env_vars.length - 1 && ", "}
-            </span>
-          ))}
-        </div>
-      )}
       {c.docs_url && (
         <a
           className="connection-row-link"
@@ -123,6 +171,124 @@ function ConnectionRow({ c }: { c: Connection }) {
           Docs <ExternalLink size={12} />
         </a>
       )}
+      {expanded && hasEditable && (
+        <EnvEditor
+          keys={c.env_vars}
+          envVars={envVars}
+          onSaved={onSavedEnv}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Inline env editor ──────────────────────────────────────────────────
+
+function EnvEditor({
+  keys,
+  envVars,
+  onSaved,
+}: {
+  keys: string[];
+  envVars: Record<string, EnvVar>;
+  onSaved: (vars: EnvVar[]) => void;
+}) {
+  // Drafts: only fields the user has actually edited. Empty string = no
+  // edit (we only PUT keys present in this map).
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+
+  const dirty = useMemo(() => Object.keys(drafts).length > 0, [drafts]);
+
+  async function save() {
+    if (!dirty) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const r = await fetch(`${API}/env`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: drafts }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(e.detail || "save failed");
+      }
+      const updated: EnvBundle = await r.json();
+      setDrafts({});
+      setStatus({ kind: "ok", msg: "Saved. Rechecking…" });
+      onSaved(updated.vars);
+    } catch (e) {
+      setStatus({ kind: "err", msg: e instanceof Error ? e.message : "save failed" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="env-editor">
+      {keys.map((k) => {
+        const v = envVars[k];
+        const draft = drafts[k];
+        const isDirty = draft !== undefined;
+        const showSecret = reveal[k];
+        return (
+          <label className="env-row" key={k}>
+            <div className="env-row-label">
+              <code className="env-row-key">{k}</code>
+              {v && (
+                <span className={cn("env-row-state", v.populated ? "env-row-state-set" : "env-row-state-empty")}>
+                  {v.populated ? `set · ${v.length} chars` : "not set"}
+                </span>
+              )}
+            </div>
+            <div className="env-row-input">
+              <input
+                type={showSecret ? "text" : "password"}
+                className="dialog-input"
+                placeholder={v?.preview ?? "(empty)"}
+                value={draft ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDrafts((d) => {
+                    const next = { ...d };
+                    if (val === "") delete next[k];
+                    else next[k] = val;
+                    return next;
+                  });
+                }}
+              />
+              <button
+                type="button"
+                className="env-row-eye"
+                onClick={() => setReveal((r) => ({ ...r, [k]: !r[k] }))}
+                title={showSecret ? "Hide" : "Show"}
+                aria-label={showSecret ? "Hide value" : "Show value"}
+              >
+                {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+              {isDirty && <span className="env-row-dirty">edited</span>}
+            </div>
+          </label>
+        );
+      })}
+      <div className="skills-editor-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!dirty || saving}
+          onClick={save}
+        >
+          <Save size={14} /> {saving ? "Saving…" : "Save"}
+        </button>
+        {status && (
+          <span className={cn("skills-editor-status", status.kind === "err" && "skills-editor-status-err")}>
+            {status.msg}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
