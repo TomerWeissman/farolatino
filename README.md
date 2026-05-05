@@ -14,8 +14,9 @@ integrations for cross-validation.
 
 **[→ Download the latest release](https://github.com/TomerWeissman/farolatino/releases/latest)**
 
-Then follow [SETUP.md](SETUP.md) — 4 steps, ~10 minutes, mostly clicking
-installers. The only Terminal command is `claude login` once.
+Then follow [INSTALL.md](INSTALL.md) — a step-by-step walkthrough,
+~15–20 minutes, mostly clicking installers. The only Terminal command
+is `claude login` once.
 
 You'll need:
 - **Python 3.11+** ([download](https://www.python.org/downloads/))
@@ -92,4 +93,4 @@ git tag v0.1.0 && git push --tags   # CI builds + uploads to GitHub Releases
 ## Contact
 
 Questions, ideas, or running into something the troubleshooting section
-of [SETUP.md](SETUP.md) doesn't cover: open an issue or DM Tomer.
+of [INSTALL.md](INSTALL.md) doesn't cover: open an issue or DM Tomer.

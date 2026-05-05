@@ -69,7 +69,7 @@ rsync -a \
 [ -f "$STAGE_DIR/start.command" ] || { echo "❌ start.command missing from stage"; exit 1; }
 [ -f "$STAGE_DIR/start.bat" ]      || { echo "❌ start.bat missing from stage"; exit 1; }
 [ -f "$STAGE_DIR/web/out/index.html" ] || { echo "❌ web/out/ missing from stage"; exit 1; }
-[ -f "$STAGE_DIR/SETUP.md" ]       || { echo "❌ SETUP.md missing from stage"; exit 1; }
+[ -f "$STAGE_DIR/INSTALL.md" ]     || { echo "❌ INSTALL.md missing from stage"; exit 1; }
 
 # Make sure start.command is executable in the zip
 chmod +x "$STAGE_DIR/start.command" 2>/dev/null || true
