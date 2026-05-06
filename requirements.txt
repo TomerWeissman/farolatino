@@ -4,6 +4,9 @@ httpx>=0.27.0
 python-dotenv>=1.0.0
 # Per-OS user-data dir (~/Library/Application Support/FaroAI on mac, etc.)
 platformdirs>=4.0.0
+# Native desktop window (no browser chrome). Mac uses system WebKit via
+# PyObjC; Windows uses Edge WebView2 (pre-installed on Win10 1803+).
+pywebview>=5.0
 pytest>=8.0.0
 google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.120.0

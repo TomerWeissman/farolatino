@@ -132,29 +132,37 @@ if [ ! -f "$SCRIPT_DIR/web/out/index.html" ]; then
     echo "    Re-clone the repo or run scripts/build_web.sh to rebuild it."
 fi
 
-# 6. Open browser once uvicorn responds (poll /api/health)
-(
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        if curl -s -o /dev/null --max-time 1 http://127.0.0.1:8501/api/health 2>/dev/null; then
-            open http://localhost:8501 2>/dev/null || true
-            break
-        fi
-        sleep 0.5
-    done
-) &
-
-# 6b. Kill any stale uvicorn from a previous failed launch. Without this,
-#     a second start.command silently fails to bind :8501 (the old
-#     process still owns the port) and the browser ends up talking to
-#     stale code. We saw this in production: two uvicorn PIDs alive
-#     simultaneously, the new one inert.
+# 6. Kill any stale uvicorn from a previous failed launch. Without this,
+#    a second start.command silently fails to bind :8501 (the old
+#    process still owns the port) and the new launch ends up talking to
+#    stale code. We saw this in production: two uvicorn PIDs alive
+#    simultaneously, the new one inert.
 pkill -f "uvicorn api.main:app --host 127.0.0.1 --port 8501" 2>/dev/null && sleep 1 || true
 
-# 7. Launch FastAPI (single process serves both /api/* and the static SPA
-#    mounted from web/out/). Port 8501 keeps muscle memory + bookmarks
-#    from the previous Streamlit setup.
+# 7. Launch FaroAI. Two paths:
+#    - Default: native desktop window (Phase 5 pywebview, no browser chrome).
+#    - --browser: legacy browser-tab UX, kept for dev iteration + as a
+#      fallback if pywebview misbehaves on a particular machine.
 echo
-echo "Starting dashboard..."
-echo "(Browser will open automatically. Press Ctrl+C in this window to stop.)"
+echo "Starting FaroAI..."
+echo "(Press Ctrl+C in this window to stop.)"
 echo
-uvicorn api.main:app --host 127.0.0.1 --port 8501 --log-level warning
+
+if [ "$1" = "--browser" ]; then
+    # Browser-tab fallback. Open the default browser once /api/health
+    # responds, then hand the foreground to uvicorn.
+    (
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -s -o /dev/null --max-time 1 http://127.0.0.1:8501/api/health 2>/dev/null; then
+                open http://localhost:8501 2>/dev/null || true
+                break
+            fi
+            sleep 0.5
+        done
+    ) &
+    uvicorn api.main:app --host 127.0.0.1 --port 8501 --log-level warning
+else
+    # Native window. core.desktop boots uvicorn in a daemon thread and
+    # blocks on the GUI loop until the user closes the window.
+    python -m core
+fi
