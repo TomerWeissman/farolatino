@@ -171,13 +171,7 @@ def _invalidate_caches() -> None:
     from core.llm import reset_provider_cache
     reset_provider_cache()
 
-    # Auth module token caches. We poke the module-level state directly —
-    # exposing a clear() function on each module would be cleaner; doing
-    # it here for now to keep this change tight.
-    from mcp_server.tools import chartmetric_auth, spotify_auth, youtube_auth
-    chartmetric_auth._access_token = None
-    chartmetric_auth._token_expires_at = 0.0
-    spotify_auth._access_token = None
-    spotify_auth._token_expires_at = 0.0
-    youtube_auth._access_token = None
-    youtube_auth._token_expires_at = 0.0
+    # Connector token caches — walk the registry so adding a new
+    # connector with its own cache doesn't require editing this list.
+    from core.connectors import reset_all_caches
+    reset_all_caches()
