@@ -90,19 +90,9 @@ class OpenAIProvider:
                     parallel_tool_calls=False,
                     stream=True,
                 )
-            except openai.AuthenticationError as exc:
-                yield AgentEvent(
-                    type="error",
-                    content=(
-                        "OpenAI authentication failed. "
-                        "Check the OPENAI_API_KEY in Connections. "
-                        f"({exc})"
-                    ),
-                )
-                yield AgentEvent(type="result", content="error")
-                return
             except openai.OpenAIError as exc:
-                yield AgentEvent(type="error", content=f"OpenAI API error: {exc}")
+                err = _classify_error(exc)
+                yield AgentEvent(type="error", content=err["title"], extra=err)
                 yield AgentEvent(type="result", content="error")
                 return
 
@@ -146,7 +136,8 @@ class OpenAIProvider:
                     elif etype == "response.completed":
                         final_response = getattr(event, "response", None)
             except openai.OpenAIError as exc:
-                yield AgentEvent(type="error", content=f"OpenAI streaming error: {exc}")
+                err = _classify_error(exc)
+                yield AgentEvent(type="error", content=err["title"], extra=err)
                 yield AgentEvent(type="result", content="error")
                 return
 
@@ -221,3 +212,74 @@ def _safe_json(value) -> str:
         return json.dumps(value, default=str, ensure_ascii=False)
     except (TypeError, ValueError):
         return json.dumps({"error": "tool returned non-serialisable value"})
+
+
+def _classify_error(exc: Exception) -> dict:
+    """Map an OpenAI SDK exception to a structured user-facing error.
+
+    Returns ``{title, hint, fix_url, raw}`` — see Anthropic provider's
+    classifier for the contract.
+    """
+    raw = str(exc)
+    if isinstance(exc, openai.AuthenticationError):
+        return {
+            "title": "OpenAI API key invalid",
+            "hint": "Open Connections and paste a valid key (starts with sk- or sk-proj-).",
+            "fix_url": "https://platform.openai.com/api-keys",
+            "raw": raw,
+        }
+    if isinstance(exc, openai.PermissionDeniedError):
+        return {
+            "title": "OpenAI permission denied",
+            "hint": "This key doesn't have access to this model. Check your project's allowed models.",
+            "fix_url": "https://platform.openai.com/settings/organization/general",
+            "raw": raw,
+        }
+    if isinstance(exc, openai.RateLimitError):
+        # Most common: out of credits or org TPM cap.
+        if "insufficient_quota" in raw or "exceeded your current quota" in raw:
+            return {
+                "title": "OpenAI quota exhausted",
+                "hint": "Add credits in your OpenAI billing dashboard and retry.",
+                "fix_url": "https://platform.openai.com/settings/organization/billing",
+                "raw": raw,
+            }
+        return {
+            "title": "OpenAI rate-limited",
+            "hint": "Wait a moment and retry; you're hitting per-minute or per-day limits.",
+            "fix_url": "https://platform.openai.com/settings/organization/limits",
+            "raw": raw,
+        }
+    if isinstance(exc, openai.BadRequestError):
+        return {
+            "title": "OpenAI rejected the request",
+            "hint": _truncate_for_hint(raw) or "See details below.",
+            "fix_url": None,
+            "raw": raw,
+        }
+    if isinstance(exc, openai.APIConnectionError):
+        return {
+            "title": "Couldn't reach OpenAI",
+            "hint": "Check your internet connection and retry.",
+            "fix_url": None,
+            "raw": raw,
+        }
+    return {
+        "title": "OpenAI error",
+        "hint": _truncate_for_hint(raw) or None,
+        "fix_url": None,
+        "raw": raw,
+    }
+
+
+def _truncate_for_hint(text: str, limit: int = 200) -> str:
+    if not text:
+        return ""
+    line = text.replace("\n", " ").strip()
+    if line.startswith("Error code:"):
+        parts = line.split(" - ", 1)
+        if len(parts) == 2:
+            line = parts[1]
+    if len(line) > limit:
+        line = line[: limit - 1].rstrip() + "…"
+    return line

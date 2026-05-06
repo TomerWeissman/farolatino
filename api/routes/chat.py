@@ -115,11 +115,22 @@ async def post_chat(req: ChatRequest):
                         _push(_build_event("text", {"delta": cleaned}))
         except ClaudeRunnerError as exc:
             state["error"] = str(exc)
-            _push(_build_event("error", {"message": str(exc)}))
+            payload: dict = {"message": str(exc)}
+            if exc.hint:
+                payload["hint"] = exc.hint
+            if exc.fix_url:
+                payload["fix_url"] = exc.fix_url
+            if exc.raw:
+                payload["raw"] = exc.raw
+            _push(_build_event("error", payload))
         except Exception as exc:  # pragma: no cover — defensive
             log.exception("chat worker crashed")
             state["error"] = f"unexpected: {exc!r}"
-            _push(_build_event("error", {"message": state["error"]}))
+            _push(_build_event("error", {
+                "message": "Unexpected server error",
+                "hint": "Check the server logs for the stack trace.",
+                "raw": state["error"],
+            }))
         finally:
             _push(_DONE)
 

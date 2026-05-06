@@ -41,13 +41,31 @@ log = logging.getLogger(__name__)
 
 
 class ClaudeRunnerError(Exception):
-    """Surfaced to the chat UI as a system message.
+    """Structured chat-runner error. Surfaced to the UI as a banner.
 
-    Kept under the legacy name so the SSE error mapping in
-    ``api/routes/chat.py`` (which catches ``ClaudeRunnerError``) doesn't
-    need to change. The class will be renamed in Phase 9 alongside the
-    ``core.claude_runner`` shim removal.
+    Carries a short human-readable ``message`` (the title shown in the
+    red banner), an optional ``hint`` (one-line "how to fix"), an
+    optional ``fix_url`` (rendered as a link button), and the original
+    ``raw`` provider message stuffed into a collapsible "details"
+    section. Providers map their SDK-specific errors to this shape via
+    the per-provider ``_classify_error`` helper.
+
+    The class keeps its V1 name so the ``except ClaudeRunnerError`` in
+    ``api/routes/chat.py`` still catches it; renaming lands in Phase 9.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        hint: str | None = None,
+        fix_url: str | None = None,
+        raw: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.hint = hint
+        self.fix_url = fix_url
+        self.raw = raw
 
 
 # --- Per-skill profiles -----------------------------------------------------
@@ -287,5 +305,14 @@ def _translate_event(event: AgentEvent, on_event) -> Iterator[str]:
         return
     if event.type == "error":
         # Surface as a ClaudeRunnerError so the chat route emits an
-        # SSE `error` event with the same code path V1 used.
-        raise ClaudeRunnerError(event.content or "agent error")
+        # SSE `error` event with the same code path V1 used. The
+        # provider may have stuffed structured fix info into
+        # event.extra (hint / fix_url / raw); pass them through so the
+        # UI can render a clean banner with an action link.
+        extra = event.extra or {}
+        raise ClaudeRunnerError(
+            event.content or "agent error",
+            hint=extra.get("hint"),
+            fix_url=extra.get("fix_url"),
+            raw=extra.get("raw"),
+        )

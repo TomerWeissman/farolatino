@@ -101,33 +101,21 @@ class AnthropicProvider:
             current_tool_json = ""
             stop_reason: str | None = None
 
-            try:
-                stream_ctx = self._client.messages.stream(
-                    model=self._model,
-                    max_tokens=max_tokens,
-                    system=system,
-                    messages=messages,
-                    tools=tools,
-                    thinking=thinking_param,
-                )
-            except anthropic.AuthenticationError as exc:
-                yield AgentEvent(
-                    type="error",
-                    content=(
-                        "Anthropic authentication failed. "
-                        "Check the ANTHROPIC_API_KEY in Connections. "
-                        f"({exc})"
-                    ),
-                )
-                yield AgentEvent(type="result", content="error")
-                return
-            except anthropic.APIError as exc:
-                yield AgentEvent(type="error", content=f"Anthropic API error: {exc}")
-                yield AgentEvent(type="result", content="error")
-                return
+            stream_ctx = self._client.messages.stream(
+                model=self._model,
+                max_tokens=max_tokens,
+                system=system,
+                messages=messages,
+                tools=tools,
+                thinking=thinking_param,
+            )
 
-            with stream_ctx as stream:
-                try:
+            # Wrap the entire stream lifecycle — `__enter__` is when the
+            # HTTP request actually fires, and 401 / 400 / 429 raise
+            # there, NOT inside the iteration. A try/except around just
+            # the loop body misses those entirely.
+            try:
+                with stream_ctx as stream:
                     for raw in stream:
                         evt = _process_raw_event(
                             raw,
@@ -148,12 +136,12 @@ class AnthropicProvider:
                         current_tool_json = evt["state"]["current_tool_json"]
                         for ev in evt["events"]:
                             yield ev
-                except anthropic.APIError as exc:
-                    yield AgentEvent(type="error", content=f"Anthropic streaming error: {exc}")
-                    yield AgentEvent(type="result", content="error")
-                    return
-
-                final_message = stream.get_final_message()
+                    final_message = stream.get_final_message()
+            except (anthropic.APIError, anthropic.APIConnectionError) as exc:
+                err = _classify_error(exc)
+                yield AgentEvent(type="error", content=err["title"], extra=err)
+                yield AgentEvent(type="result", content="error")
+                return
 
             stop_reason = final_message.stop_reason
             usage = final_message.usage
@@ -309,3 +297,76 @@ def _safe_json(value) -> str:
         return json.dumps(value, default=str, ensure_ascii=False)
     except (TypeError, ValueError):
         return json.dumps({"error": "tool returned non-serialisable value"})
+
+
+def _classify_error(exc: Exception) -> dict:
+    """Map an Anthropic SDK exception to a structured user-facing error.
+
+    Returns ``{title, hint, fix_url, raw}``. The chat UI shows ``title``
+    in a red banner and ``hint`` underneath, with ``fix_url`` rendered
+    as a "Fix it" button. ``raw`` lives in a collapsible "Details"
+    block for advanced debugging.
+    """
+    raw = str(exc)
+    if isinstance(exc, anthropic.AuthenticationError):
+        return {
+            "title": "Anthropic API key invalid",
+            "hint": "Open Connections and paste a valid key (starts with sk-ant-).",
+            "fix_url": "https://console.anthropic.com/settings/keys",
+            "raw": raw,
+        }
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return {
+            "title": "Anthropic permission denied",
+            "hint": "This API key doesn't have permission to call this model. Check your console.",
+            "fix_url": "https://console.anthropic.com/settings/keys",
+            "raw": raw,
+        }
+    if isinstance(exc, anthropic.RateLimitError):
+        return {
+            "title": "Anthropic rate-limited",
+            "hint": "You've hit your per-minute / per-day limit. Wait a moment and retry, or upgrade your plan.",
+            "fix_url": "https://console.anthropic.com/settings/limits",
+            "raw": raw,
+        }
+    if isinstance(exc, anthropic.BadRequestError):
+        # Most common BadRequest in our wiring: credit balance, invalid
+        # model, oversized context. Surface the SDK's message verbatim
+        # since it usually names the constraint.
+        return {
+            "title": "Anthropic rejected the request",
+            "hint": _truncate_for_hint(raw) or "See details below.",
+            "fix_url": "https://console.anthropic.com/settings/billing",
+            "raw": raw,
+        }
+    if isinstance(exc, anthropic.APIConnectionError):
+        return {
+            "title": "Couldn't reach Anthropic",
+            "hint": "Check your internet connection and retry.",
+            "fix_url": None,
+            "raw": raw,
+        }
+    return {
+        "title": "Anthropic error",
+        "hint": _truncate_for_hint(raw) or None,
+        "fix_url": None,
+        "raw": raw,
+    }
+
+
+def _truncate_for_hint(text: str, limit: int = 200) -> str:
+    """Pull a one-liner suitable for the banner subtitle out of a long
+    multi-line API error message. Strips ``Error code: ...`` prefixes
+    and trims past the first sentence so the hint stays scannable.
+    """
+    if not text:
+        return ""
+    line = text.replace("\n", " ").strip()
+    if line.startswith("Error code:"):
+        # "Error code: 400 - {'type': ..., 'message': '...'}" → drop prefix.
+        parts = line.split(" - ", 1)
+        if len(parts) == 2:
+            line = parts[1]
+    if len(line) > limit:
+        line = line[: limit - 1].rstrip() + "…"
+    return line

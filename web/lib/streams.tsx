@@ -25,7 +25,7 @@ import {
   getConversation,
   saveConversation,
 } from "./conversations";
-import type { Turn } from "./types";
+import type { Turn, TurnError } from "./types";
 
 export type StreamSnapshot = {
   conversationId: string;
@@ -36,6 +36,7 @@ export type StreamSnapshot = {
   tools: { name: string; label: string }[];
   startedAt: number;
   errorMessage?: string;
+  errorDetails?: TurnError; // structured: title + hint + fix_url + raw
   // The result event's session_id, set when status becomes "done".
   sessionId?: string;
 };
@@ -167,17 +168,15 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
               sessionId: ev.session_id ?? undefined,
             };
             // Persist the assistant turn + session id to localStorage.
-            // When the run errored, surface the actual server error in
-            // the persisted turn so the user sees what went wrong
-            // instead of a mute "(no response)".
+            // When the run errored, persist the structured error
+            // alongside so the chat shows a banner with hint + fix
+            // link instead of a mute "(no response)".
             const c = getConversation(conversationId);
             if (c) {
-              const fallback = handle.snapshot.errorMessage
-                ? `_⚠️ ${handle.snapshot.errorMessage}_`
-                : "_(no response)_";
+              const erroredOut = ev.status === "error" || !!handle.snapshot.errorDetails;
               const assistantTurn: Turn = {
                 role: "assistant",
-                content: handle.snapshot.text || fallback,
+                content: handle.snapshot.text || "",
                 thinking: handle.snapshot.thinking.length ? handle.snapshot.thinking : undefined,
                 toolCalls: handle.snapshot.tools.length ? handle.snapshot.tools : undefined,
                 result: {
@@ -186,6 +185,9 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
                   cost_usd: ev.cost_usd,
                   status: ev.status,
                 },
+                error: erroredOut
+                  ? handle.snapshot.errorDetails ?? { message: handle.snapshot.errorMessage ?? "Unknown error" }
+                  : undefined,
               };
               const updated: Conversation = {
                 ...c,
@@ -206,6 +208,12 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
               ...handle.snapshot,
               status: "error",
               errorMessage: ev.message,
+              errorDetails: {
+                message: ev.message,
+                hint: ev.hint,
+                fix_url: ev.fix_url,
+                raw: ev.raw,
+              },
             };
             bump();
           }

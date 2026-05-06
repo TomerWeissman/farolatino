@@ -155,8 +155,12 @@ export function Chat() {
           {isStreaming && snapshot && (
             <LiveAssistant snapshot={snapshot} elapsedSec={elapsed} />
           )}
-          {isError && snapshot?.errorMessage && (
-            <div className="chat-status text-red-600">⚠️ {snapshot.errorMessage}</div>
+          {isError && (snapshot?.errorDetails || snapshot?.errorMessage) && (
+            <ErrorBanner
+              error={
+                snapshot.errorDetails ?? { message: snapshot.errorMessage ?? "Unknown error" }
+              }
+            />
           )}
         </div>
       )}
@@ -179,7 +183,100 @@ function AssistantMessage({ turn }: { turn: Turn }) {
       {turn.thinking && turn.thinking.length > 0 && (
         <ReasoningPanel blocks={turn.thinking} />
       )}
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
+      {turn.content ? (
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
+      ) : null}
+      {turn.error && <ErrorBanner error={turn.error} />}
+    </div>
+  );
+}
+
+// Inline structured-error banner. Always shows the title; renders the
+// hint + a "Fix it" link when the backend supplied them; the raw
+// provider message goes into a collapsible "Show details" so power
+// users can copy the original payload without it dominating the view.
+function ErrorBanner({
+  error,
+}: {
+  error: { message: string; hint?: string; fix_url?: string; raw?: string };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="chat-error-banner"
+      style={{
+        marginTop: 8,
+        marginBottom: 8,
+        padding: "10px 12px",
+        background: "#fef2f2",
+        border: "1px solid #fecaca",
+        borderRadius: 8,
+        color: "#7f1d1d",
+        fontSize: 14,
+        lineHeight: 1.4,
+      }}
+    >
+      <div style={{ fontWeight: 600 }}>⚠️ {error.message}</div>
+      {error.hint && (
+        <div style={{ marginTop: 4, color: "#991b1b" }}>{error.hint}</div>
+      )}
+      <div style={{ marginTop: 8, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {error.fix_url && (
+          <a
+            href={error.fix_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              textDecoration: "underline",
+              color: "#991b1b",
+              fontWeight: 500,
+            }}
+          >
+            Open fix page →
+          </a>
+        )}
+        <a
+          href="/connections"
+          style={{ textDecoration: "underline", color: "#991b1b", fontWeight: 500 }}
+        >
+          Open Connections
+        </a>
+        {error.raw && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#991b1b",
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: 0,
+              font: "inherit",
+            }}
+          >
+            {open ? "Hide details" : "Show details"}
+          </button>
+        )}
+      </div>
+      {open && error.raw && (
+        <pre
+          style={{
+            marginTop: 8,
+            padding: 8,
+            background: "#fff",
+            border: "1px solid #fecaca",
+            borderRadius: 6,
+            fontSize: 12,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            maxHeight: 240,
+            overflow: "auto",
+          }}
+        >
+          {error.raw}
+        </pre>
+      )}
     </div>
   );
 }

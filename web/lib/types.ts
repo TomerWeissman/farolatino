@@ -31,7 +31,26 @@ export type ResultEvent = {
   session_id: string | null;
 };
 
-export type ErrorEvent = { kind: "error"; message: string };
+export type ErrorEvent = {
+  kind: "error";
+  message: string;
+  // Optional structured fields the backend attaches when it can map a
+  // provider error to a known shape. Lets the UI render a one-line
+  // hint, a "Fix it" link button, and a collapsible raw-details block.
+  hint?: string;
+  fix_url?: string;
+  raw?: string;
+};
+
+// What we render on a turn that errored out. Persisted alongside the
+// assistant turn in localStorage so the user can scroll back to old
+// errors without losing the actionable info.
+export type TurnError = {
+  message: string;
+  hint?: string;
+  fix_url?: string;
+  raw?: string;
+};
 
 export type ChatEvent =
   | ToolUseEvent
@@ -47,4 +66,5 @@ export type Turn = {
   thinking?: string[]; // assistant only; concatenated thinking blocks
   toolCalls?: { name: string; label: string }[]; // assistant only
   result?: Pick<ResultEvent, "run_id" | "duration_s" | "cost_usd" | "status">;
+  error?: TurnError; // assistant only; populated when the turn errored
 };

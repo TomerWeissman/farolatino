@@ -144,7 +144,8 @@ class GeminiProvider:
                                 )
                             collected_parts.append(part)
             except genai_errors.APIError as exc:
-                yield AgentEvent(type="error", content=f"Gemini API error: {exc}")
+                err = _classify_error(exc)
+                yield AgentEvent(type="error", content=err["title"], extra=err)
                 yield AgentEvent(type="result", content="error")
                 return
 
@@ -202,3 +203,72 @@ class GeminiProvider:
             output_tokens=total_output,
             extra={"model": self._model},
         )
+
+
+def _classify_error(exc: Exception) -> dict:
+    """Map a Gemini SDK exception to a structured user-facing error."""
+    raw = str(exc)
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    status = getattr(exc, "status", "") or ""
+
+    # 401 / 403 → auth issue
+    if code in (401, 403) or "API key not valid" in raw or "PERMISSION_DENIED" in status:
+        return {
+            "title": "Gemini API key invalid",
+            "hint": "Open Connections and paste a valid Google AI Studio key (starts with AIza).",
+            "fix_url": "https://aistudio.google.com/apikey",
+            "raw": raw,
+        }
+    # 429 → quota / rate limit. Two common flavors:
+    if code == 429 or "RESOURCE_EXHAUSTED" in status or "RESOURCE_EXHAUSTED" in raw:
+        # The "limit: 0" pattern means the project graduated past free
+        # tier — billing must be enabled on the Cloud project tied to
+        # this key. Different ask than transient rate-limiting.
+        if "limit: 0" in raw:
+            return {
+                "title": "Gemini project has no quota for this model",
+                "hint": (
+                    "Your Google Cloud project has 0 free-tier requests for this model. "
+                    "Either enable billing on the project, or create a new key under a "
+                    "different project that has free-tier enabled."
+                ),
+                "fix_url": "https://aistudio.google.com/apikey",
+                "raw": raw,
+            }
+        return {
+            "title": "Gemini rate-limited",
+            "hint": "You've hit your per-minute / per-day request cap. Wait a moment and retry.",
+            "fix_url": "https://ai.google.dev/gemini-api/docs/rate-limits",
+            "raw": raw,
+        }
+    # 400 → bad request (model unavailable, oversized, etc.)
+    if code == 400 or "INVALID_ARGUMENT" in status:
+        return {
+            "title": "Gemini rejected the request",
+            "hint": _truncate_for_hint(raw) or "See details below.",
+            "fix_url": None,
+            "raw": raw,
+        }
+    # 503 / 504 → upstream
+    if code in (500, 502, 503, 504):
+        return {
+            "title": "Gemini is temporarily unavailable",
+            "hint": "Google reported a server-side error. Wait a moment and retry.",
+            "fix_url": None,
+            "raw": raw,
+        }
+    return {
+        "title": "Gemini error",
+        "hint": _truncate_for_hint(raw) or None,
+        "fix_url": None,
+        "raw": raw,
+    }
+
+
+def _truncate_for_hint(text: str, limit: int = 200) -> str:
+    if not text:
+        return ""
+    line = text.replace("\n", " ").strip()
+    if len(line) > limit:
+        line = line[: limit - 1].rstrip() + "…"
+    return line
