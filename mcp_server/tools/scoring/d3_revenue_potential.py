@@ -16,12 +16,16 @@ import yaml
 
 from mcp_server.models import ArtistProfile, DimensionResult
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config"
+from core.paths import resource_path  # noqa: E402
+
+# Bundle-aware: source mode → PROJECT_ROOT/config; bundled .app →
+# Contents/Resources/config/.
+CONFIG_DIR = resource_path("config")
 
 
 def _load_cpm_config() -> dict:
     path = CONFIG_DIR / "cpm_rates.yaml"
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -33,7 +37,7 @@ def _load_stream_multipliers() -> dict:
     path = CONFIG_DIR / "stream_multipliers.yaml"
     if not path.exists():
         return {"default": {}, "buckets": {}}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {"default": {}, "buckets": {}}
 
 

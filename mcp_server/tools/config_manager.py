@@ -4,9 +4,15 @@ from pathlib import Path
 
 import yaml
 
+from core.paths import resource_path
 from mcp_server.server import mcp
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+# In source mode this resolves to PROJECT_ROOT/config/. In a bundled
+# .app it resolves to Contents/Resources/config/ (where setup_py2app
+# put the YAMLs). Using `__file__` here would land in the wrong place
+# inside the bundle because the module ends up under
+# Contents/Resources/lib/python3.12/mcp_server/tools/.
+CONFIG_DIR = resource_path("config")
 
 VALID_CONFIGS = {
     "search_criteria",
@@ -32,7 +38,10 @@ def _load_yaml(name: str) -> dict:
     path = CONFIG_DIR / f"{name}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
-    with open(path) as f:
+    # Explicit UTF-8 — bundled .app inherits no LANG from Finder-launched
+    # processes, so the default open() encoding falls back to ASCII and
+    # chokes on em-dashes / accented characters in the YAML.
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

@@ -22,8 +22,17 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-CONFIG_DIR = PROJECT_ROOT / "config"
-CACHE_DIR = PROJECT_ROOT / "data" / "cache"
+# Bundle-aware: in a frozen .app, config/ lives at Contents/Resources/config/
+# (read-only) and the cache lives in the per-user data dir
+# (~/Library/Application Support/FaroAI/cache/). Source mode preserves the
+# legacy project-relative paths automatically since resource_path() and
+# cache_dir() both fall back to PROJECT_ROOT-style locations.
+from core.paths import cache_dir, resource_path  # noqa: E402
+CONFIG_DIR = resource_path("config")
+CACHE_DIR = cache_dir()
+# data/internal/ is dev-only material (calibration runs, etc.) that
+# isn't shipped in the bundle. Source-only path; will be empty in
+# bundled installs and the Files page handles "missing" gracefully.
 INTERNAL_DIR = PROJECT_ROOT / "data" / "internal"
 
 router = APIRouter()

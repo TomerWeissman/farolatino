@@ -4,18 +4,19 @@ Measures alignment between the artist's audience geography and
 FaroLatino's distribution infrastructure / market priorities.
 """
 
-from pathlib import Path
-
 import yaml
 
+from core.paths import resource_path
 from mcp_server.models import ArtistProfile, DimensionResult
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config"
+# Bundle-aware: source mode → PROJECT_ROOT/config; bundled .app →
+# Contents/Resources/config/.
+CONFIG_DIR = resource_path("config")
 
 
 def _load_market_tiers() -> dict:
     path = CONFIG_DIR / "market_tiers.yaml"
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

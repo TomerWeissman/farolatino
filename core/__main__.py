@@ -21,8 +21,19 @@ Pass ``--debug`` to enable right-click → Inspect on the window.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+# Force UTF-8 default encoding before any module imports a config file.
+# The bundled .app inherits no LANG / LC_ALL from Finder-launched
+# processes, so Python's default `open()` encoding falls back to ASCII
+# and chokes on the first non-ASCII byte in profiles.yaml. Setting the
+# env vars + PYTHONIOENCODING here covers stdlib `open()`, yaml's auto-
+# detect path, and uvicorn's terminal output.
+os.environ.setdefault("LANG", "en_US.UTF-8")
+os.environ.setdefault("LC_ALL", "en_US.UTF-8")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 
 def _wire_user_code_overlay() -> None:
