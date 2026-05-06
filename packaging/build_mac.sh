@@ -81,7 +81,11 @@ fi
 if [ -d "dist/FaroAI.app" ] && [ -z "${SKIP_DMG:-}" ]; then
     VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\'](.*)[\"\']', open('core/__init__.py').read()).group(1))")
     DMG="dist/FaroAI-v${VERSION}.dmg"
-    echo "==> Building $DMG…"
+    # Use ASCII dots — macOS's bundled bash 3.2 parses the Unicode
+    # ellipsis (…) as part of the adjacent variable name, hitting
+    # "unbound variable" under set -u. Other ellipses in this script
+    # are fine because no $VAR reference sits immediately to their left.
+    echo "==> Building ${DMG} ..."
     rm -f "$DMG"
     hdiutil create \
         -volname "FaroAI" \

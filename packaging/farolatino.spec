@@ -130,7 +130,11 @@ a = Analysis(
         "pytest",
         "pytest_asyncio",
         "py.test",
-        "wheel",
+        # Note: NOT excluding `wheel` here. PyInstaller's setuptools
+        # hook aliases `wheel` internally (vendored under
+        # _pyinstaller_hooks_contrib); excluding it crashes
+        # Analysis with "Target module 'wheel' already imported
+        # as ExcludedModule". Same applies to `setuptools` itself.
         "test",
         "tests",
         "docutils",
