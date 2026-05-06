@@ -25,7 +25,7 @@ from core.llm import (
     get_provider,
 )
 from core.llm.base import AgentEvent
-from core.llm.tool_dispatch import all_tool_names
+from core.llm.tool_dispatch import all_tool_names, dispatch as dispatch_tool
 from core.llm.tool_schemas import all_tool_specs, to_anthropic, to_gemini, to_openai
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -177,6 +177,17 @@ def run_claude_streaming(
         Plain text chunks for the visible response, plus
         ``THINKING_PREFIX``-tagged chunks for thinking deltas.
     """
+    # Deterministic skills bypass the LLM entirely — call the tool,
+    # render server-side, stream the rendered Markdown. Identical
+    # output across every provider, faster, $0 LLM cost. The LLM was
+    # only ever a thin wrapper for these calls in V1; V2 lifts the
+    # rendering into the runner so prose framing doesn't drift between
+    # Anthropic / OpenAI / Gemini.
+    direct = _try_handle_skill_directly(prompt, on_event)
+    if direct is not None:
+        yield from direct
+        return
+
     try:
         provider = get_provider()
     except NoLLMProviderError as exc:
@@ -338,3 +349,193 @@ def _translate_event(event: AgentEvent, on_event) -> Iterator[str]:
             fix_url=extra.get("fix_url"),
             raw=extra.get("raw"),
         )
+
+
+# ─── Deterministic skill handlers ───────────────────────────────────────
+#
+# Composite skills (@evaluate, @similar) are 1-tool-call workflows where
+# the LLM was only adding prose framing on top of a deterministic tool
+# output. V2 lifts the rendering server-side so the chat shows identical
+# Markdown regardless of provider — same headers, same metric tables,
+# same callouts, same wording. Free-form chat still flows through the
+# LLM.
+
+
+def _try_handle_skill_directly(prompt: str, on_event) -> Iterator[str] | None:
+    """Return a chunk iterator if ``prompt`` is a deterministic skill
+    we can render server-side; otherwise return ``None`` so the caller
+    falls through to the LLM path.
+    """
+    head, _, arg = prompt.strip().partition(" ")
+    head_lc = head.lower()
+    if head_lc == "@evaluate":
+        return _handle_evaluate(arg.strip(), on_event)
+    return None
+
+
+def _emit_synthetic_init(on_event, provider_name: str = "server-rendered") -> str:
+    """Emit a synthetic system/init so RunLogger + chat.py treat the
+    bypassed turn the same as an LLM-driven one (session id, mcp servers,
+    provider). Returns the session id so the result event can echo it
+    back to the frontend."""
+    session_id = uuid.uuid4().hex
+    if on_event is not None:
+        try:
+            on_event(
+                {
+                    "type": "system",
+                    "subtype": "init",
+                    "session_id": session_id,
+                    "mcp_servers": [
+                        {"name": "farolatino", "status": "in_process", "tools": all_tool_names()}
+                    ],
+                    "provider": provider_name,
+                }
+            )
+        except Exception:
+            pass
+    return session_id
+
+
+def _emit_synthetic_tool_use(on_event, name: str, tool_input: dict) -> str:
+    """Emit a synthetic assistant tool_use so the UI status pill flips
+    to the friendly label and RunLogger captures the tool call."""
+    tool_use_id = uuid.uuid4().hex[:16]
+    if on_event is not None:
+        try:
+            on_event(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": tool_use_id,
+                                "name": name,
+                                "input": tool_input,
+                            }
+                        ]
+                    },
+                }
+            )
+        except Exception:
+            pass
+    return tool_use_id
+
+
+def _emit_synthetic_tool_result(on_event, tool_use_id: str, name: str, output: dict) -> None:
+    if on_event is not None:
+        try:
+            import json as _json
+            on_event(
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "tool_name": name,
+                                "content": _json.dumps(output, default=str),
+                            }
+                        ]
+                    },
+                }
+            )
+        except Exception:
+            pass
+
+
+def _emit_synthetic_result(on_event) -> None:
+    if on_event is not None:
+        try:
+            on_event({"type": "result", "total_cost_usd": 0.0, "model": "server-rendered"})
+        except Exception:
+            pass
+
+
+def _handle_evaluate(arg: str, on_event) -> Iterator[str]:
+    """Server-rendered ``@evaluate`` flow. Yields the canonical Markdown
+    dossier (or a disambiguation menu, or an error) — identical bytes
+    regardless of which LLM provider is configured.
+    """
+    _emit_synthetic_init(on_event)
+
+    if not arg:
+        yield (
+            "**Usage:** `@evaluate <artist name or URL>`\n\n"
+            "Example: `@evaluate Bad Bunny` or `@evaluate https://open.spotify.com/artist/...`"
+        )
+        _emit_synthetic_result(on_event)
+        return
+
+    tool_input = {"artist": arg, "profile_name": "default"}
+    tool_use_id = _emit_synthetic_tool_use(
+        on_event, "mcp__farolatino__evaluate_artist", tool_input
+    )
+    result = dispatch_tool("mcp__farolatino__evaluate_artist", tool_input)
+    _emit_synthetic_tool_result(
+        on_event, tool_use_id, "mcp__farolatino__evaluate_artist", result
+    )
+
+    if "error" in result:
+        yield f"⚠️ **Couldn't evaluate `{arg}`.**\n\n{result['error']}"
+        _emit_synthetic_result(on_event)
+        return
+
+    if "needs_disambiguation" in result:
+        yield _render_disambiguation(arg, result["needs_disambiguation"])
+        _emit_synthetic_result(on_event)
+        return
+
+    # Happy path: pull the artist record (cached after evaluate_artist's
+    # call) and hand both to the canonical renderer.
+    cm_id = result.get("cm_id")
+    artist_data: dict = {}
+    if cm_id:
+        try:
+            artist_data = dispatch_tool(
+                "mcp__farolatino__get_artist_data",
+                {"cm_artist_id": cm_id, "use_cache": True},
+            )
+        except Exception:
+            artist_data = {}
+
+    try:
+        from mcp_server.tools.dossier_renderer import render_dossier
+        markdown = render_dossier(result["dossier"], artist_data or {})
+    except Exception as exc:
+        log.exception("dossier render failed")
+        yield f"⚠️ Renderer error: {exc}"
+        _emit_synthetic_result(on_event)
+        return
+
+    yield markdown
+    _emit_synthetic_result(on_event)
+
+
+def _render_disambiguation(query: str, candidates: list[dict]) -> str:
+    """Server-rendered disambiguation menu — same bytes regardless of
+    provider. Tells the user exactly which artist to specify next so
+    the follow-up turn lands cleanly.
+    """
+    lines = [f"**Multiple artists match `{query}`.** Which one did you mean?\n"]
+    for i, c in enumerate(candidates[:3], start=1):
+        name = c.get("name") or "—"
+        followers = c.get("sp_followers")
+        listeners = c.get("sp_monthly_listeners")
+        country = c.get("country_code") or "—"
+        cm_id = c.get("cm_id")
+        bits = []
+        if listeners:
+            bits.append(f"{listeners:,} monthly listeners")
+        elif followers:
+            bits.append(f"{followers:,} Spotify followers")
+        if country and country != "—":
+            bits.append(country)
+        suffix = f" ({', '.join(bits)})" if bits else ""
+        lines.append(f"{i}. **{name}**{suffix} — `cm_id: {cm_id}`")
+    lines.append(
+        "\nReply with the artist's exact name (or paste their Spotify URL) to disambiguate."
+    )
+    return "\n".join(lines)

@@ -166,11 +166,10 @@ def _capture_evaluate_run(prompt: str) -> dict:
 def _assert_evaluate_dossier_is_real(trace: dict) -> None:
     """Common assertions every provider's @evaluate run must satisfy.
 
-    Verifies the runner actually called the evaluate tool, the tool
-    returned a populated dossier (not the cm_id=0 stub), and the
-    visible response mentions the artist by name. Failure messages
-    point at which assumption broke so a single test failure tells you
-    whether the bug is in dispatch / schema / model behaviour.
+    Verifies the runner called the evaluate tool, the tool returned a
+    populated dossier (not the cm_id=0 stub), and the visible response
+    is the canonical server-rendered Markdown — identical regardless of
+    LLM provider, since V2 bypasses the LLM for this skill.
     """
     tool_names = [t["name"] for t in trace["tool_calls"]]
     assert "mcp__farolatino__evaluate_artist" in tool_names, (
@@ -201,12 +200,23 @@ def _assert_evaluate_dossier_is_real(trace: dict) -> None:
         f"{json.dumps(output['dossier'].get('metrics', {}))[:200]}"
     )
 
-    # Final visible text should at least mention the artist — guards
-    # against a "tool called but model output is empty" failure mode.
-    assert REGRESSION_ARTIST.lower() in trace["text"].lower(), (
-        f"assistant response doesn't mention {REGRESSION_ARTIST}. "
-        f"First 300 chars: {trace['text'][:300]!r}"
-    )
+    # The dossier is server-rendered, so the visible response MUST
+    # contain the canonical headers — not LLM-paraphrased prose. These
+    # are the structural anchors render_dossier always emits:
+    text = trace["text"]
+    canonical_markers = [
+        f"# {REGRESSION_ARTIST}",
+        "Prospect score:",
+        "Total Artist Revenue Projection",
+        "Annual gross (BRUTO)",
+    ]
+    for marker in canonical_markers:
+        assert marker in text, (
+            f"visible response is missing canonical marker {marker!r} — "
+            f"the LLM may be paraphrasing instead of relaying the "
+            f"server-rendered dossier verbatim. First 300 chars: "
+            f"{text[:300]!r}"
+        )
 
 
 @pytest.mark.skipif(
@@ -234,3 +244,42 @@ def test_evaluate_skill_via_openai():
 def test_evaluate_skill_via_gemini():
     trace = _capture_evaluate_run(f"@evaluate {REGRESSION_ARTIST}")
     _assert_evaluate_dossier_is_real(trace)
+
+
+def test_evaluate_output_is_provider_independent(monkeypatch):
+    """V2 lifts dossier rendering server-side, so the visible chat
+    response is byte-identical regardless of which LLM provider is
+    configured. This test pretends to be each provider in turn (no
+    real LLM call — the runner sees the @evaluate prefix and bypasses
+    the LLM path entirely) and asserts the rendered Markdown matches
+    exactly.
+
+    Without this guarantee, the model's prose framing differs by
+    provider, which is what the user spotted on May 6 ("each LLM
+    produces the same thing").
+    """
+    captured: dict[str, str] = {}
+    for provider in ("anthropic", "openai", "gemini"):
+        # Force the registry to think the matching key is set so
+        # detect_provider_name() returns this provider. The skill
+        # bypass triggers BEFORE provider instantiation, so no real
+        # SDK is touched.
+        monkeypatch.setenv("LLM_API_KEY", {
+            "anthropic": "sk-ant-fake-test-key",
+            "openai": "sk-fake-test-key",
+            "gemini": "AIzaFakeTestKey",
+        }[provider])
+
+        trace = _capture_evaluate_run(f"@evaluate {REGRESSION_ARTIST}")
+        captured[provider] = trace["text"]
+
+    # All three should render identically.
+    a, o, g = captured["anthropic"], captured["openai"], captured["gemini"]
+    assert a == o, (
+        "Anthropic and OpenAI produced different @evaluate output. "
+        "First diff context:\n"
+        f"  anthropic: {a[:200]!r}\n  openai:    {o[:200]!r}"
+    )
+    assert a == g, (
+        "Anthropic and Gemini produced different @evaluate output."
+    )
