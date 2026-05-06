@@ -125,10 +125,20 @@ def _resolve_skill_profile(prompt: str) -> dict:
 
 
 def _load_persona() -> str:
-    """Re-read ``FAROAI.md`` every turn so user edits take effect immediately."""
+    """Re-read the persona every turn via the overlay system.
+
+    Resolution order: user/persona.md > code/FAROAI.md (latest from a
+    shipped update) > bundled FAROAI.md. Returns "" silently if no
+    layer has it (the runner falls back to whatever the LLM thinks
+    FaroAI is from the prompt alone).
+    """
+    from core import overlay
+    found = overlay.resolve_file("persona")
+    if found is None:
+        return ""
     try:
-        return PERSONA_PATH.read_text(encoding="utf-8").strip()
-    except (FileNotFoundError, OSError):
+        return found.path.read_text(encoding="utf-8").strip()
+    except OSError:
         return ""
 
 

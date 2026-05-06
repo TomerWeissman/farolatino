@@ -10,6 +10,12 @@ class SkillSummary(BaseModel):
     slug: str
     name: str
     description: str
+    # Which overlay layer the skill came from:
+    # "user"    = the user customized or created this skill (immune to updates)
+    # "update"  = latest from FaroAI team via a code-only update
+    # "default" = original bundled version (never touched)
+    # The UI shows this as a badge so the user knows what they're looking at.
+    source: str = "default"
 
 
 class SkillDetail(BaseModel):
@@ -18,6 +24,7 @@ class SkillDetail(BaseModel):
     description: str
     body: str  # raw markdown (without frontmatter)
     full_markdown: str  # frontmatter + body, what gets written to disk
+    source: str = "default"  # see SkillSummary.source
 
 
 class SkillUpdate(BaseModel):

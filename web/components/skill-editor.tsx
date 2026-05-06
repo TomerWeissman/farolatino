@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -12,8 +12,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type SkillSummary = { slug: string; name: string; description: string };
+// "default" = original bundled, "update" = latest from a code-only update,
+// "user" = customized or created by the user (immune to updates).
+type SkillSource = "default" | "update" | "user";
+type SkillSummary = { slug: string; name: string; description: string; source: SkillSource };
 type SkillDetail = SkillSummary & { body: string; full_markdown: string };
+
+function sourceBadgeLabel(s: SkillSource): string {
+  if (s === "user") return "edited";
+  if (s === "update") return "updated";
+  return "default";
+}
 
 const API = "/api";
 
@@ -87,9 +96,15 @@ export function SkillEditor() {
 
   async function remove() {
     if (!detail) return;
-    if (!confirm(`Delete @${detail.slug}?\n\nThis removes .claude/skills/${detail.slug}.md. The chat will fall back to its default behavior for this prefix.`)) return;
+    if (detail.source !== "user") {
+      // Defaults can't be deleted, only overridden. The user wants
+      // "Reset to default" (which is no-op for an already-default skill).
+      setStatus({ kind: "err", msg: "Default skills can't be deleted. Edit it to customize, or it's already the default." });
+      return;
+    }
+    if (!confirm(`Delete @${detail.slug}?\n\nThis is a user-created skill — it'll be removed entirely.`)) return;
     const r = await fetch(`${API}/skills/${detail.slug}`, { method: "DELETE" });
-    if (!r.ok) {
+    if (!r.ok && r.status !== 204) {
       const err = await r.json().catch(() => ({ detail: r.statusText }));
       setStatus({ kind: "err", msg: err.detail || "delete failed" });
       return;
@@ -97,6 +112,31 @@ export function SkillEditor() {
     setDetail(null);
     setSelectedSlug(null);
     setEditor("");
+    await reload();
+  }
+
+  async function resetToDefault() {
+    if (!detail) return;
+    if (detail.source !== "user") return;
+    if (!confirm(`Reset @${detail.slug} to default?\n\nYour customizations will be discarded and the original bundled version will be used.`)) return;
+    const r = await fetch(`${API}/skills/${detail.slug}/reset`, { method: "POST" });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      setStatus({ kind: "err", msg: err.detail || "reset failed" });
+      return;
+    }
+    const body = await r.json();
+    if (body) {
+      setDetail(body);
+      setEditor(body.full_markdown);
+      setDirty(false);
+      setStatus({ kind: "ok", msg: "Reset to default." });
+    } else {
+      // Skill was user-only and has been removed entirely.
+      setDetail(null);
+      setSelectedSlug(null);
+      setEditor("");
+    }
     await reload();
   }
 
@@ -124,7 +164,26 @@ export function SkillEditor() {
               className={cn("skills-list-item", selectedSlug === s.slug && "skills-list-item-active")}
               onClick={() => setSelectedSlug(s.slug)}
             >
-              <div className="skills-list-slug">@{s.slug}</div>
+              <div className="skills-list-slug">
+                @{s.slug}
+                {s.source !== "default" && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 10,
+                      padding: "1px 6px",
+                      borderRadius: 8,
+                      background: s.source === "user" ? "#fef3c7" : "#dbeafe",
+                      color: s.source === "user" ? "#92400e" : "#1e40af",
+                      fontWeight: 500,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    {sourceBadgeLabel(s.source)}
+                  </span>
+                )}
+              </div>
               <div className="skills-list-name">{s.name}</div>
             </button>
           ))}
@@ -136,6 +195,16 @@ export function SkillEditor() {
             <>
               <div className="skills-editor-meta">
                 <strong>{detail.name}</strong> — {detail.description}
+                {detail.source === "user" && (
+                  <span style={{ marginLeft: 12, fontSize: 12, color: "#92400e" }}>
+                    · You&apos;ve edited this. Updates won&apos;t overwrite your version.
+                  </span>
+                )}
+                {detail.source === "update" && (
+                  <span style={{ marginLeft: 12, fontSize: 12, color: "#1e40af" }}>
+                    · Latest version from a recent update.
+                  </span>
+                )}
               </div>
               <textarea
                 className="skills-editor-textarea"
@@ -156,7 +225,23 @@ export function SkillEditor() {
                 >
                   <Save size={14} /> {saving ? "Saving…" : "Save"}
                 </button>
-                <button type="button" className="btn btn-danger" onClick={remove}>
+                {detail.source === "user" && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={resetToDefault}
+                    title="Discard your customization and use the bundled version again"
+                  >
+                    <RotateCcw size={14} /> Reset to default
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={remove}
+                  disabled={detail.source !== "user"}
+                  title={detail.source !== "user" ? "Default skills can't be deleted — use Reset instead" : "Delete this user-created skill"}
+                >
                   <Trash2 size={14} /> Delete
                 </button>
                 {status && (
