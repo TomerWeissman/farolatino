@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, ExternalLink, Loader2, ChevronDown, ChevronUp, Save, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, ExternalLink, Loader2, ChevronDown, ChevronUp, Save, Eye, EyeOff, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const API = "/api";
@@ -122,6 +122,8 @@ export function ConnectionsStatus() {
         cached server-side for 60s; saving credentials clears the cache so the
         next ping reflects your changes.
       </p>
+
+      <UpdateSection />
     </div>
   );
 }
@@ -289,6 +291,134 @@ function EnvEditor({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Update section ─────────────────────────────────────────────────────
+//
+// Sits at the bottom of the Connections page. Shows the running version
+// + a manual "Check for updates" button. We don't poll automatically —
+// per the V2 plan, the FaroLatino team is small enough that you'll just
+// notify them when an update is ready and they click here.
+
+type UpdateCheck = {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  can_apply_in_app: boolean;
+  download_url: string | null;
+  release_notes: string | null;
+  error: string | null;
+};
+
+function UpdateSection() {
+  const [version, setVersion] = useState<string | null>(null);
+  const [check, setCheck] = useState<UpdateCheck | null>(null);
+  const [busy, setBusy] = useState<"idle" | "checking" | "applying">("idle");
+  const [applyMsg, setApplyMsg] = useState<string | null>(null);
+
+  // Pull the running version once on mount.
+  useEffect(() => {
+    fetch(`${API}/version`, { cache: "no-store" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && setVersion(d.version))
+      .catch(() => {});
+  }, []);
+
+  async function checkUpdates() {
+    setBusy("checking");
+    setApplyMsg(null);
+    try {
+      const r = await fetch(`${API}/updates/check`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d: UpdateCheck = await r.json();
+      setCheck(d);
+    } catch (e) {
+      setCheck({
+        current_version: version ?? "?",
+        latest_version: "?",
+        update_available: false,
+        can_apply_in_app: false,
+        download_url: null,
+        release_notes: null,
+        error: e instanceof Error ? e.message : "check failed",
+      });
+    } finally {
+      setBusy("idle");
+    }
+  }
+
+  async function applyUpdate() {
+    if (!check?.can_apply_in_app) return;
+    if (!confirm(
+      `Update from v${check.current_version} to v${check.latest_version}?\n\n` +
+      "FaroAI will close + relaunch automatically. Conversations + credentials are preserved."
+    )) return;
+    setBusy("applying");
+    setApplyMsg("Downloading update…");
+    try {
+      const r = await fetch(`${API}/updates/apply`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "apply failed");
+      setApplyMsg(d.message || "Restarting…");
+      // The app will exec itself; this UI session won't get a clean
+      // close. The user sees the window relaunch with the new version.
+    } catch (e) {
+      setApplyMsg(`⚠️ ${e instanceof Error ? e.message : "apply failed"}`);
+      setBusy("idle");
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid #e5e7eb" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>FaroAI version</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>{version ? `v${version}` : "loading…"}</div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={checkUpdates}
+          disabled={busy !== "idle"}
+        >
+          {busy === "checking" ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+          {busy === "checking" ? "Checking…" : "Check for updates"}
+        </button>
+        {check?.update_available && check.can_apply_in_app && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={applyUpdate}
+            disabled={busy !== "idle"}
+          >
+            <Download size={14} /> Update to v{check.latest_version}
+          </button>
+        )}
+      </div>
+
+      {check && !check.error && check.update_available && !check.can_apply_in_app && (
+        <p className="page-subtitle" style={{ marginTop: 12, fontSize: 12 }}>
+          v{check.latest_version} is available, but this update needs a new
+          installer. Download the latest .dmg from the Releases page.
+        </p>
+      )}
+      {check && !check.error && !check.update_available && (
+        <p className="page-subtitle" style={{ marginTop: 12, fontSize: 12 }}>
+          You&apos;re on the latest version (v{check.current_version}).
+        </p>
+      )}
+      {check?.error && (
+        <p className="page-subtitle" style={{ marginTop: 12, fontSize: 12, color: "#7f1d1d" }}>
+          ⚠️ {check.error}
+        </p>
+      )}
+      {applyMsg && (
+        <p className="page-subtitle" style={{ marginTop: 12, fontSize: 12 }}>
+          {applyMsg}
+        </p>
+      )}
     </div>
   );
 }
