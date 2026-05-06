@@ -36,12 +36,20 @@ APP = [str(PROJECT_ROOT / "core" / "__main__.py")]
 # editable persona file, the bundled skill defaults, prompts, and config
 # YAMLs all live here. resource_path() in core/paths.py finds them at
 # runtime via sys.executable's parent.
+#
+# py2app data_files semantics: ``(dest_dir, [src...])`` copies each
+# src INTO dest_dir. So to land ``web/out/`` at ``Resources/web/out/``,
+# the dest must be the PARENT (``"web"``), not the full path. Same for
+# the rest. Top-level entries use ``""`` (Resources root). This was a
+# real footgun — using ``("web/out", ["web/out"])`` produces
+# ``Resources/web/out/out/`` and broke frontend serving in v0.2.0's
+# first build.
 DATA_FILES = [
-    ("web/out", [str(PROJECT_ROOT / "web" / "out")]),
-    ("FAROAI.md", [str(PROJECT_ROOT / "FAROAI.md")]),
-    (".claude/skills", [str(PROJECT_ROOT / ".claude" / "skills")]),
-    ("prompts", [str(PROJECT_ROOT / "prompts")]),
-    ("config", [str(PROJECT_ROOT / "config")]),
+    ("web", [str(PROJECT_ROOT / "web" / "out")]),
+    ("", [str(PROJECT_ROOT / "FAROAI.md")]),
+    (".claude", [str(PROJECT_ROOT / ".claude" / "skills")]),
+    ("", [str(PROJECT_ROOT / "prompts")]),
+    ("", [str(PROJECT_ROOT / "config")]),
 ]
 
 # Packages py2app must include explicitly — its dependency walker
