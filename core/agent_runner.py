@@ -286,7 +286,29 @@ def _translate_event(event: AgentEvent, on_event) -> Iterator[str]:
         return
     if event.type == "tool_result":
         # No user-visible chunk — UI gets the tool_use status pill from
-        # the on_event hook above. Tool result content is implicit.
+        # the corresponding tool_use event. But we DO forward the raw
+        # tool output to on_event so RunLogger captures it; without this,
+        # regressions like the May-6 cm_id=0 bug (tool ran "ok" but
+        # returned an empty dossier) are invisible in the run trace.
+        if on_event is not None:
+            try:
+                on_event(
+                    {
+                        "type": "user",
+                        "message": {
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": event.tool_use_id or "",
+                                    "tool_name": event.tool_name or "",
+                                    "content": event.content,
+                                }
+                            ]
+                        },
+                    }
+                )
+            except Exception:
+                pass
         return
     if event.type == "result":
         if on_event is not None:

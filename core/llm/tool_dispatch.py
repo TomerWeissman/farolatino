@@ -108,6 +108,10 @@ def dispatch(name: str, tool_input: dict | None) -> dict:
         return {"error": f"unknown tool: {name}"}
 
     kwargs = dict(tool_input or {})
+    # INFO-level so the run log captures exactly what the model passed.
+    # This is what diagnosed the May-6 regression where OpenAI's
+    # function_call arguments were arriving stripped of required fields.
+    log.info("dispatch %s args=%s", name, kwargs)
     try:
         result = fn(**kwargs)
     except TypeError as exc:

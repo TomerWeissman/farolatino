@@ -65,6 +65,12 @@ def evaluate_artist(
         On error: `{"error": "..."}`
     """
     # Step 1: Resolve cm_id
+    # GPT-4o (and other models on the OpenAI Responses API) like to fill
+    # optional `int | None` parameters with 0 instead of omitting them.
+    # Treat any falsy cm_id as missing — Chartmetric IDs are positive ints,
+    # so 0 is never a valid lookup.
+    if not cm_id:
+        cm_id = None
     if cm_id is None:
         if _is_url(artist):
             res = search_artist_by_url(artist)

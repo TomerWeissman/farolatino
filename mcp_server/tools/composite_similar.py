@@ -94,6 +94,11 @@ def find_similar_artists(
         On error: `{"error": "..."}`
     """
     # Step 1 — resolve cm_id (mirrors evaluate_artist's logic)
+    # Models on OpenAI's Responses API tend to fill optional int|None
+    # params with 0; treat falsy as missing since Chartmetric IDs are
+    # always positive.
+    if not cm_id:
+        cm_id = None
     if cm_id is None:
         if _is_url(artist):
             res = search_artist_by_url(artist)
