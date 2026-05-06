@@ -101,13 +101,34 @@ hiddenimports = [
 ]
 
 
+# Collect_all() must run BEFORE Analysis(): it returns (datas, binaries,
+# hiddenimports) as 2-tuple lists which Analysis's __init__ converts
+# to its internal 3-tuple TOC format. Calling collect_all + a.datas +=
+# AFTER Analysis runs mixes 2- and 3-tuples in the same list and crashes
+# COLLECT() with "not enough values to unpack" — exactly what bit the
+# first Windows CI run.
+from PyInstaller.utils.hooks import collect_all  # noqa: E402
+
+extra_datas, extra_binaries, extra_hidden = [], [], []
+for _pkg in ("google", "grpc", "anthropic", "openai"):
+    try:
+        _d, _b, _h = collect_all(_pkg)
+        extra_datas += _d
+        extra_binaries += _b
+        extra_hidden += _h
+    except Exception:
+        # Skip if not installed (e.g. grpc isn't pulled by google-genai
+        # 1.75+). Failure here just means the package isn't bundled —
+        # caller would see a clean ImportError if they actually need it.
+        pass
+
 # Analysis: PyInstaller walks imports starting from the entry point.
 a = Analysis(
     [str(PROJECT_ROOT / "core" / "__main__.py")],
     pathex=[str(PROJECT_ROOT)],
-    binaries=[],
-    datas=datas,
-    hiddenimports=hiddenimports,
+    binaries=extra_binaries,
+    datas=datas + extra_datas,
+    hiddenimports=hiddenimports + extra_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -144,26 +165,6 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
-
-# Collect all of `google` namespace package + grpc if present. Both
-# are PEP 420 namespace packages; PyInstaller's --collect-all idiom
-# is the supported way to bundle them. Using collect_all() helper
-# from PyInstaller utilities here:
-from PyInstaller.utils.hooks import collect_all  # noqa: E402
-
-for _pkg in ("google", "grpc", "anthropic", "openai"):
-    try:
-        _datas, _binaries, _hiddenimports = collect_all(_pkg)
-        a.datas += _datas
-        a.binaries += _binaries
-        a.hiddenimports += _hiddenimports
-    except Exception:
-        # Skip if not installed (e.g. grpc only present when google-genai
-        # demands it). Failure here just means the package isn't
-        # available to the bundle — caller will see a clean ImportError
-        # at runtime if they actually need it.
-        pass
-
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
