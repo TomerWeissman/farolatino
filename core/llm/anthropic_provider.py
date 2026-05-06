@@ -45,8 +45,11 @@ class AnthropicProvider:
 
     name = "anthropic"
 
-    def __init__(self) -> None:
-        self._client = anthropic.Anthropic()
+    def __init__(self, *, api_key: str | None = None) -> None:
+        # Pass api_key explicitly so the SDK doesn't fall through to
+        # ANTHROPIC_API_KEY in env — the V2 single-key UX paste lands
+        # in LLM_API_KEY, and the registry hands it to us here.
+        self._client = anthropic.Anthropic(api_key=api_key)
         self._model = os.getenv("FAROAI_ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
     def run(

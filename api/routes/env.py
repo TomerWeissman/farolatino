@@ -28,13 +28,9 @@ ENV_PATH = PROJECT_ROOT / ".env"
 
 # Keys the dashboard surfaces. Order is the order the UI groups them.
 EXPOSED_VARS: list[str] = [
-    # LLM provider — V2 supports Anthropic, OpenAI, or Gemini. The
-    # active provider auto-detects from whichever key is set; LLM_PROVIDER
-    # forces a specific one when multiple keys are present.
-    "ANTHROPIC_API_KEY",
-    "OPENAI_API_KEY",
-    "GEMINI_API_KEY",
-    "LLM_PROVIDER",
+    # LLM provider — single field, auto-sniffs Anthropic / OpenAI /
+    # Gemini from the key's prefix. One key in, one model out.
+    "LLM_API_KEY",
     # Chartmetric
     "CHARTMETRIC_REFRESH_TOKEN",
     # Spotify

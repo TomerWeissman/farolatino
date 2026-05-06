@@ -1,13 +1,17 @@
-"""Pick the active LLM provider based on env, expose its capabilities.
+"""Pick the active LLM provider from one paste-anywhere API key.
 
-Detection precedence (first match wins):
+UX: the user pastes a single key into the ``LLM_API_KEY`` field on the
+Connections page. The provider is auto-detected from the key's prefix:
 
-  1. ``LLM_PROVIDER`` — explicit override (``"anthropic"``, ``"openai"``,
-     ``"gemini"``). Lets a user paste both an Anthropic and an OpenAI
-     key but force-pick one of them for a comparison run.
-  2. ``ANTHROPIC_API_KEY`` (``sk-ant-`` prefix)
-  3. ``OPENAI_API_KEY`` (``sk-`` / ``sk-proj-``)
-  4. ``GEMINI_API_KEY`` (``AIza``)
+  - ``sk-ant-`` → Anthropic (Claude)
+  - ``sk-`` / ``sk-proj-`` → OpenAI (GPT)
+  - ``AIza`` → Google (Gemini)
+
+No drop-down, no override — pick the model by pasting the matching
+key. Backward compat: if ``LLM_API_KEY`` is empty but one of the
+legacy V1/Phase-2 per-provider env vars (``ANTHROPIC_API_KEY``,
+``OPENAI_API_KEY``, ``GEMINI_API_KEY``) is set, we fall through to it
+so existing local installs keep working without a manual migration.
 
 Capabilities (per-provider feature flags) are advisory metadata the
 runner + frontend use to gate provider-specific behavior — e.g. the
@@ -26,6 +30,14 @@ from core.llm.base import LLMProvider
 log = logging.getLogger(__name__)
 
 KNOWN_PROVIDERS = ("anthropic", "openai", "gemini")
+
+# Legacy env vars (kept for backward compat with Phase 2 + V1 .env files).
+# Read-only fallbacks; new writes always go to LLM_API_KEY.
+_LEGACY_ENV: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
 
 
 @dataclass(frozen=True)
@@ -53,11 +65,42 @@ _CAPABILITIES: dict[str, ProviderCapabilities] = {
 }
 
 
-def _classify_explicit(name: str) -> str | None:
-    """Validate a `LLM_PROVIDER` override; ignore unknowns silently."""
-    name = name.strip().lower()
-    if name in KNOWN_PROVIDERS:
-        return name
+def sniff_provider(key: str | None) -> str | None:
+    """Identify the provider for an API key by its prefix.
+
+    Returns ``"anthropic" | "openai" | "gemini" | None``. Anthropic
+    keys start with ``sk-ant-``; OpenAI's regular keys start with
+    ``sk-`` (note: ``sk-proj-`` is also OpenAI); Gemini's API keys all
+    start with ``AIza``. Whitespace is trimmed. The check has to be
+    Anthropic-first since their keys *also* start with ``sk-``.
+    """
+    if not key:
+        return None
+    k = key.strip()
+    if k.startswith("sk-ant-"):
+        return "anthropic"
+    if k.startswith("sk-"):
+        return "openai"
+    if k.startswith("AIza"):
+        return "gemini"
+    return None
+
+
+def active_api_key() -> str | None:
+    """Return the API key currently in play, regardless of which env
+    var holds it. Caller passes this to the provider's SDK constructor
+    so the SDK doesn't have to know about ``LLM_API_KEY``.
+
+    Resolution order: ``LLM_API_KEY`` first; then legacy per-provider
+    keys for backward compat with V1 / Phase 2 ``.env`` files.
+    """
+    key = os.getenv("LLM_API_KEY")
+    if key:
+        return key
+    for env_var in _LEGACY_ENV.values():
+        legacy = os.getenv(env_var)
+        if legacy:
+            return legacy
     return None
 
 
@@ -66,22 +109,17 @@ def detect_provider_name() -> str:
 
     Side-effect-free; safe to call from health/connections endpoints.
     """
-    explicit = os.getenv("LLM_PROVIDER")
-    if explicit and (picked := _classify_explicit(explicit)):
-        # Only honor the override if the *matching* key is also set —
-        # otherwise the chat would error on every turn with no way for
-        # the user to notice from the sidebar.
-        env_var = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}[picked]
-        if os.getenv(env_var):
-            return picked
-        log.warning("LLM_PROVIDER=%s but %s is not set; falling through", picked, env_var)
+    key = os.getenv("LLM_API_KEY")
+    if key:
+        sniffed = sniff_provider(key)
+        if sniffed:
+            return sniffed
+        log.warning("LLM_API_KEY set but prefix unrecognised; falling through")
 
-    if os.getenv("ANTHROPIC_API_KEY"):
-        return "anthropic"
-    if os.getenv("OPENAI_API_KEY"):
-        return "openai"
-    if os.getenv("GEMINI_API_KEY"):
-        return "gemini"
+    # Backward compat: legacy per-provider env vars from V1 / Phase 2.
+    for name, env_var in _LEGACY_ENV.items():
+        if os.getenv(env_var):
+            return name
     return "none"
 
 
@@ -129,15 +167,19 @@ def get_provider() -> LLMProvider:
     if _provider_instance is not None and _provider_instance_name == name:
         return _provider_instance
 
+    api_key = active_api_key()
+    if api_key is None:
+        raise NoLLMProviderError("No API key resolved for active provider")
+
     if name == "anthropic":
         from core.llm.anthropic_provider import AnthropicProvider
-        _provider_instance = AnthropicProvider()
+        _provider_instance = AnthropicProvider(api_key=api_key)
     elif name == "openai":
         from core.llm.openai_provider import OpenAIProvider
-        _provider_instance = OpenAIProvider()
+        _provider_instance = OpenAIProvider(api_key=api_key)
     elif name == "gemini":
         from core.llm.gemini_provider import GeminiProvider
-        _provider_instance = GeminiProvider()
+        _provider_instance = GeminiProvider(api_key=api_key)
     else:
         raise NoLLMProviderError(f"Unknown provider: {name}")
 

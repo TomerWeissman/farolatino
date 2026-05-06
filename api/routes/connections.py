@@ -184,51 +184,46 @@ def _check_youtube() -> ConnectionStatus:
         )
 
 
-_LLM_ENV_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "LLM_PROVIDER"]
+_PROVIDER_DISPLAY = {
+    "anthropic": "Anthropic (Claude)",
+    "openai": "OpenAI (GPT)",
+    "gemini": "Google (Gemini)",
+}
+_PROVIDER_DOCS = {
+    "anthropic": "https://console.anthropic.com/settings/keys",
+    "openai": "https://platform.openai.com/api-keys",
+    "gemini": "https://aistudio.google.com/apikey",
+}
 
 
 def _check_llm_provider() -> ConnectionStatus:
-    """Surface the active LLM provider as a connection row.
+    """Surface the LLM key as a single Connections row.
 
-    The row's ``name`` is the active provider's display name so the
-    Connections page reflects which SDK the chat is using right now.
-    All four candidate keys are listed in ``env_vars`` so the inline
-    editor lets the user paste any of them — switching providers is
-    paste-a-key, no restart. We avoid a real ping (no paid token burn);
-    the chat endpoint surfaces auth failures cleanly enough on the
-    first turn.
+    One field, ``LLM_API_KEY``, accepts any of Anthropic / OpenAI /
+    Gemini — the provider is sniffed from the key's prefix. The row's
+    detail names the detected provider so the user can confirm at a
+    glance which model their key routes to. We avoid a real ping (no
+    paid token burn); the chat endpoint surfaces auth failures
+    cleanly enough on the first turn.
     """
     from core.llm import detect_provider_name
 
     active = detect_provider_name()
-    display_name = {
-        "anthropic": "Anthropic (Claude)",
-        "openai": "OpenAI (GPT)",
-        "gemini": "Google (Gemini)",
-        "none": "LLM Provider",
-    }[active]
-    docs_url = {
-        "anthropic": "https://console.anthropic.com/settings/keys",
-        "openai": "https://platform.openai.com/api-keys",
-        "gemini": "https://aistudio.google.com/apikey",
-        "none": "https://console.anthropic.com/settings/keys",
-    }[active]
-
     if active == "none":
         return ConnectionStatus(
-            name=display_name,
+            name="AI Model",
             status="missing_creds",
             detail=(
-                "No LLM key set. Paste an Anthropic, OpenAI, or Gemini API "
-                "key into any of the fields below to enable chat."
+                "Paste an API key to enable chat. We auto-detect Anthropic "
+                "(sk-ant-…), OpenAI (sk-…), or Google Gemini (AIza…)."
             ),
-            env_vars=_LLM_ENV_VARS,
-            docs_url=docs_url,
+            env_vars=["LLM_API_KEY"],
+            docs_url="https://console.anthropic.com/settings/keys",
         )
     return ConnectionStatus(
-        name=display_name,
+        name="AI Model",
         status="ok",
-        detail=f"{active.capitalize()} API key configured",
-        env_vars=_LLM_ENV_VARS,
-        docs_url=docs_url,
+        detail=f"{_PROVIDER_DISPLAY[active]} key detected",
+        env_vars=["LLM_API_KEY"],
+        docs_url=_PROVIDER_DOCS[active],
     )

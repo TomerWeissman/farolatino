@@ -44,9 +44,11 @@ _PRICING: dict[str, tuple[float, float]] = {
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self) -> None:
-        # The v1 client picks up GEMINI_API_KEY from env automatically.
-        self._client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    def __init__(self, *, api_key: str | None = None) -> None:
+        # Pass api_key explicitly — registry hands us the key from
+        # LLM_API_KEY (or a legacy env-var fallback), so the SDK
+        # shouldn't auto-read GEMINI_API_KEY from env on its own.
+        self._client = genai.Client(api_key=api_key)
         self._model = os.getenv("FAROAI_GEMINI_MODEL", _DEFAULT_MODEL)
 
     def run(
