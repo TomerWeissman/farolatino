@@ -73,11 +73,33 @@ if [ -d "dist/FaroAI.app" ]; then
     done
 fi
 
-# 6. Report.
+# 6. Wrap the .app in a .dmg installer for distribution.
+#    Uses macOS's built-in hdiutil so no extra tools needed (vs.
+#    create-dmg which requires Homebrew). Plain layout — the user
+#    drags FaroAI.app onto /Applications inside the mounted disk image.
+#    Skip with SKIP_DMG=1 ./packaging/build_mac.sh during dev.
+if [ -d "dist/FaroAI.app" ] && [ -z "${SKIP_DMG:-}" ]; then
+    VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\'](.*)[\"\']', open('core/__init__.py').read()).group(1))")
+    DMG="dist/FaroAI-v${VERSION}.dmg"
+    echo "==> Building $DMG…"
+    rm -f "$DMG"
+    hdiutil create \
+        -volname "FaroAI" \
+        -srcfolder dist/FaroAI.app \
+        -ov \
+        -format UDZO \
+        "$DMG" > /dev/null
+fi
+
+# 7. Report.
 if [ -d "dist/FaroAI.app" ]; then
     SIZE=$(du -sh dist/FaroAI.app | cut -f1)
     echo
     echo "==> Built dist/FaroAI.app ($SIZE)"
+    if [ -f "$DMG" ]; then
+        DMG_SIZE=$(du -sh "$DMG" | cut -f1)
+        echo "==> Built $DMG ($DMG_SIZE) — drag-to-install installer for distribution"
+    fi
     echo "    Test:    open dist/FaroAI.app"
     echo "    Install: cp -R dist/FaroAI.app /Applications/"
     echo "    First-launch warning is expected (unsigned)."
