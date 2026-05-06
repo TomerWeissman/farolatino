@@ -1,7 +1,7 @@
 // API client — talks to FastAPI on the same origin (proxied in dev,
 // served directly in prod where the static export is mounted by FastAPI).
 
-import type { ChatEvent, SkillSummary } from "./types";
+import type { ChatEvent, SkillSummary, Turn } from "./types";
 
 const BASE = "/api";
 
@@ -39,10 +39,18 @@ export async function fetchRun(runId: string) {
 export async function* streamChat(
   prompt: string,
   signal?: AbortSignal,
-  opts?: { resumeSessionId?: string | null },
+  opts?: { resumeSessionId?: string | null; priorTurns?: Turn[] },
 ): AsyncIterableIterator<ChatEvent> {
-  console.log(`[api] POST /api/chat (${prompt.length} chars${opts?.resumeSessionId ? ", resuming" : ""})`);
-  const body: Record<string, unknown> = { prompt };
+  // V2 multi-turn: backend has no session memory (the Claude Code CLI is
+  // gone). The frontend ships its localStorage-cached turns on every
+  // request and the agent runner replays them as the message history.
+  // resume_session_id is kept transitional but ignored by the runner.
+  const messages = (opts?.priorTurns ?? []).map((t) => ({
+    role: t.role,
+    content: t.content,
+  }));
+  console.log(`[api] POST /api/chat (${prompt.length} chars, ${messages.length} prior turns)`);
+  const body: Record<string, unknown> = { prompt, messages };
   if (opts?.resumeSessionId) body.resume_session_id = opts.resumeSessionId;
   const r = await fetch(`${BASE}/chat`, {
     method: "POST",

@@ -1,4 +1,4 @@
-"""GET /api/health — Chartmetric token + claude-binary check.
+"""GET /api/health — Chartmetric token + active LLM provider check.
 
 Cached for 5 min so we don't burn Chartmetric's per-second rate limit
 on every page load.
@@ -6,13 +6,13 @@ on every page load.
 from __future__ import annotations
 
 import os
-import shutil
 import time
 from threading import Lock
 
 from fastapi import APIRouter
 
 from api.schemas import HealthStatus
+from core.llm import detect_provider_name
 
 router = APIRouter()
 
@@ -57,7 +57,7 @@ def get_health() -> HealthStatus:
     status = HealthStatus(
         chartmetric=chart_status,
         chartmetric_detail=chart_detail,
-        claude_binary=shutil.which("claude") is not None,
+        llm_provider=detect_provider_name(),
     )
     with _lock:
         _cache["health"] = (now, status)

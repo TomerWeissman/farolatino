@@ -13,7 +13,6 @@ without burning daily quotas.
 from __future__ import annotations
 
 import os
-import shutil
 import time
 from threading import Lock
 
@@ -48,7 +47,7 @@ def get_connections() -> list[ConnectionStatus]:
         _check_chartmetric(),
         _check_spotify(),
         _check_youtube(),
-        _check_claude_code(),
+        _check_llm_provider(),
     ]
     with _cache_lock:
         _cache["all"] = (now, results)
@@ -185,12 +184,26 @@ def _check_youtube() -> ConnectionStatus:
         )
 
 
-def _check_claude_code() -> ConnectionStatus:
-    on_path = shutil.which("claude") is not None
+def _check_llm_provider() -> ConnectionStatus:
+    """Surface the active LLM provider as a connection row.
+
+    Phase 1 only knows Anthropic — if ``ANTHROPIC_API_KEY`` is set we
+    report ok (we don't burn a paid token on a real ping; the chat
+    endpoint surfaces auth failures cleanly enough). Future phases
+    will extend the env-var list as the OpenAI / Gemini adapters land.
+    """
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return ConnectionStatus(
+            name="LLM Provider",
+            status="ok",
+            detail="Anthropic API key configured",
+            env_vars=["ANTHROPIC_API_KEY"],
+            docs_url="https://console.anthropic.com/settings/keys",
+        )
     return ConnectionStatus(
-        name="Claude Code",
-        status="ok" if on_path else "missing_creds",
-        detail="`claude` binary on PATH" if on_path else "`claude` not on PATH — install from https://claude.com/claude-code",
-        env_vars=[],
-        docs_url="https://claude.com/claude-code",
+        name="LLM Provider",
+        status="missing_creds",
+        detail="No ANTHROPIC_API_KEY set — paste an Anthropic key to enable chat.",
+        env_vars=["ANTHROPIC_API_KEY"],
+        docs_url="https://console.anthropic.com/settings/keys",
     )

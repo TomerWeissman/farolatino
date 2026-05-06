@@ -37,19 +37,38 @@ class SkillCreate(BaseModel):
 class HealthStatus(BaseModel):
     chartmetric: str  # "ok" | "missing_creds" | "auth_failed" | "error"
     chartmetric_detail: str | None = None
-    claude_binary: bool
+    # Active LLM provider — "anthropic" | "openai" | "gemini" | "none".
+    # V1 surfaced `claude_binary: bool` (whether the CLI was on PATH);
+    # V2 reports the provider keyed off env so the Connections page can
+    # show the right pill regardless of which SDK is in use.
+    llm_provider: str
 
 
 class PersonaPayload(BaseModel):
     content: str
 
 
+class ChatMessage(BaseModel):
+    """One prior conversation turn the frontend replays for context.
+
+    V1 used Claude Code's `--resume <session_id>` to keep multi-turn
+    state in the CLI. V2 has no CLI, so the frontend ships its
+    localStorage-cached turns on every request and the backend rebuilds
+    the message stack each call.
+    """
+
+    role: str  # "user" | "assistant"
+    content: str
+
+
 class ChatRequest(BaseModel):
     prompt: str
-    # Pass to continue an existing claude session (multi-turn). When the
-    # frontend gets a result event back, it stashes the session_id on the
-    # conversation and sends it on the next turn.
+    # V1 multi-turn handle — kept for backward compat with cached
+    # frontend bundles. The V2 runner ignores it; replaced by `messages`.
     resume_session_id: str | None = None
+    # Prior turns the backend replays into the agent loop. Empty / absent
+    # is treated as a fresh single-turn chat.
+    messages: list[ChatMessage] | None = None
 
 
 class RunSummary(BaseModel):

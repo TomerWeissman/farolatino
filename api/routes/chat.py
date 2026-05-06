@@ -24,7 +24,7 @@ from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 
 from api.schemas import ChatRequest
-from core.claude_runner import (
+from core.agent_runner import (
     THINKING_PREFIX,
     ClaudeRunnerError,
     run_claude_streaming,
@@ -99,6 +99,7 @@ async def post_chat(req: ChatRequest):
                 prompt,
                 on_event=_on_event,
                 resume_session_id=req.resume_session_id,
+                messages=[m.model_dump() for m in (req.messages or [])],
             ):
                 if chunk.startswith(THINKING_PREFIX):
                     delta = chunk[len(THINKING_PREFIX):]

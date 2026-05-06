@@ -107,10 +107,13 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
     handlesRef.current.set(conversationId, handle);
     bump();
 
-    // Resolve the conversation's resume_session_id at start time so a
-    // fork-of-an-old-conversation continues the right session.
+    // Resolve resume_session_id (transitional — V2 agent runner ignores
+    // it) and the conversation's prior turns. Prior turns are replayed
+    // server-side as the message history so the V2 agent loop has the
+    // same context Claude Code's --resume used to provide.
     const conv = getConversation(conversationId);
     const resumeSessionId = conv?.claudeSessionId ?? null;
+    const priorTurns = conv?.turns ?? [];
 
     // Throttle text deltas: same 100ms cadence the old chat.tsx had.
     let pendingText = "";
@@ -129,7 +132,7 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
 
     (async () => {
       try {
-        for await (const ev of streamChat(prompt, handle.controller.signal, { resumeSessionId })) {
+        for await (const ev of streamChat(prompt, handle.controller.signal, { resumeSessionId, priorTurns })) {
           if (ev.kind === "tool_use") {
             handle.snapshot = {
               ...handle.snapshot,

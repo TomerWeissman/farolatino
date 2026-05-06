@@ -11,3 +11,5 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 sse-starlette>=2.1
 pydantic>=2.5
+# V2 LLM provider SDKs (Phase 1: Anthropic only; Phase 2 adds OpenAI + Gemini)
+anthropic>=0.40.0
