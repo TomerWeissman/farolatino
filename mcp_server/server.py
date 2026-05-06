@@ -1,7 +1,14 @@
-"""FaroLatino A&R Pipeline — MCP Server
+"""FaroLatino A&R Pipeline — tool registry.
 
-Registers all tools for the artist scouting and scoring pipeline.
-Run with: fastmcp run mcp_server/server.py
+V2: tools run in-process. The ``@mcp.tool()`` decorator is preserved as
+inert metadata for two reasons: (1) FastMCP's ``mcp.run()`` is never
+called from V2, so the decorator is a no-op for the live app; (2) the
+modules can still be loaded as a real MCP server (``python -m mcp_server``)
+for any future remote-MCP integration without changing tool source.
+
+Tool dispatch in V2 happens via direct Python imports — see
+``core/llm/tool_dispatch.py``. The 21 tool functions registered here
+are exactly what the agent runner calls.
 """
 
 from mcp.server.fastmcp import FastMCP

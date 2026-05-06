@@ -124,24 +124,7 @@ else
     fi
 fi
 
-# 5b. Generate .mcp.json so `claude --print` can spawn the FaroLatino
-#     MCP server with this snapshot's venv. Regenerated on every launch
-#     so the venv path is always current.
-PY_BIN="$SCRIPT_DIR/venv/bin/python"
-cat > "$SCRIPT_DIR/.mcp.json" <<EOF
-{
-  "mcpServers": {
-    "farolatino": {
-      "command": "$PY_BIN",
-      "args": ["-m", "mcp_server"],
-      "cwd": "$SCRIPT_DIR"
-    }
-  }
-}
-EOF
-echo "✓ MCP config ready"
-
-# 5c. Sanity-check the prebuilt frontend. We ship web/out/ in the repo so
+# 5b. Sanity-check the prebuilt frontend. We ship web/out/ in the repo so
 #     end-users don't need Node. If it's missing, fall back to the API-only
 #     mode (browser will land on FastAPI's docs page) and surface a hint.
 if [ ! -f "$SCRIPT_DIR/web/out/index.html" ]; then

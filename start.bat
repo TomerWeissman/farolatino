@@ -100,24 +100,7 @@ if errorlevel 1 (
     python -m pip install -r requirements.txt --quiet >nul 2>nul
 )
 
-REM 5b. Generate .mcp.json so `claude --print` can spawn the FaroLatino
-REM     MCP server with this snapshot's venv. Regenerated on every launch.
-set "PY_BIN=%~dp0venv\Scripts\python.exe"
-set "PY_BIN_JSON=%PY_BIN:\=\\%"
-set "CWD_JSON=%~dp0"
-set "CWD_JSON=%CWD_JSON:\=\\%"
-> "%~dp0.mcp.json" (
-    echo {
-    echo   "mcpServers": {
-    echo     "farolatino": {
-    echo       "command": "%PY_BIN_JSON%",
-    echo       "args": ["-m", "mcp_server"],
-    echo       "cwd": "%CWD_JSON%"
-    echo     }
-    echo   }
-    echo }
-)
-echo [OK] MCP config ready
+REM (V2: removed .mcp.json generation block — tools execute in-process.)
 goto :launch
 
 :pipfail
