@@ -167,11 +167,17 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
               sessionId: ev.session_id ?? undefined,
             };
             // Persist the assistant turn + session id to localStorage.
+            // When the run errored, surface the actual server error in
+            // the persisted turn so the user sees what went wrong
+            // instead of a mute "(no response)".
             const c = getConversation(conversationId);
             if (c) {
+              const fallback = handle.snapshot.errorMessage
+                ? `_⚠️ ${handle.snapshot.errorMessage}_`
+                : "_(no response)_";
               const assistantTurn: Turn = {
                 role: "assistant",
-                content: handle.snapshot.text || "_(no response)_",
+                content: handle.snapshot.text || fallback,
                 thinking: handle.snapshot.thinking.length ? handle.snapshot.thinking : undefined,
                 toolCalls: handle.snapshot.tools.length ? handle.snapshot.tools : undefined,
                 result: {

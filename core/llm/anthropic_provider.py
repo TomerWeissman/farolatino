@@ -32,7 +32,12 @@ log = logging.getLogger(__name__)
 # Claude Code routes to by default. Override with FAROAI_ANTHROPIC_MODEL
 # during local testing.
 _DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
-_DEFAULT_MAX_TOKENS = 8000
+# Visible-response budget on top of any thinking_budget. Anthropic
+# requires `max_tokens > thinking.budget_tokens` strictly, so when
+# thinking is enabled we add this on; with thinking disabled this is
+# the entire output cap. 4096 fits the longest dossier prose we've
+# seen V1 emit with margin.
+_RESPONSE_TOKENS = 4096
 
 # Hard cap on agent-loop iterations. Mirrors V1's `--max-turns` safety
 # net so a runaway tool_use cascade can't burn the budget. Eight turns
@@ -80,6 +85,11 @@ class AnthropicProvider:
             if thinking_budget > 0
             else {"type": "disabled"}
         )
+        # Anthropic requires max_tokens > thinking.budget_tokens strictly
+        # when thinking is enabled. Hold the visible-response cap as a
+        # delta on top so a high thinking budget doesn't squeeze the
+        # actual answer.
+        max_tokens = thinking_budget + _RESPONSE_TOKENS
 
         for iteration in range(_MAX_AGENT_ITERATIONS):
             # Per-iteration state — reset every loop.
@@ -94,7 +104,7 @@ class AnthropicProvider:
             try:
                 stream_ctx = self._client.messages.stream(
                     model=self._model,
-                    max_tokens=_DEFAULT_MAX_TOKENS,
+                    max_tokens=max_tokens,
                     system=system,
                     messages=messages,
                     tools=tools,
