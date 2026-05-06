@@ -182,3 +182,45 @@ def to_anthropic(specs: list[ToolSpec] | None = None) -> list[dict]:
         }
         for s in specs
     ]
+
+
+def to_openai(specs: list[ToolSpec] | None = None) -> list[dict]:
+    """Format specs as OpenAI Responses-API tool definitions.
+
+    The Responses API uses flat function objects (not the legacy nested
+    ``{"type": "function", "function": {...}}`` shape from chat
+    completions). Strict mode is left off — many of our tool args are
+    optional, which strict mode rejects unless every property is in
+    ``required``.
+    """
+    specs = specs if specs is not None else all_tool_specs()
+    return [
+        {
+            "type": "function",
+            "name": s.name,
+            "description": s.description,
+            "parameters": s.parameters,
+        }
+        for s in specs
+    ]
+
+
+def to_gemini(specs: list[ToolSpec] | None = None) -> list[dict]:
+    """Format specs as a single Gemini ``Tool`` payload's
+    ``function_declarations`` list.
+
+    Gemini accepts raw JSON Schema via the ``parameters_json_schema``
+    field on each ``FunctionDeclaration``, so we pass the same internal
+    ``parameters`` dict the other providers use without rebuilding it
+    via the SDK's ``Schema`` types. Caller wraps the list in a
+    ``Tool(function_declarations=[...])``.
+    """
+    specs = specs if specs is not None else all_tool_specs()
+    return [
+        {
+            "name": s.name,
+            "description": s.description,
+            "parameters_json_schema": s.parameters,
+        }
+        for s in specs
+    ]

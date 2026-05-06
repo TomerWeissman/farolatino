@@ -55,6 +55,7 @@ class AnthropicProvider:
         messages: list[dict],
         tools: list[dict],
         system: str,
+        thinking_budget: int = 0,
     ) -> Iterator[AgentEvent]:
         """Drive the Anthropic agent loop. Yields `AgentEvent`s.
 
@@ -68,11 +69,9 @@ class AnthropicProvider:
         total_cache_read = 0
         total_cache_creation = 0
 
-        # Extended-thinking budget. Off by default for tool-call-heavy
-        # composite skills (matches V1's `--max-thinking-tokens 0`); on
-        # for free-form prompts. Caller sets via tools[0]?? — we keep it
-        # simple: use 0 unless FAROAI_THINKING_TOKENS is positive.
-        thinking_budget = int(os.getenv("FAROAI_THINKING_TOKENS", "0"))
+        # Extended-thinking budget. Off for tool-call-heavy composite
+        # skills (matches V1's `--max-thinking-tokens 0`); on for
+        # free-form prompts. Caller passes the per-skill profile value.
         thinking_param = (
             {"type": "enabled", "budget_tokens": thinking_budget}
             if thinking_budget > 0

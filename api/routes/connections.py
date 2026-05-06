@@ -184,26 +184,51 @@ def _check_youtube() -> ConnectionStatus:
         )
 
 
+_LLM_ENV_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "LLM_PROVIDER"]
+
+
 def _check_llm_provider() -> ConnectionStatus:
     """Surface the active LLM provider as a connection row.
 
-    Phase 1 only knows Anthropic — if ``ANTHROPIC_API_KEY`` is set we
-    report ok (we don't burn a paid token on a real ping; the chat
-    endpoint surfaces auth failures cleanly enough). Future phases
-    will extend the env-var list as the OpenAI / Gemini adapters land.
+    The row's ``name`` is the active provider's display name so the
+    Connections page reflects which SDK the chat is using right now.
+    All four candidate keys are listed in ``env_vars`` so the inline
+    editor lets the user paste any of them — switching providers is
+    paste-a-key, no restart. We avoid a real ping (no paid token burn);
+    the chat endpoint surfaces auth failures cleanly enough on the
+    first turn.
     """
-    if os.getenv("ANTHROPIC_API_KEY"):
+    from core.llm import detect_provider_name
+
+    active = detect_provider_name()
+    display_name = {
+        "anthropic": "Anthropic (Claude)",
+        "openai": "OpenAI (GPT)",
+        "gemini": "Google (Gemini)",
+        "none": "LLM Provider",
+    }[active]
+    docs_url = {
+        "anthropic": "https://console.anthropic.com/settings/keys",
+        "openai": "https://platform.openai.com/api-keys",
+        "gemini": "https://aistudio.google.com/apikey",
+        "none": "https://console.anthropic.com/settings/keys",
+    }[active]
+
+    if active == "none":
         return ConnectionStatus(
-            name="LLM Provider",
-            status="ok",
-            detail="Anthropic API key configured",
-            env_vars=["ANTHROPIC_API_KEY"],
-            docs_url="https://console.anthropic.com/settings/keys",
+            name=display_name,
+            status="missing_creds",
+            detail=(
+                "No LLM key set. Paste an Anthropic, OpenAI, or Gemini API "
+                "key into any of the fields below to enable chat."
+            ),
+            env_vars=_LLM_ENV_VARS,
+            docs_url=docs_url,
         )
     return ConnectionStatus(
-        name="LLM Provider",
-        status="missing_creds",
-        detail="No ANTHROPIC_API_KEY set — paste an Anthropic key to enable chat.",
-        env_vars=["ANTHROPIC_API_KEY"],
-        docs_url="https://console.anthropic.com/settings/keys",
+        name=display_name,
+        status="ok",
+        detail=f"{active.capitalize()} API key configured",
+        env_vars=_LLM_ENV_VARS,
+        docs_url=docs_url,
     )

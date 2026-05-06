@@ -19,10 +19,14 @@ from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
-from core.llm import detect_provider_name, get_provider
+from core.llm import (
+    NoLLMProviderError,
+    detect_provider_name,
+    get_provider,
+)
 from core.llm.base import AgentEvent
 from core.llm.tool_dispatch import all_tool_names
-from core.llm.tool_schemas import all_tool_specs, to_anthropic
+from core.llm.tool_schemas import all_tool_specs, to_anthropic, to_gemini, to_openai
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PERSONA_PATH = PROJECT_ROOT / "FAROAI.md"
@@ -155,24 +159,25 @@ def run_claude_streaming(
         Plain text chunks for the visible response, plus
         ``THINKING_PREFIX``-tagged chunks for thinking deltas.
     """
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        raise ClaudeRunnerError(
-            "No ANTHROPIC_API_KEY set. Open Connections in the sidebar to "
-            "paste your Anthropic API key."
-        )
+    try:
+        provider = get_provider()
+    except NoLLMProviderError as exc:
+        raise ClaudeRunnerError(str(exc)) from exc
 
-    provider = get_provider()
     profile = _resolve_skill_profile(prompt)
 
-    # Anthropic-flavored tool schemas, narrowed to the active skill's
+    # Provider-flavored tool schemas, narrowed to the active skill's
     # allowlist. Same shape as V1's --allowed-tools whitelist.
-    tools = to_anthropic(all_tool_specs())
+    specs = all_tool_specs()
+    if provider.name == "anthropic":
+        tools = to_anthropic(specs)
+    elif provider.name == "openai":
+        tools = to_openai(specs)
+    elif provider.name == "gemini":
+        tools = to_gemini(specs)
+    else:  # pragma: no cover — registry only returns the three above
+        raise ClaudeRunnerError(f"Unsupported provider: {provider.name}")
     tools = _filter_tools_by_allowlist(tools, profile["tools"])
-
-    # Carry skill thinking budget into the provider through env so the
-    # provider stays Protocol-shaped. Phase 2 will widen the Protocol.
-    prior_thinking = os.environ.get("FAROAI_THINKING_TOKENS")
-    os.environ["FAROAI_THINKING_TOKENS"] = str(profile["thinking_budget"])
 
     # Build the message stack. Prior assistant/user content from the
     # frontend is replayed verbatim (`{role, content}`), then the new
@@ -211,19 +216,18 @@ def run_claude_streaming(
     # Drive the provider iterator and translate `AgentEvent` → text
     # deltas (+ THINKING_PREFIX chunks) + synthetic on_event calls.
     try:
-        try:
-            for event in provider.run(messages=msg_stack, tools=tools, system=system):
-                yield from _translate_event(event, on_event)
-        except Exception as exc:
-            log.exception("agent runner crashed")
-            raise ClaudeRunnerError(f"Agent runner failed: {exc}") from exc
-    finally:
-        # Restore env so concurrent or subsequent runs don't inherit
-        # this turn's thinking budget.
-        if prior_thinking is None:
-            os.environ.pop("FAROAI_THINKING_TOKENS", None)
-        else:
-            os.environ["FAROAI_THINKING_TOKENS"] = prior_thinking
+        for event in provider.run(
+            messages=msg_stack,
+            tools=tools,
+            system=system,
+            thinking_budget=profile["thinking_budget"],
+        ):
+            yield from _translate_event(event, on_event)
+    except ClaudeRunnerError:
+        raise
+    except Exception as exc:
+        log.exception("agent runner crashed")
+        raise ClaudeRunnerError(f"Agent runner failed: {exc}") from exc
 
 
 def _translate_event(event: AgentEvent, on_event) -> Iterator[str]:

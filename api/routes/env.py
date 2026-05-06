@@ -28,6 +28,13 @@ ENV_PATH = PROJECT_ROOT / ".env"
 
 # Keys the dashboard surfaces. Order is the order the UI groups them.
 EXPOSED_VARS: list[str] = [
+    # LLM provider — V2 supports Anthropic, OpenAI, or Gemini. The
+    # active provider auto-detects from whichever key is set; LLM_PROVIDER
+    # forces a specific one when multiple keys are present.
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "LLM_PROVIDER",
     # Chartmetric
     "CHARTMETRIC_REFRESH_TOKEN",
     # Spotify
@@ -139,11 +146,22 @@ def put_env(payload: EnvUpdate) -> EnvBundle:
 def _invalidate_caches() -> None:
     """Clear in-memory token caches + the connections-status cache so
     the next call exercises the new credentials."""
-    # Connections cache — bypassed via the existing ?t= query param too,
-    # but clearing here means the next /api/connections call without
-    # cache-busting also sees fresh state.
+    # Connections + health caches — bypassed via the existing ?t= query
+    # param too, but clearing here means the next call without cache-
+    # busting also sees fresh state. Without clearing health, a user
+    # who pastes an OPENAI_API_KEY would still see llm_provider="none"
+    # in the sidebar pill for up to 5 minutes (the health TTL).
     from api.routes.connections import _cache as conn_cache
     conn_cache.clear()
+    from api.routes.health import _cache as health_cache
+    health_cache.clear()
+
+    # Drop the cached LLM provider instance so a key swap takes effect
+    # without restarting the process. Without this, a user who pastes
+    # a new ANTHROPIC_API_KEY would still see the old client until the
+    # next uvicorn restart.
+    from core.llm import reset_provider_cache
+    reset_provider_cache()
 
     # Auth module token caches. We poke the module-level state directly —
     # exposing a clear() function on each module would be cleaner; doing
