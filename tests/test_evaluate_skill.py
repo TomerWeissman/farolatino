@@ -246,6 +246,27 @@ def test_evaluate_skill_via_gemini():
     _assert_evaluate_dossier_is_real(trace)
 
 
+def test_similar_output_is_provider_independent(monkeypatch):
+    """``@similar`` output must also be byte-identical across providers.
+    Same rationale as ``test_evaluate_output_is_provider_independent``."""
+    captured: dict[str, str] = {}
+    for provider in ("anthropic", "openai", "gemini"):
+        monkeypatch.setenv("LLM_API_KEY", {
+            "anthropic": "sk-ant-fake-test-key",
+            "openai": "sk-fake-test-key",
+            "gemini": "AIzaFakeTestKey",
+        }[provider])
+        trace = _capture_evaluate_run(f"@similar {REGRESSION_ARTIST}")
+        captured[provider] = trace["text"]
+
+    a, o, g = captured["anthropic"], captured["openai"], captured["gemini"]
+    assert a == o, (
+        "Anthropic and OpenAI produced different @similar output. "
+        f"  anthropic: {a[:200]!r}\n  openai:    {o[:200]!r}"
+    )
+    assert a == g, "Anthropic and Gemini produced different @similar output."
+
+
 def test_evaluate_output_is_provider_independent(monkeypatch):
     """V2 lifts dossier rendering server-side, so the visible chat
     response is byte-identical regardless of which LLM provider is

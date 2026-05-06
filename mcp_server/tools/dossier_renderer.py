@@ -255,6 +255,83 @@ def _render_actionable(dossier: dict) -> str:
     )
 
 
+def render_similar(result: dict) -> str:
+    """Render the ``find_similar_artists`` output as canonical Markdown.
+
+    ``result`` is the dict from ``composite_similar.find_similar_artists``:
+    ``{"seed": {...}, "neighbors": [...], "tier_distribution": {...}}``.
+    Output mirrors the dossier's tone — header + seed line + tier rollup
+    + a sortable table — so chat output is identical regardless of LLM
+    provider.
+    """
+    seed = result.get("seed") or {}
+    neighbors = result.get("neighbors") or []
+    bands = result.get("tier_distribution") or {}
+    seed_name = seed.get("name") or "—"
+
+    lines: list[str] = [f"# Similar to {seed_name}"]
+
+    # Seed summary line — the user wants quick "what was the seed like"
+    # context without scrolling up to find the prior @evaluate.
+    seed_bits = []
+    if seed.get("career_stage"):
+        seed_bits.append(f"_{seed['career_stage']}_")
+    if seed.get("country_code"):
+        seed_bits.append(seed["country_code"])
+    listeners = seed.get("sp_monthly_listeners")
+    if listeners:
+        seed_bits.append(f"{_fmt_int(listeners)} monthly listeners")
+    genres = seed.get("genres") or []
+    if genres:
+        seed_bits.append(", ".join(genres[:3]))
+    if seed_bits:
+        lines.append(" · ".join(seed_bits))
+
+    if not neighbors:
+        lines.append(
+            "\n_No neighbors returned._ Chartmetric's similar-artists graph "
+            "doesn't have data for this seed yet — try @similar on a more "
+            "established artist, or @evaluate first to confirm the seed resolved."
+        )
+        return "\n\n".join(lines)
+
+    # Tier rollup — surfaces the comp question fast: "are these peers,
+    # ladder-down, or ladder-up?" Skipping zero buckets keeps it lean.
+    tier_bits = []
+    for k in ("tier-similar", "larger", "smaller", "unknown"):
+        if bands.get(k, 0):
+            label = {
+                "tier-similar": "tier peers",
+                "larger": "larger",
+                "smaller": "smaller",
+                "unknown": "unknown",
+            }[k]
+            tier_bits.append(f"**{bands[k]}** {label}")
+    if tier_bits:
+        lines.append("**Mix:** " + " · ".join(tier_bits))
+
+    # Table — name, country, tier band, monthly listeners, signed flag.
+    # signed=False means available to chase, so we surface it boldly.
+    lines.append(
+        "\n| # | Artist | Country | Tier | Monthly listeners | Signed |"
+    )
+    lines.append("|---|---|---|---|---|---|")
+    for i, n in enumerate(neighbors, start=1):
+        signed_mark = "—" if n.get("signed") is None else ("yes" if n.get("signed") else "**no**")
+        lines.append(
+            "| {i} | {name} | {country} | {tier} | {listeners} | {signed} |".format(
+                i=i,
+                name=n.get("name") or "—",
+                country=n.get("country_code") or "—",
+                tier=n.get("tier_band") or "—",
+                listeners=_fmt_int(n.get("sp_monthly_listeners")),
+                signed=signed_mark,
+            )
+        )
+
+    return "\n".join(lines)
+
+
 def render_dossier(dossier: dict, profile: dict) -> str:
     """Render the full dossier as Markdown.
 

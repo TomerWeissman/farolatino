@@ -370,6 +370,8 @@ def _try_handle_skill_directly(prompt: str, on_event) -> Iterator[str] | None:
     head_lc = head.lower()
     if head_lc == "@evaluate":
         return _handle_evaluate(arg.strip(), on_event)
+    if head_lc == "@similar":
+        return _handle_similar(arg.strip(), on_event)
     return None
 
 
@@ -506,6 +508,53 @@ def _handle_evaluate(arg: str, on_event) -> Iterator[str]:
         markdown = render_dossier(result["dossier"], artist_data or {})
     except Exception as exc:
         log.exception("dossier render failed")
+        yield f"⚠️ Renderer error: {exc}"
+        _emit_synthetic_result(on_event)
+        return
+
+    yield markdown
+    _emit_synthetic_result(on_event)
+
+
+def _handle_similar(arg: str, on_event) -> Iterator[str]:
+    """Server-rendered ``@similar`` flow — same shape as ``@evaluate``,
+    different tool + renderer. The body is a list of comparable artists
+    rather than a single dossier.
+    """
+    _emit_synthetic_init(on_event)
+
+    if not arg:
+        yield (
+            "**Usage:** `@similar <artist name or URL>`\n\n"
+            "Example: `@similar Bad Bunny`"
+        )
+        _emit_synthetic_result(on_event)
+        return
+
+    tool_input = {"artist": arg}
+    tool_use_id = _emit_synthetic_tool_use(
+        on_event, "mcp__farolatino__find_similar_artists", tool_input
+    )
+    result = dispatch_tool("mcp__farolatino__find_similar_artists", tool_input)
+    _emit_synthetic_tool_result(
+        on_event, tool_use_id, "mcp__farolatino__find_similar_artists", result
+    )
+
+    if "error" in result:
+        yield f"⚠️ **Couldn't find similar artists for `{arg}`.**\n\n{result['error']}"
+        _emit_synthetic_result(on_event)
+        return
+
+    if "needs_disambiguation" in result:
+        yield _render_disambiguation(arg, result["needs_disambiguation"])
+        _emit_synthetic_result(on_event)
+        return
+
+    try:
+        from mcp_server.tools.dossier_renderer import render_similar
+        markdown = render_similar(result)
+    except Exception as exc:
+        log.exception("similar render failed")
         yield f"⚠️ Renderer error: {exc}"
         _emit_synthetic_result(on_event)
         return
