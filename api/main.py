@@ -13,7 +13,6 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,8 +21,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# .env BEFORE importing anything that reads env vars (chartmetric, etc.).
-load_dotenv(PROJECT_ROOT / ".env")
+# V2: credentials live under ~/Library/Application Support/FaroAI/
+# (mac), %APPDATA%\FaroAI\ (win), or ~/.config/faroai/ (linux). On
+# first boot we migrate any V1 project-root .env into the new home so
+# existing local installs aren't broken. See core/paths.py for the
+# rationale (bundled apps need a writable, persistent user-data dir).
+from core.paths import load_credentials, resource_path  # noqa: E402
+
+load_credentials()
 
 from api.routes import chat, connections, env, files, health, persona, runs, skills  # noqa: E402
 
@@ -93,7 +98,7 @@ class _CachingStaticFiles(StaticFiles):
         return resp
 
 
-_WEB_OUT = PROJECT_ROOT / "web" / "out"
+_WEB_OUT = resource_path("web/out")
 if _WEB_OUT.is_dir():
     app.mount(
         "/",

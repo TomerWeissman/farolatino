@@ -23,9 +23,9 @@ import threading
 import time
 
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv()
+from core.paths import load_credentials  # V2: per-user config dir + legacy fallback
+load_credentials()
 
 API_BASE = "https://www.googleapis.com/youtube/v3"
 TOKEN_URL = "https://oauth2.googleapis.com/token"

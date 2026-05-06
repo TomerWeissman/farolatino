@@ -4,9 +4,22 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from core.paths import cache_dir
 from mcp_server.server import mcp
 
-CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "cache"
+
+def _cache_dir() -> Path:
+    """V2: cache lives under ~/Library/Application Support/FaroAI/cache/
+    (or whatever ``cache_dir()`` resolves to per platform / FAROAI_CACHE_DIR
+    override). Wrapped in a function so tests setting FAROAI_CACHE_DIR
+    mid-run see the change without a module reload."""
+    return cache_dir()
+
+
+# Back-compat: V1 callers (scripts/compute_catalog_coverage.py, etc.) read
+# ``CACHE_DIR`` directly. Resolved at import time, which is fine since
+# the override env var typically isn't toggled mid-process.
+CACHE_DIR = cache_dir()
 
 # TTL per data type
 CACHE_TTL = {
@@ -34,7 +47,7 @@ CACHE_TTL = {
 
 
 def _cache_path(artist_id: int, data_type: str) -> Path:
-    return CACHE_DIR / str(artist_id) / f"{data_type}.json"
+    return _cache_dir() / str(artist_id) / f"{data_type}.json"
 
 
 # --- Plain functions for internal use (importable by other modules) ---
@@ -120,7 +133,7 @@ def cache_clear(artist_id: int) -> dict:
     Args:
         artist_id: Chartmetric artist ID
     """
-    artist_dir = CACHE_DIR / str(artist_id)
+    artist_dir = _cache_dir() / str(artist_id)
     if not artist_dir.exists():
         return {"cleared": False, "reason": "No cache found"}
 

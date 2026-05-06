@@ -13,9 +13,14 @@ import threading
 import time
 
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv()
+# V2: load credentials from the per-user config dir (~/Library/Application
+# Support/FaroAI/credentials.env on mac), NOT cwd. Bundled apps launch
+# from /Applications where there's no project-root .env to scan.
+# load_credentials() also handles the legacy .env migration + fallback so
+# fresh dev installs and packaged builds both Just Work.
+from core.paths import load_credentials
+load_credentials()
 
 API_BASE = "https://api.chartmetric.com"
 

@@ -18,8 +18,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.paths import runs_log_path
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOG_PATH = PROJECT_ROOT / "data" / "cache" / "chat_runs.jsonl"
+
+
+def _log_path() -> Path:
+    """V2: per-user data dir (~/Library/Application Support/FaroAI/...).
+
+    Wrapped in a function so tests can swap the path via
+    ``FAROAI_CONFIG_DIR`` without re-importing this module.
+    """
+    return runs_log_path()
+
+
+# Back-compat alias — older callers (scripts/test fixtures) read
+# ``LOG_PATH`` directly. Resolved at import time, which is fine for
+# scripts but tests should use ``_log_path()`` to honor the override.
+LOG_PATH = runs_log_path()
 
 
 @dataclass
@@ -105,8 +121,9 @@ class RunLogger:
             thinking_blocks=list(thinking_blocks or []),
         )
 
-        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with LOG_PATH.open("a", encoding="utf-8") as f:
+        path = _log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(record), default=str) + "\n")
 
         return record
@@ -114,9 +131,10 @@ class RunLogger:
 
 def load_recent(limit: int = 20) -> list[RunRecord]:
     """Read the last `limit` runs from the JSONL log (newest first)."""
-    if not LOG_PATH.exists():
+    path = _log_path()
+    if not path.exists():
         return []
-    lines = LOG_PATH.read_text(encoding="utf-8").splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     out: list[RunRecord] = []
     for line in reversed(lines[-limit:]):
         if not line.strip():

@@ -23,8 +23,19 @@ from dotenv import load_dotenv, set_key
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from core.paths import credentials_path
+
+
+def _env_path() -> Path:
+    """V2: writes go to ~/Library/Application Support/FaroAI/credentials.env
+    (or the platform equivalent). Wrapped in a function so tests can
+    swap the location via ``FAROAI_CONFIG_DIR`` mid-run without
+    re-importing the module.
+    """
+    return credentials_path()
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-ENV_PATH = PROJECT_ROOT / ".env"
 
 # Keys the dashboard surfaces. Order is the order the UI groups them.
 EXPOSED_VARS: list[str] = [
@@ -120,18 +131,19 @@ def put_env(payload: EnvUpdate) -> EnvBundle:
 
     # Make sure the .env exists — dotenv's set_key will refuse to write
     # to a path that doesn't resolve, so create an empty file if needed.
-    ENV_PATH.touch(exist_ok=True)
+    env_path = _env_path()
+    env_path.touch(exist_ok=True)
 
     # set_key handles quoting, atomic write, and preserves the rest of
     # the file (other keys, comments, blank lines).
     for k, v in payload.updates.items():
-        set_key(str(ENV_PATH), k, v)
+        set_key(str(env_path), k, v)
         os.environ[k] = v
 
     # Reload from disk so any module that reads via os.getenv (without
     # caching) picks up the change. override=True overwrites whatever
     # was already in os.environ.
-    load_dotenv(ENV_PATH, override=True)
+    load_dotenv(env_path, override=True)
 
     # Clear caches that hold credentials in memory.
     _invalidate_caches()
