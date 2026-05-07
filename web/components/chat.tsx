@@ -84,6 +84,11 @@ export function Chat() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [historyTick, setHistoryTick] = useState(0); // bumps when conversation turns change
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Tracks whether the user is currently scrolled to the bottom of
+  // the conversation. We only auto-scroll on stream updates when this
+  // is true — otherwise long replies yank the page out from under
+  // a user who's reading something earlier in the thread.
+  const stickToBottomRef = useRef(true);
   const onboarding = useOnboardingGate();
 
   // The streams provider owns all in-flight stream state. It survives
@@ -124,8 +129,33 @@ export function Chat() {
     return subscribeToConversations(sync);
   }, []);
 
-  // Auto-scroll on new history entries or stream tick.
+  // Window scroll listener — flips stickToBottomRef whenever the user
+  // moves away from the bottom or scrolls back. The chat scroll
+  // container is the document itself (chat-shell has no overflow rule),
+  // so we measure window vs. document height. 64px threshold means
+  // "near the bottom" still counts as pinned, since smooth-scroll can
+  // leave a tiny gap mid-animation.
   useEffect(() => {
+    const update = () => {
+      const distanceFromBottom =
+        document.documentElement.scrollHeight -
+        (window.scrollY + window.innerHeight);
+      stickToBottomRef.current = distanceFromBottom < 64;
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  // Auto-scroll on new history entries or stream tick — but only when
+  // the user was already at the bottom. Otherwise we'd hijack their
+  // reading position every time a thinking-delta arrives.
+  useEffect(() => {
+    if (!stickToBottomRef.current) return;
     scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [historyTick, snapshot?.text, snapshot?.thinking.length]);
 
@@ -169,6 +199,11 @@ export function Chat() {
     saveConversation(updated);
     setConversation(updated);
     setDraft("");
+    // Sending a new message is always an explicit "show me what comes
+    // next" — re-engage stick-to-bottom so the user's own bubble plus
+    // the streaming reply scroll into view, even if they were reading
+    // earlier in the thread when they hit Send.
+    stickToBottomRef.current = true;
     // Hand off to the streams provider, calling with the active id
     // directly (which may have just been created in this same call).
     streams.startTurn(active.id, trimmed);
