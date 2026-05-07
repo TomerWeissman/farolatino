@@ -68,3 +68,135 @@ export type Turn = {
   result?: Pick<ResultEvent, "run_id" | "duration_s" | "cost_usd" | "status">;
   error?: TurnError; // assistant only; populated when the turn errored
 };
+
+// ─── /api/evaluate response types ──────────────────────────────────────
+//
+// Mirrors the dossier dict produced by mcp_server/tools/dossier_generator.py.
+// All sub-fields are optional because Chartmetric coverage varies per
+// artist — a brand-new artist might have no milestones; an instrumental
+// artist might have no engagement data; etc. The dashboard handles each
+// section's "empty" state gracefully.
+
+export type Dossier = {
+  identity: {
+    name: string;
+    genres?: string[];
+    career_stage?: string;
+    career_trend?: string;
+    label?: string | null;
+    distributor?: string | null;
+    image?: string | null;
+    urls?: Record<string, string>;
+  };
+  metrics: {
+    spotify?: {
+      monthly_listeners?: number;
+      monthly_listeners_change?: string;
+      followers?: number;
+      popularity?: number;
+    };
+    youtube?: { subscribers?: number; views?: number };
+    instagram?: { followers?: number; engagement_rate?: string };
+    tiktok?: { followers?: number; likes?: number | null };
+    other?: {
+      shazam_count?: number;
+      deezer_fans?: number;
+      soundcloud_followers?: number;
+    };
+    cpp_score?: number;
+  };
+  prospect_score: {
+    overall: number;
+    tier: string;
+    confidence: number;
+    data_completeness?: number;
+    profile_used?: string;
+    dimensions: Record<string, {
+      score: number;
+      confidence?: number;
+      rationale?: string;
+      weight?: number;
+      weighted_contribution?: number;
+    }>;
+  };
+  geographic_profile?: {
+    top_markets?: Array<{
+      country?: string;
+      country_code?: string;
+      listeners?: number;
+      growth?: string;
+    }>;
+  };
+  revenue_projection?: {
+    annual_projected?: number;
+    monthly_total?: number;
+    monthly_revenue_by_platform?: Record<string, number>;
+    note?: string;
+  };
+  career_trajectory?: {
+    stage?: string;
+    trend?: string;
+    momentum_score?: number;
+    milestones?: Array<{ text: string; date?: string; platform?: string }>;
+  };
+  catalog?: {
+    releases_6m?: number;
+    releases_12m?: number;
+    total_tracks?: number;
+    latest_tracks?: Array<{ name: string; release_date?: string; isrc?: string }>;
+    editorial_playlists?: number;
+    total_playlists?: number;
+  };
+  risk_signals?: Record<string, string>;
+  competitive_context?: {
+    similar_artists?: Array<{
+      name: string;
+      country_code?: string;
+      sp_monthly_listeners?: number;
+      career_stage?: string;
+      signed?: boolean;
+      momentum?: string;
+    }>;
+  };
+  actionable?: {
+    social_links?: Record<string, string>;
+    tier?: string;
+  };
+};
+
+export type DisambigCandidate = {
+  cm_id: number;
+  name: string;
+  country_code?: string;
+  sp_followers?: number;
+  sp_monthly_listeners?: number;
+};
+
+export type EvaluateResponse =
+  | {
+      dossier: Dossier;
+      alert?: { tier: string };
+      cm_id: number;
+      rendered_markdown: string;
+      error?: undefined;
+      needs_disambiguation?: undefined;
+    }
+  | {
+      needs_disambiguation: DisambigCandidate[];
+      query: string;
+      dossier?: undefined;
+      error?: undefined;
+    }
+  | {
+      error: string;
+      dossier?: undefined;
+      needs_disambiguation?: undefined;
+    };
+
+// One row in the "Recently evaluated" list on the empty state.
+// Persisted to localStorage as `faroai-recent-evals`.
+export type RecentEval = {
+  name: string;
+  cm_id: number;
+  evaluated_at: number; // epoch ms
+};

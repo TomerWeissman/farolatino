@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus, Plug, Loader2 } from "lucide-react";
+import { MessageSquare, BookOpen, Brain, FolderOpen, Trash2, Plus, Plug, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type Conversation,
@@ -20,6 +20,7 @@ const SIDEBAR_WIDTH = 240;
 
 const NAV = [
   { href: "/",            label: "FaroAI",      icon: MessageSquare },
+  { href: "/evaluate",    label: "Evaluate",    icon: Search },
   { href: "/skills",      label: "Skills",      icon: BookOpen },
   { href: "/memory",      label: "Memory",      icon: Brain },
   { href: "/files",       label: "Files",       icon: FolderOpen },

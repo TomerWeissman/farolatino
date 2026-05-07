@@ -1,13 +1,47 @@
 // API client — talks to FastAPI on the same origin (proxied in dev,
 // served directly in prod where the static export is mounted by FastAPI).
 
-import type { ChatEvent, SkillSummary, Turn } from "./types";
+import type { ChatEvent, EvaluateResponse, SkillSummary, Turn } from "./types";
 
 const BASE = "/api";
 
 export async function fetchSkills(): Promise<SkillSummary[]> {
   const r = await fetch(`${BASE}/skills`, { cache: "no-store" });
   if (!r.ok) throw new Error(`/api/skills ${r.status}`);
+  return r.json();
+}
+
+/**
+ * POST /api/evaluate — runs the @evaluate skill, returns the full dossier
+ * JSON for the dashboard at /evaluate.
+ *
+ * Three response shapes — caller distinguishes by which keys are
+ * present (see EvaluateResponse in types.ts):
+ *   - { dossier, cm_id, rendered_markdown }: success
+ *   - { needs_disambiguation, query }: ambiguous artist name
+ *   - { error }: tool error (Chartmetric down, etc.)
+ *
+ * cmId is passed when the user picks a disambiguation candidate so
+ * the second call skips the search step and goes straight to the
+ * cached data fetch.
+ */
+export async function evaluate(
+  artist: string,
+  cmId?: number,
+  signal?: AbortSignal,
+): Promise<EvaluateResponse> {
+  const body: Record<string, unknown> = { artist };
+  if (cmId) body.cm_id = cmId;
+  const r = await fetch(`${BASE}/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => r.statusText);
+    throw new Error(`/api/evaluate ${r.status}: ${text.slice(0, 200)}`);
+  }
   return r.json();
 }
 

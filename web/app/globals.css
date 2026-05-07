@@ -1058,3 +1058,525 @@ button.sidebar-link {
   background: var(--bg-hover);
   color: var(--text);
 }
+/* ─── /evaluate dashboard (Mockup A — Editorial / NYT-feel) ───────── */
+
+/* Editorial palette intentionally diverges from FaroAI's chat palette
+   above — restrained, serif-leaning, no soft shadows. Scoped under
+   .evaluate-shell so the rest of the app is unaffected. */
+
+.evaluate-shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  background: #fafaf8;
+  min-height: 100%;
+  color: #1a1a1a;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.evaluate-header { margin-bottom: 32px; }
+.evaluate-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 12px;
+}
+.evaluate-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.evaluate-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid #1a1a1a;
+  background: white;
+  font-size: 15px;
+  font-family: inherit;
+  border-radius: 0;
+  color: #1a1a1a;
+}
+.evaluate-input:focus { outline: none; border-color: #d97706; }
+.evaluate-input:disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
+
+/* Buttons — editorial squared, no rounded corners, no gradients. */
+.evaluate-btn {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 0;
+  font: 500 14px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.evaluate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.evaluate-btn-primary { background: #1a1a1a; color: white; }
+.evaluate-btn-primary:hover:not(:disabled) { background: #333; }
+.evaluate-btn-secondary { background: white; color: #1a1a1a; border: 1px solid #1a1a1a; }
+.evaluate-btn-secondary:hover:not(:disabled) { background: #f5f5f5; }
+.evaluate-btn-link {
+  background: none;
+  border: none;
+  padding: 0 8px;
+  color: #999;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.evaluate-btn-link:hover { color: #1a1a1a; }
+
+/* Empty state — minimal text + recents list. */
+.evaluate-empty { padding-top: 16px; }
+.evaluate-empty-hint { color: #666; font-size: 14px; margin-bottom: 32px; }
+.evaluate-recents { padding-top: 8px; }
+.evaluate-recents-title {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e5e0;
+}
+.evaluate-recents-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f0eb;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.evaluate-recents-row:hover .evaluate-recents-name { color: #d97706; }
+.evaluate-recents-name { font-size: 16px; font-weight: 500; }
+.evaluate-recents-time { font-size: 12px; color: #999; }
+.evaluate-recents-clear { margin-top: 16px; }
+
+/* Loading state — text-only, no spinners. */
+.evaluate-loading { padding: 32px 0; }
+.evaluate-loading-title {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 16px;
+}
+.evaluate-loading-steps {
+  font-size: 14px;
+  color: #1a1a1a;
+  line-height: 1.8;
+}
+.evaluate-loading-steps > div { padding-left: 4px; }
+.evaluate-loading-note { margin-top: 24px; font-size: 12px; color: #999; }
+
+/* Disambiguation cards. */
+.evaluate-disambig { padding: 16px 0; }
+.evaluate-disambig-title {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 8px;
+}
+.evaluate-disambig-hint { font-size: 14px; color: #666; margin-bottom: 16px; }
+.evaluate-disambig-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+  padding: 16px 0;
+  border-top: 1px solid #f0f0eb;
+  background: none;
+  border-left: none; border-right: none; border-bottom: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.evaluate-disambig-row:last-of-type { border-bottom: 1px solid #f0f0eb; }
+.evaluate-disambig-row:hover .evaluate-disambig-name { color: #d97706; }
+.evaluate-disambig-name { font-size: 16px; font-weight: 500; }
+.evaluate-disambig-meta { font-size: 13px; color: #666; }
+
+/* Error state. */
+.evaluate-error {
+  padding: 24px 28px;
+  margin: 24px 0;
+  background: #fef2f2;
+  border-left: 3px solid #b91c1c;
+}
+.evaluate-error-title {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #b91c1c;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.evaluate-error-message { font-size: 14px; color: #7f1d1d; margin-bottom: 16px; line-height: 1.5; }
+
+/* Compare-mode second-artist input bar. */
+.evaluate-compare-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  margin-bottom: 24px;
+}
+.evaluate-compare-label {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: #999;
+  white-space: nowrap;
+}
+
+/* ─── Dashboard sections (rendered by EvaluateDashboard) ───────── */
+
+.evaluate-dashboard {
+  /* Single-artist column. */
+}
+.evaluate-dashboard-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+.evaluate-dashboard-compare .evaluate-cta-row {
+  grid-column: 1 / -1;
+}
+
+.evaluate-cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 32px 0 16px;
+  padding-top: 32px;
+  border-top: 1px solid #e5e5e0;
+}
+
+.evaluate-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.ev-section { padding: 0; }
+.ev-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 16px;
+}
+
+/* Hero — photo + name + meta + social links + score. */
+.ev-hero { margin-bottom: 32px; }
+.ev-header-grid {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 32px;
+}
+.ev-photo {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  background: #ececea;
+  display: block;
+}
+.ev-photo-fallback {
+  width: 96px;
+  height: 96px;
+  background: #1a1a1a;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 32px/1 Georgia, serif;
+  letter-spacing: 0.04em;
+}
+.ev-name {
+  font: 600 56px/1.05 Georgia, serif;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+  color: #1a1a1a;
+}
+.ev-meta { color: #666; font-size: 14px; margin-bottom: 16px; }
+.ev-meta strong { color: #1a1a1a; }
+.ev-social-links { display: flex; gap: 18px; flex-wrap: wrap; }
+.ev-social-link {
+  color: #1a1a1a;
+  font-size: 13px;
+  text-decoration: none;
+  border-bottom: 1px solid #1a1a1a;
+  padding-bottom: 1px;
+}
+.ev-social-link:hover { color: #d97706; border-bottom-color: #d97706; }
+.ev-social-arrow { font-size: 11px; opacity: 0.6; margin-left: 2px; }
+
+.ev-hero-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
+  align-items: center;
+  padding: 32px 0;
+  border-top: 1px solid #e5e5e0;
+  border-bottom: 1px solid #e5e5e0;
+}
+.ev-score {
+  font: 600 96px/1 Georgia, serif;
+  letter-spacing: -0.04em;
+}
+.ev-score-suffix { font-size: 24px; color: #999; }
+.ev-tier-block { text-align: right; }
+.ev-tier-label {
+  font: 600 14px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.ev-tier-confidence { font-size: 13px; color: #888; }
+
+/* Section title (h2) — eyebrow style, top + bottom border. */
+.ev-h2 {
+  font: 500 11px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #999;
+  margin: 56px 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e0;
+}
+
+/* Stat tile — used in Reach, Revenue. */
+.ev-grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 24px;
+}
+.ev-stat-num {
+  font: 500 32px/1 Georgia, serif;
+  letter-spacing: -0.02em;
+  color: #1a1a1a;
+}
+.ev-stat-lbl { font-size: 13px; color: #888; margin-top: 4px; }
+.ev-stat-sub { font-size: 12px; color: #aaa; margin-top: 2px; }
+
+/* Secondary platforms row (smaller, plain). */
+.ev-secondary-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0eb;
+  font-size: 13px;
+  color: #888;
+}
+.ev-secondary-row strong { color: #1a1a1a; font-weight: 500; }
+
+/* Revenue grid + per-platform breakdown. */
+.ev-revenue-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.ev-rev-platform-title {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: #999;
+  margin: 28px 0 12px;
+}
+.ev-rev-platform .ev-row-label { text-transform: capitalize; }
+
+/* Generic row — used for scoring, markets, revenue per-platform. */
+.ev-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 60px 80px 60px;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f0eb;
+  font-size: 14px;
+  background: none;
+  border-left: none; border-right: none; border-top: none;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+}
+.ev-row:last-child { border-bottom: none; }
+.ev-row-clickable { cursor: pointer; }
+.ev-row-clickable:hover .ev-row-label { color: #d97706; }
+.ev-row-label { color: #1a1a1a; }
+.ev-bar {
+  height: 4px;
+  background: #ececea;
+  border-radius: 0;
+  overflow: hidden;
+}
+.ev-bar > span {
+  display: block;
+  height: 100%;
+  background: #1a1a1a;
+}
+.ev-bar > span.warn { background: #d97706; }
+.ev-bar > span.bad { background: #999; }
+.ev-num-mono {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: #666;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, monospace;
+}
+.ev-score-num { color: #1a1a1a; font-weight: 500; }
+.ev-conf-num { color: #888; }
+.ev-weight-num { color: #888; }
+
+.ev-rationale {
+  padding: 12px 0 16px 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+  border-bottom: 1px solid #f0f0eb;
+}
+.ev-help { font-size: 11px; color: #aaa; margin-top: 12px; font-style: italic; }
+
+/* Markets — flag, country, bar, listeners, growth. */
+.ev-markets { /* nothing extra */ }
+.ev-market-row { grid-template-columns: 32px 140px 1fr 80px 60px; }
+.ev-market-flag { font-size: 20px; }
+
+/* Career milestones — date · text · platform tag. */
+.ev-milestones { /* spacing handled by row */ }
+.ev-milestone-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0eb;
+  font-size: 14px;
+}
+.ev-milestone-row:last-child { border-bottom: none; }
+.ev-milestone-date {
+  font-variant-numeric: tabular-nums;
+  color: #999;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, monospace;
+}
+.ev-milestone-text { color: #1a1a1a; }
+.ev-milestone-platform {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #999;
+}
+
+/* Catalog — count line + latest releases. */
+.ev-catalog-stats { font-size: 14px; color: #1a1a1a; line-height: 1.7; }
+.ev-catalog-stats strong { font-weight: 600; }
+.ev-catalog-subtitle {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: #999;
+  margin: 24px 0 8px;
+}
+.ev-track-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0eb;
+  font-size: 14px;
+}
+.ev-track-row:last-child { border-bottom: none; }
+.ev-track-name { color: #1a1a1a; }
+.ev-track-link {
+  color: #1a1a1a;
+  text-decoration: none;
+  border-bottom: 1px solid #1a1a1a;
+  padding-bottom: 1px;
+}
+.ev-track-link:hover { color: #d97706; border-bottom-color: #d97706; }
+.ev-track-date {
+  font-variant-numeric: tabular-nums;
+  color: #999;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, monospace;
+}
+
+/* Similar artists card grid. */
+.ev-similar-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+.ev-similar-card {
+  padding: 20px;
+  border: 1px solid #e5e5e0;
+  background: white;
+}
+.ev-similar-name {
+  font: 500 16px/1.2 Georgia, serif;
+  margin-bottom: 6px;
+  color: #1a1a1a;
+}
+.ev-similar-meta { font-size: 12px; color: #888; line-height: 1.5; margin-bottom: 12px; }
+.ev-similar-link {
+  font-size: 12px;
+  color: #d97706;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.ev-similar-link:hover { color: #b45309; }
+
+/* Risk signals — small, prefixed. */
+.ev-risk-row {
+  font-size: 14px;
+  color: #1a1a1a;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0eb;
+}
+.ev-risk-row:last-child { border-bottom: none; }
+.ev-risk-warn { color: #d97706; margin-right: 8px; }
+
+/* Recommendation block — subtle background, accent-colored left border. */
+.ev-reco {
+  padding: 24px 28px;
+  border-left: 3px solid;
+  margin-top: 16px;
+}
+.ev-reco-tier {
+  font: 600 12px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.ev-reco-body {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #333;
+}
+
+/* Compact responsive — collapse 4-col reach to 2-col on narrow window. */
+@media (max-width: 720px) {
+  .ev-grid-4 { grid-template-columns: 1fr 1fr; }
+  .ev-revenue-grid { grid-template-columns: 1fr; }
+  .ev-similar-grid { grid-template-columns: 1fr 1fr; }
+  .ev-row { grid-template-columns: 140px 1fr 50px; }
+  .ev-conf-num, .ev-weight-num { display: none; }
+  .evaluate-dashboard-compare { grid-template-columns: 1fr; }
+}

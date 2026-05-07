@@ -202,13 +202,15 @@ def _assert_evaluate_dossier_is_real(trace: dict) -> None:
 
     # The dossier is server-rendered, so the visible response MUST
     # contain the canonical headers — not LLM-paraphrased prose. These
-    # are the structural anchors render_dossier always emits:
+    # are structural anchors the Option B renderer always emits.
+    # Updated when the renderer flipped from "Prospect score:" header
+    # to the inline score line.
     text = trace["text"]
     canonical_markers = [
         f"# {REGRESSION_ARTIST}",
-        "Prospect score:",
-        "Total Artist Revenue Projection",
+        "/100",  # the score is rendered as `**N**/100`
         "Annual gross (BRUTO)",
+        "## Reach",
     ]
     for marker in canonical_markers:
         assert marker in text, (

@@ -333,20 +333,276 @@ def render_similar(result: dict) -> str:
 
 
 def render_dossier(dossier: dict, profile: dict) -> str:
-    """Render the full dossier as Markdown.
+    """Render the full dossier as Markdown — Option B "stat-card" format.
 
-    `dossier` is the dict returned by `generate_dossier`.
-    `profile` is the original ArtistProfile dict (used for confidence
-    indicator inputs).
+    Optimized for at-a-glance scanning + side-by-side artist comparison.
+    Big score + tier at top, dense data tables with bar-chart visuals
+    for scoring dimensions, single recommendation callout at the
+    bottom. Closes with a "Ask follow-up questions" invitation so the
+    user knows the chat picks up from here.
+
+    The shape is deliberately deterministic — same bytes regardless
+    of LLM provider — but the user can ask any free-form question
+    after the dossier renders and the LLM will answer based on the
+    full dossier context (Phase 1's message-history replay carries it).
     """
     sections = [
-        _render_identity(dossier),
-        _render_revenue_section(dossier, profile),
-        _render_dimensions(dossier),
-        _render_geography(dossier),
-        _render_catalog(dossier),
-        _render_similar(dossier),
-        _render_risks(dossier),
-        _render_actionable(dossier),
+        _b_header(dossier),
+        _b_streaming_audience(dossier),
+        _b_revenue(dossier, profile),
+        _b_scoring(dossier),
+        _b_geographic(dossier),
+        _b_catalog(dossier),
+        _b_comps(dossier),
+        _b_risks(dossier),
+        _b_recommendation(dossier),
+        _b_followup_invite(),
     ]
     return "\n\n".join(s for s in sections if s)
+
+
+# ─── Option B sections ──────────────────────────────────────────────
+#
+# Each section is self-contained, returns "" when there's no data so
+# the section is skipped. Output renders cleanly under remarkGfm
+# (the React Markdown renderer the chat UI uses).
+
+
+def _b_header(dossier: dict) -> str:
+    """Big name + score + one-line context. The first thing the user sees."""
+    ident = dossier.get("identity") or {}
+    score = dossier.get("prospect_score") or {}
+    name = ident.get("name") or "Unknown"
+    stage = ident.get("career_stage") or "—"
+    trend = ident.get("career_trend") or "—"
+    label = ident.get("label") or "—"
+    genres = ident.get("genres") or []
+    score_val = score.get("overall", 0)
+    tier = score.get("tier") or "?"
+    confidence = score.get("confidence", 0)
+
+    # Top genre tag is enough — full list is data-dense without adding insight.
+    primary_genre = genres[0] if genres else None
+
+    parts = [
+        f"# {name}",
+        f"## **{score_val}**/100 · **{tier}** · confidence {confidence:.0%}",
+    ]
+
+    context_bits = [f"_{stage} / {trend}_"] if stage != "—" else []
+    if label and label != "—":
+        context_bits.append(f"signed to **{label}**")
+    if primary_genre:
+        context_bits.append(primary_genre)
+    if context_bits:
+        parts.append(" · ".join(context_bits))
+
+    return "\n".join(parts)
+
+
+def _b_streaming_audience(dossier: dict) -> str:
+    """Platform reach in one table. The headline numbers."""
+    metrics = dossier.get("metrics") or {}
+    sp = metrics.get("spotify") or {}
+    yt = metrics.get("youtube") or {}
+    ig = metrics.get("instagram") or {}
+    tt = metrics.get("tiktok") or {}
+
+    sp_listeners = sp.get("monthly_listeners") or 0
+    sp_change = sp.get("monthly_listeners_change") or ""
+    sp_followers = sp.get("followers") or 0
+    yt_subs = yt.get("subscribers") or 0
+    yt_views = yt.get("views") or 0
+    ig_followers = ig.get("followers") or 0
+    ig_engagement = ig.get("engagement_rate") or ""
+    tt_followers = tt.get("followers") or 0
+
+    if not any([sp_listeners, yt_subs, ig_followers, tt_followers]):
+        return ""
+
+    lines = ["## Reach", "", "| Platform | Audience | Detail |", "|---|---|---|"]
+    if sp_listeners:
+        change_suffix = f" ({sp_change})" if sp_change else ""
+        lines.append(
+            f"| Spotify | **{_fmt_int(sp_listeners)}** monthly listeners{change_suffix} | "
+            f"{_fmt_int(sp_followers)} followers |"
+        )
+    if yt_subs:
+        lines.append(
+            f"| YouTube | **{_fmt_int(yt_subs)}** subscribers | "
+            f"{_fmt_int(yt_views)} total views |"
+        )
+    if ig_followers:
+        eng_suffix = f" · engagement {ig_engagement}" if ig_engagement else ""
+        lines.append(f"| Instagram | **{_fmt_int(ig_followers)}** followers{eng_suffix} | |")
+    if tt_followers:
+        lines.append(f"| TikTok | **{_fmt_int(tt_followers)}** followers | |")
+
+    return "\n".join(lines)
+
+
+def _b_revenue(dossier: dict, profile: dict) -> str:
+    """Annual gross + distributor cut. Uses the existing
+    revenue-section helper since it's already battle-tested."""
+    return _render_revenue_section(dossier, profile)
+
+
+def _b_scoring(dossier: dict) -> str:
+    """Score breakdown with inline bar-chart visuals.
+
+    Sorted descending so strongest dimensions land first — readers
+    scan top-to-bottom and the order tells the strength story.
+    Rationale text is included as the third column so the user
+    doesn't have to ask "why is content_velocity 32?".
+    """
+    score = dossier.get("prospect_score") or {}
+    dims = score.get("dimensions") or {}
+    if not dims:
+        return ""
+
+    # Sort by score descending so the strongest dimensions read first.
+    rows = sorted(dims.items(), key=lambda kv: -(kv[1].get("score", 0)))
+
+    lines = [
+        "## Scoring",
+        "",
+        "| Dimension | Score | Why |",
+        "|---|---|---|",
+    ]
+    for raw_name, d in rows:
+        # "geographic_fit" → "Geographic fit"
+        name = raw_name.replace("_", " ").capitalize()
+        s = d.get("score", 0)
+        rationale = (d.get("rationale") or "").strip()
+        # Trim verbose rationales — first sentence is enough at a glance.
+        if rationale:
+            first_sentence = rationale.split(". ")[0].rstrip(".")
+            if len(first_sentence) > 90:
+                first_sentence = first_sentence[:87].rstrip() + "…"
+            rationale_short = first_sentence
+        else:
+            rationale_short = "—"
+        bar = _bar_chart(s, width=10)
+        lines.append(f"| {name} | `{bar}` **{s:.0f}** | {rationale_short} |")
+
+    return "\n".join(lines)
+
+
+def _b_geographic(dossier: dict) -> str:
+    """Top markets — short list, growth signal."""
+    geo = dossier.get("geographic_profile") or {}
+    countries = geo.get("top_markets") or []
+    if not countries:
+        return ""
+
+    lines = ["## Top markets", "", "| Country | Listeners | Growth |", "|---|---|---|"]
+    for c in countries[:5]:
+        country = c.get("country") or c.get("country_code") or "?"
+        cur = c.get("listeners", 0) or 0
+        growth = c.get("growth")
+        if growth is None:
+            prev = c.get("prev_listeners", 0) or 0
+            delta = ((cur - prev) / prev * 100) if prev else None
+            growth = _fmt_pct(delta)
+        lines.append(f"| {country} | {_fmt_int(cur)} | {growth} |")
+    return "\n".join(lines)
+
+
+def _b_catalog(dossier: dict) -> str:
+    """Catalog activity — recent releases vs total. One-line."""
+    cat = dossier.get("catalog") or {}
+    if not cat:
+        return ""
+    r6 = cat.get("releases_6m", 0)
+    r12 = cat.get("releases_12m", 0)
+    total = cat.get("total_tracks") or "—"
+    return (
+        "## Catalog\n\n"
+        f"**{r6}** releases in last 6 months · **{r12}** in last 12 months · "
+        f"**{total}** tracks total"
+    )
+
+
+def _b_comps(dossier: dict) -> str:
+    """Comparable artists as an inline list — one line per artist
+    with country + size context. Capped at 5 to stay scannable.
+    """
+    comp = dossier.get("competitive_context") or {}
+    similar = comp.get("similar_artists") or []
+    if not similar:
+        return ""
+    lines = ["## Similar artists (tier-similar)"]
+    for s in similar[:5]:
+        name = s.get("name") or "?"
+        country = s.get("country_code") or "—"
+        listeners = s.get("sp_monthly_listeners")
+        bits = [country]
+        if listeners:
+            bits.append(f"{_fmt_int(listeners)} monthly")
+        lines.append(f"- **{name}** ({' · '.join(bits)})")
+    return "\n".join(lines)
+
+
+def _b_risks(dossier: dict) -> str:
+    """Risk callouts. Skip the section if nothing to flag — silence is
+    a useful signal."""
+    risks = dossier.get("risk_signals") or {}
+    flagged = [(k, v) for k, v in risks.items() if v]
+    if not flagged:
+        return ""
+    lines = ["## Risk signals", ""]
+    for k, v in flagged:
+        lines.append(f"- ⚠️ **{k.replace('_', ' ').title()}** — {v}")
+    return "\n".join(lines)
+
+
+def _b_recommendation(dossier: dict) -> str:
+    """Single sentence verdict at the bottom. Action-first, the thing
+    the A&R team carries forward to their next decision."""
+    act = dossier.get("actionable") or {}
+    score = dossier.get("prospect_score") or {}
+    tier = act.get("tier") or score.get("tier") or "?"
+    ident = dossier.get("identity") or {}
+    label = ident.get("label")
+    stage = (ident.get("career_stage") or "").lower()
+
+    # Tier-driven default text. Each line is the "what to do next"
+    # phrased as an instruction, not a description.
+    body_by_tier = {
+        "BUY": "Active outreach. Lead profile in this tier — push to PROSPECT pipeline.",
+        "PROSPECT": "Schedule a deeper look this week. Strong signals, watching for momentum confirmation.",
+        "WATCH": "Re-check quarterly. Holding pattern — signals not yet strong enough to chase.",
+        "PASS": "Skip. Not a fit on current criteria.",
+    }
+    body = body_by_tier.get(tier.upper(), "Re-check next cycle.")
+
+    # Add a label-specific addendum if they're already locked.
+    if tier.upper() in ("WATCH", "PASS") and label and stage in ("superstar", "mainstream"):
+        body += f" Currently signed to **{label}** — no signing window unless contract status shifts."
+
+    return f"## Recommendation\n\n**{tier}.** {body}"
+
+
+def _b_followup_invite() -> str:
+    """Invite the user to ask follow-up questions. Phase 1's message-
+    history replay means the LLM gets the full dossier as context on
+    the next turn — they can ask anything about the artist and get a
+    grounded answer.
+    """
+    return (
+        "---\n\n"
+        "_Ask a follow-up about catalog, momentum, comps, or risk signals — "
+        "e.g._ `is his catalog mostly evergreen or hit-driven?` _·_ "
+        "`who in his tier is unsigned?` _·_ `what's his TikTok presence like?`"
+    )
+
+
+def _bar_chart(value: float, width: int = 10) -> str:
+    """Unicode block bar chart for a 0-100 score.
+
+    Uses U+2588 (full block) for filled, U+2591 (light shade) for
+    empty. Renders as monospace inside Markdown table cells when
+    wrapped in backticks.
+    """
+    filled = max(0, min(width, round(value / 100 * width)))
+    return "█" * filled + "░" * (width - filled)
