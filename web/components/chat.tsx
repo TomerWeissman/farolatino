@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import { AlertCircle, ArrowRight } from "lucide-react";
 
 import { fetchSkills } from "@/lib/api";
+import { useT } from "@/lib/i18n/context";
 import type { SkillSummary, Turn } from "@/lib/types";
 import {
   type Conversation,
@@ -79,6 +80,7 @@ function useOnboardingGate(): OnboardingState | null {
 
 
 export function Chat() {
+  const t = useT();
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [draft, setDraft] = useState("");
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -226,27 +228,27 @@ export function Chat() {
       {onboarding && !onboarding.has_llm_key && (
         <OnboardingReminderBanner
           tone="error"
-          title="No AI Model key set — chat won't work yet"
-          message="Paste an Anthropic, OpenAI, or Gemini API key to start chatting."
-          ctaLabel="Set up keys →"
+          title={t("chat.onboarding.no_llm_title")}
+          message={t("chat.onboarding.no_llm_message")}
+          ctaLabel={t("chat.onboarding.no_llm_cta")}
           ctaHref="/onboarding"
         />
       )}
       {onboarding && onboarding.has_llm_key && !onboarding.has_chartmetric && (
         <OnboardingReminderBanner
           tone="warn"
-          title="Chartmetric not connected"
-          message="Free-form chat works, but @evaluate / @similar can't fetch real artist data without it."
-          ctaLabel="Add Chartmetric →"
+          title={t("chat.onboarding.no_chartmetric_title")}
+          message={t("chat.onboarding.no_chartmetric_message")}
+          ctaLabel={t("chat.onboarding.no_chartmetric_cta")}
           ctaHref="/connections"
         />
       )}
 
       {history.length === 0 && !isStreaming && !isError ? (
         <div>
-          <div className="empty-greet">How can I help?</div>
+          <div className="empty-greet">{t("chat.empty.greeting")}</div>
           <div className="empty-hint">
-            Type a message, or use <code>@</code> to pick a skill.
+            {t("chat.empty.hint_prefix")} <code>@</code> {t("chat.empty.hint_suffix")}
           </div>
         </div>
       ) : (
@@ -361,6 +363,7 @@ function AssistantMessage({ turn }: { turn: Turn }) {
 }
 
 function EvaluatePillCard({ pill }: { pill: NonNullable<Turn["evaluatePill"]> }) {
+  const t = useT();
   const router = useRouter();
   const initials = pill.artist
     .split(" ")
@@ -379,7 +382,7 @@ function EvaluatePillCard({ pill }: { pill: NonNullable<Turn["evaluatePill"]> })
         if (pill.cm_id) params.set("cm_id", String(pill.cm_id));
         router.push(`/evaluate?${params.toString()}`);
       }}
-      title="Open dossier"
+      title={t("chat.eval_pill.open_dossier")}
     >
       {pill.image ? (
         <img src={pill.image} alt={pill.artist} className="chat-eval-pill-photo" />
@@ -391,7 +394,7 @@ function EvaluatePillCard({ pill }: { pill: NonNullable<Turn["evaluatePill"]> })
         <div className="chat-eval-pill-meta">
           {pill.score != null && <span className="chat-eval-pill-score">{Math.round(pill.score)}/100</span>}
           {pill.tier && <span className="chat-eval-pill-tier">{pill.tier}</span>}
-          <span className="chat-eval-pill-link">Open dossier <ArrowRight size={12} /></span>
+          <span className="chat-eval-pill-link">{t("chat.eval_pill.open_dossier")} <ArrowRight size={12} /></span>
         </div>
       </div>
     </button>
@@ -407,6 +410,7 @@ function ErrorBanner({
 }: {
   error: { message: string; hint?: string; fix_url?: string; raw?: string };
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div
@@ -439,14 +443,14 @@ function ErrorBanner({
               fontWeight: 500,
             }}
           >
-            Open fix page →
+            {t("chat.error.open_fix")}
           </a>
         )}
         <a
           href="/connections"
           style={{ textDecoration: "underline", color: "#991b1b", fontWeight: 500 }}
         >
-          Open Connections
+          {t("chat.error.open_connections")}
         </a>
         {error.raw && (
           <button
@@ -462,7 +466,7 @@ function ErrorBanner({
               font: "inherit",
             }}
           >
-            {open ? "Hide details" : "Show details"}
+            {open ? t("chat.error.hide_details") : t("chat.error.show_details")}
           </button>
         )}
       </div>
@@ -495,9 +499,10 @@ function LiveAssistant({
   snapshot: StreamSnapshot;
   elapsedSec: number;
 }) {
+  const t = useT();
   const { text, thinking, toolStatus } = snapshot;
   const showTimer = elapsedSec >= 3;
-  const baseLabel = toolStatus ?? "Thinking…";
+  const baseLabel = toolStatus ?? t("chat.thinking");
   const statusLabel = showTimer ? `${baseLabel} (${elapsedSec}s)` : baseLabel;
   return (
     <div className="chat-assistant">
@@ -521,10 +526,12 @@ function LiveAssistant({
 }
 
 function ReasoningPanel({ blocks }: { blocks: string[] }) {
+  const t = useT();
+  const labelKey = blocks.length === 1 ? "chat.reasoning.label_one" : "chat.reasoning.label_many";
   return (
     <Collapsible className="my-2">
       <CollapsibleTrigger className="text-xs text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)] cursor-pointer">
-        💭 Reasoning ({blocks.length} block{blocks.length === 1 ? "" : "s"})
+        💭 {t(labelKey, { n: blocks.length })}
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="reasoning-panel">
@@ -568,6 +575,7 @@ function ChatInputZone({
   onSend: (s: string) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
@@ -621,7 +629,7 @@ function ChatInputZone({
               <Command shouldFilter={false} onKeyDown={(e) => e.stopPropagation()}>
                 <CommandList>
                   {matches.length === 0 ? (
-                    <CommandEmpty>No matching skills</CommandEmpty>
+                    <CommandEmpty>{t("chat.autocomplete.no_skills")}</CommandEmpty>
                   ) : (
                     <CommandGroup>
                       {matches.map((s, i) => (
@@ -659,7 +667,7 @@ function ChatInputZone({
             onBlur={() => {
               setTimeout(() => setTrigger(null), 100);
             }}
-            placeholder="Type a message, or @ to pick a skill"
+            placeholder={t("chat.input.placeholder")}
             rows={2}
             disabled={disabled}
             onKeyDown={(e) => {

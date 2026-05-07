@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { evaluate } from "@/lib/api";
+import { useT } from "@/lib/i18n/context";
 import type { DisambigCandidate, Dossier, EvaluateResponse, RecentEval } from "@/lib/types";
 import {
   createConversation,
@@ -32,6 +33,7 @@ type LoadedDossier = {
 
 
 export function Evaluate() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [state, setState] = useState<State>({ kind: "empty" });
@@ -182,14 +184,14 @@ export function Evaluate() {
       {/* Top search bar — always visible at top of the page so the user
           can start a new evaluation without navigating away. */}
       <header className="evaluate-header">
-        <div className="evaluate-eyebrow">Evaluate</div>
+        <div className="evaluate-eyebrow">{t("eval.eyebrow")}</div>
         <form onSubmit={handleSubmit} className="evaluate-search">
           <input
             ref={inputRef}
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Enter an artist name to generate a full dossier"
+            placeholder={t("eval.search.placeholder")}
             className="evaluate-input"
             disabled={state.kind === "loading"}
           />
@@ -198,11 +200,11 @@ export function Evaluate() {
             className="evaluate-btn evaluate-btn-primary"
             disabled={!draft.trim() || state.kind === "loading"}
           >
-            Search
+            {t("eval.search.button")}
           </button>
           {state.kind !== "empty" && (
             <button type="button" onClick={startOver} className="evaluate-btn-link">
-              Start over
+              {t("eval.start_over")}
             </button>
           )}
         </form>
@@ -243,24 +245,21 @@ function EmptyState({
   onPick: (r: RecentEval) => void;
   onClear: () => void;
 }) {
+  const t = useT();
   return (
     <div className="evaluate-empty">
-      <p className="evaluate-empty-hint">
-        Type an artist name above and press Search. Returns a full dossier with score,
-        revenue projection, top markets, and recent activity. ~10–30s on first lookup,
-        instant on re-runs.
-      </p>
+      <p className="evaluate-empty-hint">{t("eval.empty.hint")}</p>
       {recents.length > 0 && (
         <div className="evaluate-recents">
-          <div className="evaluate-recents-title">Recently evaluated</div>
+          <div className="evaluate-recents-title">{t("eval.recents.title")}</div>
           {recents.map((r) => (
             <button key={r.cm_id} type="button" className="evaluate-recents-row" onClick={() => onPick(r)}>
               <span className="evaluate-recents-name">{r.name}</span>
-              <span className="evaluate-recents-time">{relativeTime(r.evaluated_at)}</span>
+              <span className="evaluate-recents-time">{relativeTime(r.evaluated_at, t)}</span>
             </button>
           ))}
           <button type="button" className="evaluate-btn-link evaluate-recents-clear" onClick={onClear}>
-            Clear history
+            {t("eval.recents.clear")}
           </button>
         </div>
       )}
@@ -270,13 +269,14 @@ function EmptyState({
 
 
 function LoadingState({ artist }: { artist: string }) {
+  const t = useT();
   // Tracks how long this load has been running so the user can see
   // something is still happening on a slow first lookup. Resets when
   // the artist changes (LoadingState remounts).
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
   }, []);
 
   return (
@@ -284,18 +284,18 @@ function LoadingState({ artist }: { artist: string }) {
       <div className="evaluate-loading-head">
         <span className="evaluate-spinner" aria-hidden="true" />
         <div className="evaluate-loading-title">
-          Evaluating {artist}
+          {t("eval.loading.title", { artist })}
           {elapsed >= 3 && <span className="evaluate-loading-elapsed"> · {elapsed}s</span>}
         </div>
       </div>
       <div className="evaluate-loading-steps">
-        <div>· Looking up on Chartmetric…</div>
-        <div>· Pulling streaming + social + catalog data</div>
-        <div>· Scoring across 7 dimensions</div>
-        <div>· Projecting revenue</div>
-        <div>· Building dossier</div>
+        <div>{t("eval.loading.step.lookup")}</div>
+        <div>{t("eval.loading.step.pull")}</div>
+        <div>{t("eval.loading.step.score")}</div>
+        <div>{t("eval.loading.step.revenue")}</div>
+        <div>{t("eval.loading.step.dossier")}</div>
       </div>
-      <div className="evaluate-loading-note">Cold lookups take 10–30 seconds. Re-runs are instant (cached).</div>
+      <div className="evaluate-loading-note">{t("eval.loading.note")}</div>
     </div>
   );
 }
@@ -310,13 +310,16 @@ function DisambigState({
   candidates: DisambigCandidate[];
   onPick: (cmId: number, name: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="evaluate-disambig">
-      <div className="evaluate-disambig-title">Multiple artists match &ldquo;{query}&rdquo;</div>
-      <div className="evaluate-disambig-hint">Pick one — re-runs evaluate with that artist.</div>
+      <div className="evaluate-disambig-title">{t("eval.disambig.title", { query })}</div>
+      <div className="evaluate-disambig-hint">{t("eval.disambig.hint")}</div>
       {candidates.map((c) => {
         const listeners = c.sp_monthly_listeners ?? c.sp_followers ?? 0;
-        const listenersLbl = c.sp_monthly_listeners ? "monthly listeners" : "Spotify followers";
+        const listenersLbl = c.sp_monthly_listeners
+          ? t("eval.disambig.monthly_listeners")
+          : t("eval.disambig.spotify_followers");
         // Chartmetric search returns code2; the API can also surface
         // a country_code field on other endpoints. Either works.
         const country = c.country_code ?? c.code2 ?? "—";
@@ -347,7 +350,7 @@ function DisambigState({
             <div className="evaluate-disambig-text">
               <span className="evaluate-disambig-name">{c.name}</span>
               <span className="evaluate-disambig-meta">
-                {country} · {listeners ? `${formatInt(listeners)} ${listenersLbl}` : "no streaming data"}
+                {country} · {listeners ? `${formatInt(listeners)} ${listenersLbl}` : t("eval.disambig.no_streaming")}
                 {c.genres && c.genres.length > 0 && ` · ${c.genres.slice(0, 2).join(", ")}`}
               </span>
             </div>
@@ -368,12 +371,13 @@ function ErrorState({
   artist: string;
   onRetry: () => void;
 }) {
+  const t = useT();
   return (
     <div className="evaluate-error">
-      <div className="evaluate-error-title">Couldn&apos;t evaluate {artist}</div>
+      <div className="evaluate-error-title">{t("eval.error.title", { artist })}</div>
       <div className="evaluate-error-message">{message}</div>
       <button type="button" className="evaluate-btn evaluate-btn-secondary" onClick={onRetry}>
-        Retry
+        {t("eval.error.retry")}
       </button>
     </div>
   );
@@ -427,13 +431,16 @@ function formatInt(n: number): string {
   return n.toLocaleString();
 }
 
-function relativeTime(epoch: number): string {
+function relativeTime(
+  epoch: number,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const diffSec = (Date.now() - epoch) / 1000;
-  if (diffSec < 60) return "just now";
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  if (diffSec < 60) return t("eval.time.just_now");
+  if (diffSec < 3600) return t("eval.time.minutes", { n: Math.floor(diffSec / 60) });
+  if (diffSec < 86400) return t("eval.time.hours", { n: Math.floor(diffSec / 3600) });
   const days = Math.floor(diffSec / 86400);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
+  if (days === 1) return t("eval.time.yesterday");
+  if (days < 7) return t("eval.time.days", { n: days });
   return new Date(epoch).toLocaleDateString();
 }

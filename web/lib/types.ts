@@ -167,10 +167,13 @@ export type Dossier = {
   competitive_context?: {
     similar_artists?: Array<{
       name: string;
-      country_code?: string;
-      sp_monthly_listeners?: number;
+      // image_url surfaced to the dashboard so the Similar artists
+      // card renders a profile photo (initials fallback when missing).
+      image_url?: string | null;
+      country_code?: string | null;
+      sp_monthly_listeners?: number | null;
       career_stage?: string;
-      signed?: boolean;
+      signed?: boolean | null;
       momentum?: string;
     }>;
   };

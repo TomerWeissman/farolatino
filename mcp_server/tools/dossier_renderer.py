@@ -8,8 +8,15 @@ CLI. Adds two things the raw dossier dict doesn't carry:
 
 Plus inline data-quality callouts for sparse-Chartmetric or legacy-catalog
 artists so projections are read in context.
+
+Accepts a ``lang`` parameter (default ``"en"``); when ``"es"`` is
+passed every section header, table column, and prose line is sourced
+from ``core.i18n._MESSAGES`` so the chat-rendered Markdown matches
+the language the user picked on the Settings page.
 """
 from __future__ import annotations
+
+from core.i18n import t
 
 
 def _fmt_money(v: float | int | None) -> str:
@@ -34,7 +41,7 @@ def _fmt_pct(v: float | None) -> str:
     return f"{v:+.1f}%"
 
 
-def _confidence_for(profile: dict) -> tuple[str, str, float, float]:
+def _confidence_for(profile: dict, lang: str = "en") -> tuple[str, str, float, float]:
     """Return (level, reason, lo_band, hi_band).
 
     Bands are multiplicative: lo=0.5 hi=2.0 means project ± 50%.
@@ -45,27 +52,37 @@ def _confidence_for(profile: dict) -> tuple[str, str, float, float]:
     recent_12m = profile.get("recent_release_count_12m") or 0
 
     # Hard signals of low confidence first
-    sparse_signals = []
+    sparse_signals: list[str] = []
     if sp_listeners < 50_000:
-        sparse_signals.append("Spotify monthly listeners < 50K")
+        sparse_signals.append(t("dossier.confidence.reason.low_listeners", lang))
     if sp_followers < 10_000:
-        sparse_signals.append("Spotify followers < 10K")
+        sparse_signals.append(t("dossier.confidence.reason.low_followers", lang))
     if yt_subs == 0 and sp_listeners < 1_000_000:
-        sparse_signals.append("Chartmetric reports 0 YouTube subscribers")
+        sparse_signals.append(t("dossier.confidence.reason.no_yt", lang))
 
     if len(sparse_signals) >= 2:
-        return ("Low", "; ".join(sparse_signals), 0.4, 2.5)
+        return (t("dossier.confidence.low", lang), "; ".join(sparse_signals), 0.4, 2.5)
     if sparse_signals:
-        return ("Medium", sparse_signals[0], 0.6, 1.7)
+        return (t("dossier.confidence.medium", lang), sparse_signals[0], 0.6, 1.7)
 
     # High-confidence band: substantial Chartmetric presence + active catalog
     if sp_listeners >= 500_000 and recent_12m > 0:
-        return ("High", "active artist with strong Chartmetric coverage", 0.75, 1.4)
+        return (
+            t("dossier.confidence.high", lang),
+            t("dossier.confidence.reason.strong_coverage", lang),
+            0.75,
+            1.4,
+        )
 
-    return ("Medium", "moderate Chartmetric coverage", 0.65, 1.6)
+    return (
+        t("dossier.confidence.medium", lang),
+        t("dossier.confidence.reason.moderate_coverage", lang),
+        0.65,
+        1.6,
+    )
 
 
-def _legacy_callout(profile: dict) -> str | None:
+def _legacy_callout(profile: dict, lang: str = "en") -> str | None:
     """If the artist is flagged as legacy/heritage catalog, surface it."""
     trend = (profile.get("career_trend") or "").lower()
     stage = (profile.get("career_stage") or "").lower()
@@ -81,51 +98,48 @@ def _legacy_callout(profile: dict) -> str | None:
     )
 
     if no_recent and legacy_tier and (declining or low_lf):
-        return (
-            "⚠️ **Legacy / heritage catalog detected.** Revenue projection "
-            "assumes active distribution. Real streams are likely far lower "
-            "because Chartmetric's monthly_listeners count includes passive "
-            "saved tracks. Treat the number as a ceiling, not an estimate."
-        )
+        return t("dossier.legacy.callout", lang)
     return None
 
 
-def _render_revenue_section(dossier: dict, profile: dict) -> str:
+def _render_revenue_section(dossier: dict, profile: dict, lang: str = "en") -> str:
     revenue = dossier.get("revenue_projection") or {}
     bruto = revenue.get("annual_projected") or 0
     monthly = revenue.get("monthly_total") or 0
 
-    level, reason, lo_mult, hi_mult = _confidence_for(profile)
+    level, reason, lo_mult, hi_mult = _confidence_for(profile, lang)
     bruto_lo, bruto_hi = bruto * lo_mult, bruto * hi_mult
     neto_artist = bruto * 0.74  # artist payout share
     distributor_cut = bruto * 0.26
 
+    cols = (
+        f"| {t('dossier.col.metric', lang)} "
+        f"| {t('dossier.col.estimate', lang)} "
+        f"| {t('dossier.col.range', lang)} |"
+    )
     lines = [
-        "## Total Artist Revenue Projection",
+        f"## {t('dossier.section.revenue', lang)}",
         "",
-        f"**Confidence: {level}** — {reason}",
+        t("dossier.revenue.confidence_prefix", lang, level=level, reason=reason),
         "",
-        "| Metric | Estimate | Range |",
+        cols,
         "|---|---|---|",
-        f"| **Annual gross (BRUTO)** | {_fmt_money(bruto)} | {_fmt_money(bruto_lo)} – {_fmt_money(bruto_hi)} |",
-        f"| Monthly gross | {_fmt_money(monthly)} | |",
-        f"| Artist payout (~74% of gross) | {_fmt_money(neto_artist)} | {_fmt_money(neto_artist*lo_mult)} – {_fmt_money(neto_artist*hi_mult)} |",
-        f"| Distributor cut if signed (~26%) | {_fmt_money(distributor_cut)} | {_fmt_money(distributor_cut*lo_mult)} – {_fmt_money(distributor_cut*hi_mult)} |",
+        f"| {t('dossier.revenue.annual_gross', lang)} | {_fmt_money(bruto)} | {_fmt_money(bruto_lo)} – {_fmt_money(bruto_hi)} |",
+        f"| {t('dossier.revenue.monthly_gross', lang)} | {_fmt_money(monthly)} | |",
+        f"| {t('dossier.revenue.artist_payout', lang)} | {_fmt_money(neto_artist)} | {_fmt_money(neto_artist*lo_mult)} – {_fmt_money(neto_artist*hi_mult)} |",
+        f"| {t('dossier.revenue.distributor_cut', lang)} | {_fmt_money(distributor_cut)} | {_fmt_money(distributor_cut*lo_mult)} – {_fmt_money(distributor_cut*hi_mult)} |",
         "",
-        "*Predicts the artist's **total catalog** revenue across all platforms and "
-        "all distributors — i.e. what the catalog is worth if FaroLatino had full "
-        "rights. Distributor cut is what FaroLatino would actually earn under "
-        "typical splits.*",
+        t("dossier.revenue.disclaimer", lang),
     ]
 
-    callout = _legacy_callout(profile)
+    callout = _legacy_callout(profile, lang)
     if callout:
         lines = lines[:2] + [callout, ""] + lines[2:]
 
     by_platform = revenue.get("monthly_revenue_by_platform") or {}
     if by_platform:
         lines.append("")
-        lines.append("**Per-platform monthly contribution (BRUTO):**")
+        lines.append(t("dossier.revenue.per_platform_header", lang))
         lines.append("")
         for plat, val in sorted(by_platform.items(), key=lambda kv: -kv[1]):
             if val < 1:
@@ -136,10 +150,10 @@ def _render_revenue_section(dossier: dict, profile: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_identity(dossier: dict) -> str:
+def _render_identity(dossier: dict, lang: str = "en") -> str:
     ident = dossier.get("identity") or {}
     score = dossier.get("prospect_score") or {}
-    name = ident.get("name", "Unknown")
+    name = ident.get("name") or t("dossier.header.unknown", lang)
     stage = ident.get("career_stage", "")
     trend = ident.get("career_trend", "")
     label = ident.get("label") or "—"
@@ -151,24 +165,39 @@ def _render_identity(dossier: dict) -> str:
     score_val = score.get("overall", score.get("prospect_score", 0))
     confidence = score.get("confidence", 0)
 
+    tier_line = t(
+        "dossier.identity.tier_score",
+        lang,
+        tier=tier,
+        score=score_val,
+        confidence=f"{confidence:.2f}",
+    )
+
     return (
         f"# {name}\n\n"
-        f"**Tier: {tier}** · Prospect score: {score_val}/100 (confidence {confidence:.2f})\n\n"
-        f"- Career stage: {stage} / {trend or '—'}\n"
-        f"- Label: {label}\n"
-        f"- Genres: {', '.join(genres[:5]) or '—'}\n"
+        f"{tier_line}\n\n"
+        f"- {t('dossier.identity.career_stage', lang)}: {stage} / {trend or '—'}\n"
+        f"- {t('dossier.identity.label', lang)}: {label}\n"
+        f"- {t('dossier.identity.genres', lang)}: {', '.join(genres[:5]) or '—'}\n"
     )
 
 
-def _render_dimensions(dossier: dict) -> str:
+def _render_dimensions(dossier: dict, lang: str = "en") -> str:
     score = dossier.get("prospect_score") or {}
     dims = score.get("dimensions") or {}
     if not dims:
         return ""
+    cols = (
+        f"| {t('dossier.col.dimension', lang)} "
+        f"| {t('dossier.col.score', lang)} "
+        f"| {t('dossier.col.weight', lang)} "
+        f"| {t('dossier.col.contribution', lang)} "
+        f"| {t('dossier.col.confidence', lang)} |"
+    )
     lines = [
-        "## Dimension Breakdown",
+        f"## {t('dossier.section.dimension_breakdown', lang)}",
         "",
-        "| Dimension | Score | Weight | Contribution | Confidence |",
+        cols,
         "|---|---|---|---|---|",
     ]
     for name, d in dims.items():
@@ -179,13 +208,23 @@ def _render_dimensions(dossier: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_geography(dossier: dict) -> str:
+def _render_geography(dossier: dict, lang: str = "en") -> str:
     geo = dossier.get("geographic_profile") or {}
     # dossier_generator emits geographic_profile.top_markets as the list.
     countries = geo.get("top_markets") or geo.get("top_listener_countries") or geo.get("listener_countries") or []
     if not countries:
         return ""
-    lines = ["## Geographic Profile", "", "| Country | Listeners | Growth |", "|---|---|---|"]
+    cols = (
+        f"| {t('dossier.col.country', lang)} "
+        f"| {t('dossier.col.listeners', lang)} "
+        f"| {t('dossier.col.growth', lang)} |"
+    )
+    lines = [
+        f"## {t('dossier.section.geographic_profile', lang)}",
+        "",
+        cols,
+        "|---|---|---|",
+    ]
     for c in countries[:5]:
         country = c.get("country") or c.get("country_code") or "?"
         cur = c.get("listeners", 0) or 0
@@ -199,12 +238,27 @@ def _render_geography(dossier: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_similar(dossier: dict) -> str:
+def _render_similar(dossier: dict, lang: str = "en") -> str:
     comp = dossier.get("competitive_context") or {}
     similar = comp.get("similar_artists") or []
     if not similar:
-        return "## Similar Artists\n\n*(no comparable artists surfaced — Chartmetric clustering and genre-search both empty)*"
-    lines = ["## Similar Artists", "", "| Artist | Country | Listeners | Stage | Source |", "|---|---|---|---|---|"]
+        return (
+            f"## {t('dossier.section.similar_legacy', lang)}\n\n"
+            f"{t('dossier.similar.empty', lang)}"
+        )
+    cols = (
+        f"| {t('dossier.col.artist', lang)} "
+        f"| {t('dossier.col.country', lang)} "
+        f"| {t('dossier.col.listeners', lang)} "
+        f"| {t('dossier.col.tier', lang)} "
+        f"| Source |"
+    )
+    lines = [
+        f"## {t('dossier.section.similar_legacy', lang)}",
+        "",
+        cols,
+        "|---|---|---|---|---|",
+    ]
     for s in similar[:10]:
         lines.append(
             f"| {s.get('name', '?')} | {s.get('country_code', '—')} | "
@@ -215,25 +269,25 @@ def _render_similar(dossier: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_catalog(dossier: dict) -> str:
+def _render_catalog(dossier: dict, lang: str = "en") -> str:
     cat = dossier.get("catalog") or {}
     if not cat:
         return ""
     lines = [
-        "## Catalog",
+        f"## {t('dossier.section.catalog', lang)}",
         "",
-        f"- Tracks (last 6m): **{cat.get('releases_6m', 0)}**",
-        f"- Tracks (last 12m): {cat.get('releases_12m', 0)}",
-        f"- Total tracks: {cat.get('total_tracks', '—')}",
+        f"- {t('dossier.catalog.tracks_6m', lang)}: **{cat.get('releases_6m', 0)}**",
+        f"- {t('dossier.catalog.tracks_12m', lang)}: {cat.get('releases_12m', 0)}",
+        f"- {t('dossier.catalog.total_tracks', lang)}: {cat.get('total_tracks', '—')}",
     ]
     return "\n".join(lines)
 
 
-def _render_risks(dossier: dict) -> str:
+def _render_risks(dossier: dict, lang: str = "en") -> str:
     risks = dossier.get("risk_signals") or {}
     if not risks:
         return ""
-    lines = ["## Risk Signals", ""]
+    lines = [f"## {t('dossier.section.risks_legacy', lang)}", ""]
     for k, v in risks.items():
         if v:
             lines.append(f"- **{k.replace('_', ' ').title()}**: {v}")
@@ -242,20 +296,23 @@ def _render_risks(dossier: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_actionable(dossier: dict) -> str:
+def _render_actionable(dossier: dict, lang: str = "en") -> str:
     act = dossier.get("actionable") or {}
     if not act:
         return ""
     tier = act.get("tier", "?")
-    return (
-        "## Action\n\n"
-        f"**Tier: {tier}**\n\n"
-        "Use `/evaluate {name}` to drill in further, `/similar {name}` to map "
-        "the competitive landscape, or `/compare {a} {b}` to put two prospects side-by-side."
+    body = t(
+        "dossier.action.body",
+        lang,
+        tier=tier,
+        name="{name}",
+        a="{a}",
+        b="{b}",
     )
+    return f"## {t('dossier.section.action', lang)}\n\n{body}"
 
 
-def render_similar(result: dict) -> str:
+def render_similar(result: dict, lang: str = "en") -> str:
     """Render the ``find_similar_artists`` output as canonical Markdown.
 
     ``result`` is the dict from ``composite_similar.find_similar_artists``:
@@ -269,7 +326,7 @@ def render_similar(result: dict) -> str:
     bands = result.get("tier_distribution") or {}
     seed_name = seed.get("name") or "—"
 
-    lines: list[str] = [f"# Similar to {seed_name}"]
+    lines: list[str] = [t("dossier.similar.header_seed", lang, seed=seed_name)]
 
     # Seed summary line — the user wants quick "what was the seed like"
     # context without scrolling up to find the prior @evaluate.
@@ -280,7 +337,7 @@ def render_similar(result: dict) -> str:
         seed_bits.append(seed["country_code"])
     listeners = seed.get("sp_monthly_listeners")
     if listeners:
-        seed_bits.append(f"{_fmt_int(listeners)} monthly listeners")
+        seed_bits.append(f"{_fmt_int(listeners)} {t('dossier.similar.monthly_suffix', lang)}")
     genres = seed.get("genres") or []
     if genres:
         seed_bits.append(", ".join(genres[:3]))
@@ -288,36 +345,43 @@ def render_similar(result: dict) -> str:
         lines.append(" · ".join(seed_bits))
 
     if not neighbors:
-        lines.append(
-            "\n_No neighbors returned._ Chartmetric's similar-artists graph "
-            "doesn't have data for this seed yet — try @similar on a more "
-            "established artist, or @evaluate first to confirm the seed resolved."
-        )
+        lines.append("\n" + t("dossier.similar.no_neighbors", lang))
         return "\n\n".join(lines)
 
     # Tier rollup — surfaces the comp question fast: "are these peers,
     # ladder-down, or ladder-up?" Skipping zero buckets keeps it lean.
-    tier_bits = []
-    for k in ("tier-similar", "larger", "smaller", "unknown"):
+    tier_label_keys = {
+        "tier-similar": "dossier.similar.tier_peers",
+        "larger": "dossier.similar.larger",
+        "smaller": "dossier.similar.smaller",
+        "unknown": "dossier.similar.unknown",
+    }
+    tier_bits: list[str] = []
+    for k, label_key in tier_label_keys.items():
         if bands.get(k, 0):
-            label = {
-                "tier-similar": "tier peers",
-                "larger": "larger",
-                "smaller": "smaller",
-                "unknown": "unknown",
-            }[k]
-            tier_bits.append(f"**{bands[k]}** {label}")
+            tier_bits.append(f"**{bands[k]}** {t(label_key, lang)}")
     if tier_bits:
-        lines.append("**Mix:** " + " · ".join(tier_bits))
+        lines.append(f"{t('dossier.similar.mix_prefix', lang)} " + " · ".join(tier_bits))
 
     # Table — name, country, tier band, monthly listeners, signed flag.
     # signed=False means available to chase, so we surface it boldly.
     lines.append(
-        "\n| # | Artist | Country | Tier | Monthly listeners | Signed |"
+        f"\n| # | {t('dossier.col.artist', lang)} "
+        f"| {t('dossier.col.country', lang)} "
+        f"| {t('dossier.col.tier', lang)} "
+        f"| {t('dossier.col.monthly_listeners', lang)} "
+        f"| {t('dossier.col.signed', lang)} |"
     )
     lines.append("|---|---|---|---|---|---|")
+    yes_str = t("dossier.similar.signed_yes", lang)
+    no_str = t("dossier.similar.signed_no", lang)
     for i, n in enumerate(neighbors, start=1):
-        signed_mark = "—" if n.get("signed") is None else ("yes" if n.get("signed") else "**no**")
+        if n.get("signed") is None:
+            signed_mark = "—"
+        elif n.get("signed"):
+            signed_mark = yes_str
+        else:
+            signed_mark = no_str
         lines.append(
             "| {i} | {name} | {country} | {tier} | {listeners} | {signed} |".format(
                 i=i,
@@ -332,7 +396,7 @@ def render_similar(result: dict) -> str:
     return "\n".join(lines)
 
 
-def render_dossier(dossier: dict, profile: dict) -> str:
+def render_dossier(dossier: dict, profile: dict, lang: str = "en") -> str:
     """Render the full dossier as Markdown — Option B "stat-card" format.
 
     Optimized for at-a-glance scanning + side-by-side artist comparison.
@@ -345,18 +409,23 @@ def render_dossier(dossier: dict, profile: dict) -> str:
     of LLM provider — but the user can ask any free-form question
     after the dossier renders and the LLM will answer based on the
     full dossier context (Phase 1's message-history replay carries it).
+
+    ``lang`` controls every user-visible string (section headers, table
+    columns, recommendation prose). Default ``"en"`` keeps existing
+    callers unchanged; the API + composite skills pass the user's
+    language preference through to flip the whole output to Spanish.
     """
     sections = [
-        _b_header(dossier),
-        _b_streaming_audience(dossier),
-        _b_revenue(dossier, profile),
-        _b_scoring(dossier),
-        _b_geographic(dossier),
-        _b_catalog(dossier),
-        _b_comps(dossier),
-        _b_risks(dossier),
-        _b_recommendation(dossier),
-        _b_followup_invite(),
+        _b_header(dossier, lang),
+        _b_streaming_audience(dossier, lang),
+        _b_revenue(dossier, profile, lang),
+        _b_scoring(dossier, lang),
+        _b_geographic(dossier, lang),
+        _b_catalog(dossier, lang),
+        _b_comps(dossier, lang),
+        _b_risks(dossier, lang),
+        _b_recommendation(dossier, lang),
+        _b_followup_invite(lang),
     ]
     return "\n\n".join(s for s in sections if s)
 
@@ -368,11 +437,11 @@ def render_dossier(dossier: dict, profile: dict) -> str:
 # (the React Markdown renderer the chat UI uses).
 
 
-def _b_header(dossier: dict) -> str:
+def _b_header(dossier: dict, lang: str = "en") -> str:
     """Big name + score + one-line context. The first thing the user sees."""
     ident = dossier.get("identity") or {}
     score = dossier.get("prospect_score") or {}
-    name = ident.get("name") or "Unknown"
+    name = ident.get("name") or t("dossier.header.unknown", lang)
     stage = ident.get("career_stage") or "—"
     trend = ident.get("career_trend") or "—"
     label = ident.get("label") or "—"
@@ -384,14 +453,17 @@ def _b_header(dossier: dict) -> str:
     # Top genre tag is enough — full list is data-dense without adding insight.
     primary_genre = genres[0] if genres else None
 
+    confidence_label = t("dossier.col.confidence", lang).lower()
     parts = [
         f"# {name}",
-        f"## **{score_val}**/100 · **{tier}** · confidence {confidence:.0%}",
+        f"## **{score_val}**/100 · **{tier}** · {confidence_label} {confidence:.0%}",
     ]
 
     context_bits = [f"_{stage} / {trend}_"] if stage != "—" else []
     if label and label != "—":
-        context_bits.append(f"signed to **{label}**")
+        # "signed to X" / "firmado con X"
+        signed_to = "signed to" if lang == "en" else "firmado con"
+        context_bits.append(f"{signed_to} **{label}**")
     if primary_genre:
         context_bits.append(primary_genre)
     if context_bits:
@@ -400,7 +472,7 @@ def _b_header(dossier: dict) -> str:
     return "\n".join(parts)
 
 
-def _b_streaming_audience(dossier: dict) -> str:
+def _b_streaming_audience(dossier: dict, lang: str = "en") -> str:
     """Platform reach in one table. The headline numbers."""
     metrics = dossier.get("metrics") or {}
     sp = metrics.get("spotify") or {}
@@ -420,34 +492,45 @@ def _b_streaming_audience(dossier: dict) -> str:
     if not any([sp_listeners, yt_subs, ig_followers, tt_followers]):
         return ""
 
-    lines = ["## Reach", "", "| Platform | Audience | Detail |", "|---|---|---|"]
+    cols = (
+        f"| {t('dossier.col.platform', lang)} "
+        f"| {t('dossier.col.audience', lang)} "
+        f"| {t('dossier.col.detail', lang)} |"
+    )
+    monthly_suffix = t("dossier.reach.monthly_listeners_suffix", lang)
+    followers_suffix = t("dossier.reach.followers_suffix", lang)
+    subscribers_suffix = t("dossier.reach.subscribers_suffix", lang)
+    views_suffix = t("dossier.reach.total_views_suffix", lang)
+    engagement_label = t("dossier.reach.engagement_label", lang)
+
+    lines = [f"## {t('dossier.section.reach', lang)}", "", cols, "|---|---|---|"]
     if sp_listeners:
         change_suffix = f" ({sp_change})" if sp_change else ""
         lines.append(
-            f"| Spotify | **{_fmt_int(sp_listeners)}** monthly listeners{change_suffix} | "
-            f"{_fmt_int(sp_followers)} followers |"
+            f"| Spotify | **{_fmt_int(sp_listeners)}** {monthly_suffix}{change_suffix} | "
+            f"{_fmt_int(sp_followers)} {followers_suffix} |"
         )
     if yt_subs:
         lines.append(
-            f"| YouTube | **{_fmt_int(yt_subs)}** subscribers | "
-            f"{_fmt_int(yt_views)} total views |"
+            f"| YouTube | **{_fmt_int(yt_subs)}** {subscribers_suffix} | "
+            f"{_fmt_int(yt_views)} {views_suffix} |"
         )
     if ig_followers:
-        eng_suffix = f" · engagement {ig_engagement}" if ig_engagement else ""
-        lines.append(f"| Instagram | **{_fmt_int(ig_followers)}** followers{eng_suffix} | |")
+        eng_suffix = f" · {engagement_label} {ig_engagement}" if ig_engagement else ""
+        lines.append(f"| Instagram | **{_fmt_int(ig_followers)}** {followers_suffix}{eng_suffix} | |")
     if tt_followers:
-        lines.append(f"| TikTok | **{_fmt_int(tt_followers)}** followers | |")
+        lines.append(f"| TikTok | **{_fmt_int(tt_followers)}** {followers_suffix} | |")
 
     return "\n".join(lines)
 
 
-def _b_revenue(dossier: dict, profile: dict) -> str:
+def _b_revenue(dossier: dict, profile: dict, lang: str = "en") -> str:
     """Annual gross + distributor cut. Uses the existing
     revenue-section helper since it's already battle-tested."""
-    return _render_revenue_section(dossier, profile)
+    return _render_revenue_section(dossier, profile, lang)
 
 
-def _b_scoring(dossier: dict) -> str:
+def _b_scoring(dossier: dict, lang: str = "en") -> str:
     """Score breakdown with inline bar-chart visuals.
 
     Sorted descending so strongest dimensions land first — readers
@@ -463,10 +546,15 @@ def _b_scoring(dossier: dict) -> str:
     # Sort by score descending so the strongest dimensions read first.
     rows = sorted(dims.items(), key=lambda kv: -(kv[1].get("score", 0)))
 
+    cols = (
+        f"| {t('dossier.col.dimension', lang)} "
+        f"| {t('dossier.col.score', lang)} "
+        f"| {t('dossier.col.why', lang)} |"
+    )
     lines = [
-        "## Scoring",
+        f"## {t('dossier.section.scoring', lang)}",
         "",
-        "| Dimension | Score | Why |",
+        cols,
         "|---|---|---|",
     ]
     for raw_name, d in rows:
@@ -488,14 +576,24 @@ def _b_scoring(dossier: dict) -> str:
     return "\n".join(lines)
 
 
-def _b_geographic(dossier: dict) -> str:
+def _b_geographic(dossier: dict, lang: str = "en") -> str:
     """Top markets — short list, growth signal."""
     geo = dossier.get("geographic_profile") or {}
     countries = geo.get("top_markets") or []
     if not countries:
         return ""
 
-    lines = ["## Top markets", "", "| Country | Listeners | Growth |", "|---|---|---|"]
+    cols = (
+        f"| {t('dossier.col.country', lang)} "
+        f"| {t('dossier.col.listeners', lang)} "
+        f"| {t('dossier.col.growth', lang)} |"
+    )
+    lines = [
+        f"## {t('dossier.section.top_markets', lang)}",
+        "",
+        cols,
+        "|---|---|---|",
+    ]
     for c in countries[:5]:
         country = c.get("country") or c.get("country_code") or "?"
         cur = c.get("listeners", 0) or 0
@@ -508,7 +606,7 @@ def _b_geographic(dossier: dict) -> str:
     return "\n".join(lines)
 
 
-def _b_catalog(dossier: dict) -> str:
+def _b_catalog(dossier: dict, lang: str = "en") -> str:
     """Catalog activity — recent releases vs total. One-line."""
     cat = dossier.get("catalog") or {}
     if not cat:
@@ -516,14 +614,11 @@ def _b_catalog(dossier: dict) -> str:
     r6 = cat.get("releases_6m", 0)
     r12 = cat.get("releases_12m", 0)
     total = cat.get("total_tracks") or "—"
-    return (
-        "## Catalog\n\n"
-        f"**{r6}** releases in last 6 months · **{r12}** in last 12 months · "
-        f"**{total}** tracks total"
-    )
+    summary = t("dossier.catalog.summary", lang, r6=r6, r12=r12, total=total)
+    return f"## {t('dossier.section.catalog', lang)}\n\n{summary}"
 
 
-def _b_comps(dossier: dict) -> str:
+def _b_comps(dossier: dict, lang: str = "en") -> str:
     """Comparable artists as an inline list — one line per artist
     with country + size context. Capped at 5 to stay scannable.
     """
@@ -531,32 +626,33 @@ def _b_comps(dossier: dict) -> str:
     similar = comp.get("similar_artists") or []
     if not similar:
         return ""
-    lines = ["## Similar artists (tier-similar)"]
+    monthly_suffix = t("dossier.similar.monthly_suffix", lang)
+    lines = [f"## {t('dossier.section.similar_tier', lang)}"]
     for s in similar[:5]:
         name = s.get("name") or "?"
         country = s.get("country_code") or "—"
         listeners = s.get("sp_monthly_listeners")
         bits = [country]
         if listeners:
-            bits.append(f"{_fmt_int(listeners)} monthly")
+            bits.append(f"{_fmt_int(listeners)} {monthly_suffix}")
         lines.append(f"- **{name}** ({' · '.join(bits)})")
     return "\n".join(lines)
 
 
-def _b_risks(dossier: dict) -> str:
+def _b_risks(dossier: dict, lang: str = "en") -> str:
     """Risk callouts. Skip the section if nothing to flag — silence is
     a useful signal."""
     risks = dossier.get("risk_signals") or {}
     flagged = [(k, v) for k, v in risks.items() if v]
     if not flagged:
         return ""
-    lines = ["## Risk signals", ""]
+    lines = [f"## {t('dossier.section.risks', lang)}", ""]
     for k, v in flagged:
         lines.append(f"- ⚠️ **{k.replace('_', ' ').title()}** — {v}")
     return "\n".join(lines)
 
 
-def _b_recommendation(dossier: dict) -> str:
+def _b_recommendation(dossier: dict, lang: str = "en") -> str:
     """Single sentence verdict at the bottom. Action-first, the thing
     the A&R team carries forward to their next decision."""
     act = dossier.get("actionable") or {}
@@ -566,35 +662,33 @@ def _b_recommendation(dossier: dict) -> str:
     label = ident.get("label")
     stage = (ident.get("career_stage") or "").lower()
 
-    # Tier-driven default text. Each line is the "what to do next"
+    # Tier-driven default text — each translation key is "what to do next"
     # phrased as an instruction, not a description.
-    body_by_tier = {
-        "BUY": "Active outreach. Lead profile in this tier — push to PROSPECT pipeline.",
-        "PROSPECT": "Schedule a deeper look this week. Strong signals, watching for momentum confirmation.",
-        "WATCH": "Re-check quarterly. Holding pattern — signals not yet strong enough to chase.",
-        "PASS": "Skip. Not a fit on current criteria.",
+    body_by_tier_key = {
+        "BUY": "dossier.reco.buy",
+        "PROSPECT": "dossier.reco.prospect",
+        "WATCH": "dossier.reco.watch",
+        "PASS": "dossier.reco.pass",
     }
-    body = body_by_tier.get(tier.upper(), "Re-check next cycle.")
+    body = t(
+        body_by_tier_key.get(tier.upper(), "dossier.reco.default"),
+        lang,
+    )
 
     # Add a label-specific addendum if they're already locked.
     if tier.upper() in ("WATCH", "PASS") and label and stage in ("superstar", "mainstream"):
-        body += f" Currently signed to **{label}** — no signing window unless contract status shifts."
+        body += t("dossier.reco.locked", lang, label=label)
 
-    return f"## Recommendation\n\n**{tier}.** {body}"
+    return f"## {t('dossier.section.recommendation', lang)}\n\n**{tier}.** {body}"
 
 
-def _b_followup_invite() -> str:
+def _b_followup_invite(lang: str = "en") -> str:
     """Invite the user to ask follow-up questions. Phase 1's message-
     history replay means the LLM gets the full dossier as context on
     the next turn — they can ask anything about the artist and get a
     grounded answer.
     """
-    return (
-        "---\n\n"
-        "_Ask a follow-up about catalog, momentum, comps, or risk signals — "
-        "e.g._ `is his catalog mostly evergreen or hit-driven?` _·_ "
-        "`who in his tier is unsigned?` _·_ `what's his TikTok presence like?`"
-    )
+    return t("dossier.followup_invite", lang)
 
 
 def _bar_chart(value: float, width: int = 10) -> str:

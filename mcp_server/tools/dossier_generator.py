@@ -122,10 +122,17 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
     }
 
     # 9. Competitive context
+    # Includes image_url + country_code + sp_monthly_listeners so the
+    # dashboard's Similar-artists section can render a profile photo
+    # next to the name. The chat-side Markdown renderer also uses these
+    # for its summary line.
     competitive = {
         "similar_artists": [
             {
                 "name": n.name,
+                "image_url": n.image_url or None,
+                "country_code": n.country_code or None,
+                "sp_monthly_listeners": n.sp_monthly_listeners or None,
                 "career_stage": n.career_stage,
                 "signed": n.signed,
                 "momentum": n.recent_momentum,

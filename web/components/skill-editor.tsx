@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Save, RotateCcw } from "lucide-react";
+import { useT } from "@/lib/i18n/context";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -27,6 +28,7 @@ function sourceBadgeLabel(s: SkillSource): string {
 const API = "/api";
 
 export function SkillEditor() {
+  const t = useT();
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [detail, setDetail] = useState<SkillDetail | null>(null);
@@ -144,7 +146,7 @@ export function SkillEditor() {
     <div className="page-shell skills-page">
       <header className="skills-header">
         <div>
-          <h1 className="page-title">Skills</h1>
+          <h1 className="page-title">{t("skills.title")}</h1>
           <p className="page-subtitle">
             Edit, add, or delete the @-skills that drive the chat. Files live in <code>.claude/skills/</code>.
           </p>

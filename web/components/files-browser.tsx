@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Save, FileText, Database, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 
 const API = "/api";
 
@@ -13,21 +14,19 @@ type InternalFile = { name: string; size: number; mtime: number };
 type Tab = "calibration" | "cache" | "internal";
 
 export function FilesBrowser() {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("calibration");
   return (
     <div className="page-shell">
       <header style={{ marginBottom: 24 }}>
-        <h1 className="page-title">Files</h1>
-        <p className="page-subtitle">
-          Calibration YAMLs, the per-artist Chartmetric cache, and FaroLatino&apos;s
-          internal datasets.
-        </p>
+        <h1 className="page-title">{t("files.title")}</h1>
+        <p className="page-subtitle">{t("files.subtitle")}</p>
       </header>
 
       <div className="files-tabs">
-        <TabButton active={tab === "calibration"} onClick={() => setTab("calibration")} icon={<FileText size={14} />} label="Calibration" hint="editable" />
-        <TabButton active={tab === "cache"}       onClick={() => setTab("cache")}       icon={<Database size={14} />} label="Cached artists" hint="read-only" />
-        <TabButton active={tab === "internal"}    onClick={() => setTab("internal")}    icon={<Lock size={14} />}     label="Internal data" hint="read-only" />
+        <TabButton active={tab === "calibration"} onClick={() => setTab("calibration")} icon={<FileText size={14} />} label={t("files.tab.calibration")} hint={t("files.tag.editable")} />
+        <TabButton active={tab === "cache"}       onClick={() => setTab("cache")}       icon={<Database size={14} />} label={t("files.tab.cached")} hint={t("files.tag.readonly")} />
+        <TabButton active={tab === "internal"}    onClick={() => setTab("internal")}    icon={<Lock size={14} />}     label={t("files.tab.internal")} hint={t("files.tag.readonly")} />
       </div>
 
       {tab === "calibration" && <CalibrationTab />}

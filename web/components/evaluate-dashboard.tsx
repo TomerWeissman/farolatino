@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useT, useLanguage } from "@/lib/i18n/context";
 import type { Dossier } from "@/lib/types";
 
 // What the parent (evaluate.tsx) hands us per artist slot.
@@ -31,16 +32,17 @@ export function EvaluateDashboard({
   onContinueInChat: () => void;
   onCompare: () => void;
 }) {
+  const t = useT();
   return (
     <div className="evaluate-dashboard">
       <ArtistColumn data={primary} />
 
       <div className="evaluate-cta-row">
         <button type="button" className="evaluate-btn evaluate-btn-primary" onClick={onContinueInChat}>
-          Continue in chat about {primary.artist} →
+          {t("eval.dashboard.continue_in_chat", { artist: primary.artist })}
         </button>
         <button type="button" className="evaluate-btn evaluate-btn-secondary" onClick={onCompare}>
-          Compare to another artist
+          {t("eval.dashboard.compare")}
         </button>
       </div>
     </div>
@@ -80,6 +82,7 @@ function ArtistColumn({ data }: { data: LoadedDossier }) {
 // ─── Sections (each renders nothing if its data is empty) ────────────
 
 function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
+  const t = useT();
   const { dossier } = data;
   const ident = dossier.identity;
   const score = dossier.prospect_score;
@@ -105,7 +108,7 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
 
   return (
     <header className="ev-section ev-hero">
-      <div className="ev-eyebrow">Artist · Prospect Dossier</div>
+      <div className="ev-eyebrow">{t("eval.dashboard.eyebrow")}</div>
       <div className="ev-header-grid">
         {ident.image ? (
           <img
@@ -159,8 +162,10 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
         <div className="ev-tier-block" style={{ color: accent }}>
           <div className="ev-tier-label" style={{ color: accent }}>{score.tier}</div>
           <div className="ev-tier-confidence">
-            confidence {Math.round(score.confidence * 100)}%
-            {score.data_completeness != null && ` · data ${Math.round(score.data_completeness * 100)}% complete`}
+            {t("eval.dashboard.confidence_prefix")} {Math.round(score.confidence * 100)}%
+            {score.data_completeness != null && (
+              ` · ${t("eval.dashboard.data_complete_label")} ${Math.round(score.data_completeness * 100)}% ${t("eval.dashboard.data_complete_suffix")}`
+            )}
           </div>
         </div>
       </div>
@@ -170,6 +175,7 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
 
 
 function Reach({ metrics }: { metrics: Dossier["metrics"] }) {
+  const t = useT();
   const sp = metrics.spotify ?? {};
   const yt = metrics.youtube ?? {};
   const ig = metrics.instagram ?? {};
@@ -180,30 +186,30 @@ function Reach({ metrics }: { metrics: Dossier["metrics"] }) {
 
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Reach</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.reach")}</h2>
       <div className="ev-grid-4">
         <Stat
           big={sp.monthly_listeners ? formatInt(sp.monthly_listeners) : "—"}
-          label="Spotify monthly"
+          label={t("eval.dashboard.reach.spotify_monthly")}
           sub={[
             sp.monthly_listeners_change ?? null,
-            sp.followers ? `${formatInt(sp.followers)} followers` : null,
+            sp.followers ? `${formatInt(sp.followers)} ${t("eval.dashboard.reach.followers_suffix")}` : null,
           ].filter(Boolean).join(" · ") || undefined}
         />
         <Stat
           big={yt.subscribers ? formatInt(yt.subscribers) : "—"}
-          label="YouTube subs"
-          sub={yt.views ? `${formatInt(yt.views)} total views` : undefined}
+          label={t("eval.dashboard.reach.youtube_subs")}
+          sub={yt.views ? t("eval.dashboard.reach.youtube_total_views", { n: formatInt(yt.views) }) : undefined}
         />
         <Stat
           big={ig.followers ? formatInt(ig.followers) : "—"}
-          label="Instagram"
-          sub={ig.engagement_rate ? `${ig.engagement_rate} engagement` : undefined}
+          label={t("eval.dashboard.reach.instagram")}
+          sub={ig.engagement_rate ? `${ig.engagement_rate} ${t("eval.dashboard.reach.engagement_suffix")}` : undefined}
         />
         <Stat
           big={tt.followers ? formatInt(tt.followers) : "—"}
-          label="TikTok"
-          sub={tt.likes ? `${formatInt(tt.likes)} total likes` : "no data"}
+          label={t("eval.dashboard.reach.tiktok")}
+          sub={tt.likes ? `${formatInt(tt.likes)} ${t("eval.dashboard.reach.likes_suffix")}` : t("eval.dashboard.reach.no_data")}
         />
       </div>
       {(other.shazam_count || other.deezer_fans || other.soundcloud_followers || popularity || cpp) && (
@@ -211,17 +217,18 @@ function Reach({ metrics }: { metrics: Dossier["metrics"] }) {
           {other.shazam_count != null && <span>Shazam <strong>{formatInt(other.shazam_count)}</strong></span>}
           {other.deezer_fans != null && <span>Deezer <strong>{formatInt(other.deezer_fans)}</strong></span>}
           {other.soundcloud_followers != null && <span>SoundCloud <strong>{formatInt(other.soundcloud_followers)}</strong></span>}
-          {popularity != null && <span>Spotify pop <strong>{popularity}/100</strong></span>}
-          {cpp != null && <span>Chartmetric CPP <strong>{cpp.toFixed(2)}</strong></span>}
+          {popularity != null && <span>{t("eval.dashboard.reach.spotify_pop")} <strong>{popularity}/100</strong></span>}
+          {cpp != null && <span>{t("eval.dashboard.reach.cpp")} <strong>{cpp.toFixed(2)}</strong></span>}
         </div>
       )}
-      <div className="ev-source">Source: Chartmetric (aggregated from Spotify, YouTube, Instagram, TikTok, Shazam, Deezer, SoundCloud)</div>
+      <div className="ev-source">{t("eval.dashboard.source.reach")}</div>
     </section>
   );
 }
 
 
 function Revenue({ revenue }: { revenue: Dossier["revenue_projection"] }) {
+  const t = useT();
   if (!revenue || revenue.note || !revenue.annual_projected) return null;
   const annual = revenue.annual_projected;
   // Same lo/hi multipliers the dossier_renderer uses for HIGH confidence.
@@ -240,14 +247,22 @@ function Revenue({ revenue }: { revenue: Dossier["revenue_projection"] }) {
 
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Revenue projection</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.revenue")}</h2>
       <div className="ev-revenue-grid">
-        <Stat big={formatMoney(annual)} label="Annual gross (BRUTO)" sub={`Range ${formatMoney(lo)} – ${formatMoney(hi)} · all platforms`} />
-        <Stat big={formatMoney(distributor)} label="Distributor cut if signed (~26%)" sub={`Artist payout (~74%): ${formatMoney(artist)}`} />
+        <Stat
+          big={formatMoney(annual)}
+          label={t("eval.dashboard.revenue.annual_gross")}
+          sub={t("eval.dashboard.revenue.range", { lo: formatMoney(lo), hi: formatMoney(hi) })}
+        />
+        <Stat
+          big={formatMoney(distributor)}
+          label={t("eval.dashboard.revenue.distributor_cut")}
+          sub={t("eval.dashboard.revenue.artist_payout", { amount: formatMoney(artist) })}
+        />
       </div>
       {byPlatformAnnual.length > 0 && totalAnnual > 0 && (
         <>
-          <div className="ev-rev-platform-title">Per-platform breakdown (annual gross)</div>
+          <div className="ev-rev-platform-title">{t("eval.dashboard.revenue.per_platform_title")}</div>
           {byPlatformAnnual.slice(0, 6).map(([plat, amt]) => {
             const pct = (amt / totalAnnual) * 100;
             return (
@@ -261,13 +276,14 @@ function Revenue({ revenue }: { revenue: Dossier["revenue_projection"] }) {
           })}
         </>
       )}
-      <div className="ev-source">Source: revenue model · streams × per-platform RPM rates · see <code>mcp_server/tools/revenue_model.py</code></div>
+      <div className="ev-source">{t("eval.dashboard.source.revenue", { file: "mcp_server/tools/revenue_model.py" })}</div>
     </section>
   );
 }
 
 
 function Scoring({ score }: { score: Dossier["prospect_score"] }) {
+  const t = useT();
   const dims = score.dimensions ?? {};
   // Sort by score descending — strongest first, matches narrative.
   const rows = Object.entries(dims).sort((a, b) => b[1].score - a[1].score);
@@ -277,17 +293,17 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
 
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Scoring · 7 dimensions</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.scoring")}</h2>
       {/* Column headers — without these, the trailing "85%" / "20%"
           numbers each row ends with read as random noise. Spelling
           "Confidence" and "Weight" out costs one line and removes a
           chunk of cognitive load. */}
       <div className="ev-row ev-row-headers" aria-hidden="true">
-        <div className="ev-row-label">Dimension</div>
+        <div className="ev-row-label">{t("eval.dashboard.scoring.col.dimension")}</div>
         <div />
-        <div className="ev-num-mono">Score</div>
-        <div className="ev-num-mono">Confidence</div>
-        <div className="ev-num-mono">Weight</div>
+        <div className="ev-num-mono">{t("eval.dashboard.scoring.col.score")}</div>
+        <div className="ev-num-mono">{t("eval.dashboard.scoring.col.confidence")}</div>
+        <div className="ev-num-mono">{t("eval.dashboard.scoring.col.weight")}</div>
       </div>
       {rows.map(([name, d]) => {
         const label = name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -314,29 +330,30 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
         );
       })}
       <div className="ev-legend">
-        <strong>Score</strong> — 0–100 per dimension, blended into the overall by Weight.{" "}
-        <strong>Confidence</strong> — how complete the data is for that dimension.{" "}
-        <strong>Weight</strong> — share of the overall score this dimension contributes (sums to 100%).
+        <strong>{t("eval.dashboard.scoring.legend.score")}</strong> — {t("eval.dashboard.scoring.legend.score_desc")}{" "}
+        <strong>{t("eval.dashboard.scoring.legend.confidence")}</strong> — {t("eval.dashboard.scoring.legend.confidence_desc")}{" "}
+        <strong>{t("eval.dashboard.scoring.legend.weight")}</strong> — {t("eval.dashboard.scoring.legend.weight_desc")}
       </div>
-      <div className="ev-help">Click any row to see the rationale.</div>
-      <div className="ev-source">Source: scoring profile <code>default</code> · weights and dimension definitions from <code>config/profiles.yaml</code></div>
+      <div className="ev-help">{t("eval.dashboard.scoring.click_hint")}</div>
+      <div className="ev-source">{t("eval.dashboard.source.scoring", { profile: "default", file: "config/profiles.yaml" })}</div>
     </section>
   );
 }
 
 
 function Markets({ markets }: { markets?: Dossier["geographic_profile"] extends infer T ? T extends { top_markets?: infer U } ? U : never : never }) {
+  const t = useT();
   if (!markets || markets.length === 0) return null;
   const max = Math.max(...markets.map((m) => m.listeners ?? 0));
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Top markets</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.markets")}</h2>
       <div className="ev-row ev-market-row ev-row-headers" aria-hidden="true">
         <span />
         <div />
         <div />
-        <div className="ev-num-mono">Listeners</div>
-        <div className="ev-num-mono">90-day Δ</div>
+        <div className="ev-num-mono">{t("eval.dashboard.markets.col.listeners")}</div>
+        <div className="ev-num-mono">{t("eval.dashboard.markets.col.delta")}</div>
       </div>
       <div className="ev-markets">
         {markets.slice(0, 6).map((m, i) => {
@@ -355,30 +372,30 @@ function Markets({ markets }: { markets?: Dossier["geographic_profile"] extends 
           );
         })}
       </div>
-      <div className="ev-legend">
-        Bars are sized relative to this artist&apos;s top market — they show country share, not population share.
-      </div>
-      <div className="ev-source">Source: Chartmetric · Spotify monthly listeners by country</div>
+      <div className="ev-legend">{t("eval.dashboard.markets.legend")}</div>
+      <div className="ev-source">{t("eval.dashboard.source.markets")}</div>
     </section>
   );
 }
 
 
 function Milestones({ milestones }: { milestones?: Array<{ text: string; date?: string; platform?: string }> }) {
+  const t = useT();
+  const { lang } = useLanguage();
   if (!milestones || milestones.length === 0) return null;
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Career milestones</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.milestones")}</h2>
       <div className="ev-milestones">
         {milestones.slice(0, 5).map((m, i) => (
           <div key={i} className="ev-milestone-row">
-            <span className="ev-milestone-date">{m.date ? formatDate(m.date) : "—"}</span>
+            <span className="ev-milestone-date">{m.date ? formatDate(m.date, lang) : "—"}</span>
             <span className="ev-milestone-text">{m.text}</span>
             {m.platform && <span className="ev-milestone-platform">{m.platform}</span>}
           </div>
         ))}
       </div>
-      <div className="ev-source">Source: Chartmetric · platform-tagged events (Spotify editorial adds, YouTube views milestones, chart entries)</div>
+      <div className="ev-source">{t("eval.dashboard.source.milestones")}</div>
     </section>
   );
 }
@@ -391,6 +408,8 @@ function Catalog({
   catalog?: Dossier["catalog"];
   urls?: Record<string, string>;
 }) {
+  const t = useT();
+  const { lang } = useLanguage();
   if (!catalog) return null;
   const r6 = catalog.releases_6m ?? 0;
   const r12 = catalog.releases_12m ?? 0;
@@ -400,106 +419,127 @@ function Catalog({
   const spotifyArtistUrl = urls?.spotify;
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Catalog</h2>
-      <div className="ev-catalog-stats">
-        <strong>{r6}</strong> releases · last 6 months · <strong>{r12}</strong> in last 12 months · <strong>{total}</strong> total tracks
-        {editorial > 0 && (<> · <strong>{editorial}</strong> editorial playlists</>)}
+      <h2 className="ev-h2">{t("eval.dashboard.catalog")}</h2>
+      <div
+        className="ev-catalog-stats"
+        // The summary string carries inline {r6}/{r12}/{total} placeholders;
+        // we let the i18n layer interpolate plain strings then render — no
+        // bolds inside the template, the bare numbers are fine here.
+      >
+        {t("eval.dashboard.catalog.summary", { r6, r12, total })}
+        {editorial > 0 && (<> · <strong>{editorial}</strong> {t("eval.dashboard.catalog.editorial_suffix")}</>)}
       </div>
       {tracks.length > 0 && (
         <>
-          <div className="ev-catalog-subtitle">Latest releases</div>
-          {tracks.slice(0, 5).map((t, i) => {
-            const trackUrl = spotifyArtistUrl ? buildSpotifySearchUrl(t.name) : null;
+          <div className="ev-catalog-subtitle">{t("eval.dashboard.catalog.latest_releases")}</div>
+          {tracks.slice(0, 5).map((tr, i) => {
+            const trackUrl = spotifyArtistUrl ? buildSpotifySearchUrl(tr.name) : null;
             return (
               <div key={i} className="ev-track-row">
                 {trackUrl ? (
                   <a href={trackUrl} target="_blank" rel="noopener noreferrer" className="ev-track-link">
-                    {t.name}<span className="ev-social-arrow">↗</span>
+                    {tr.name}<span className="ev-social-arrow">↗</span>
                   </a>
                 ) : (
-                  <span className="ev-track-name">{t.name}</span>
+                  <span className="ev-track-name">{tr.name}</span>
                 )}
-                <span className="ev-track-date">{t.release_date ? formatDate(t.release_date) : ""}</span>
+                <span className="ev-track-date">{tr.release_date ? formatDate(tr.release_date, lang) : ""}</span>
               </div>
             );
           })}
         </>
       )}
-      <div className="ev-source">Source: Chartmetric catalog · release dates and ISRCs from rights holders via DSPs</div>
+      <div className="ev-source">{t("eval.dashboard.source.catalog")}</div>
     </section>
   );
 }
 
 
 function Similar({ similar }: { similar?: Dossier["competitive_context"] extends infer T ? T extends { similar_artists?: infer U } ? U : never : never }) {
+  const t = useT();
   const router = useRouter();
   if (!similar || similar.length === 0) return null;
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Similar artists</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.similar")}</h2>
       <div className="ev-similar-grid">
         {similar.slice(0, 6).map((s, i) => {
-          const cc = s.country_code ?? "—";
+          const initials = s.name
+            .split(" ")
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((p) => p[0]?.toUpperCase() ?? "")
+            .join("") || "?";
           return (
-            <div key={i} className="ev-similar-card">
+            <button
+              key={i}
+              type="button"
+              className="ev-similar-card ev-similar-card-clickable"
+              onClick={() => {
+                // Navigate to /evaluate with the artist name in URL — page
+                // re-mounts and runs the evaluation. Simpler than passing
+                // state through a query param: just trigger a fresh search.
+                router.push(`/evaluate?artist=${encodeURIComponent(s.name)}`);
+                // Fallback: if the page doesn't re-mount on same-route nav,
+                // dispatch a custom event the page can listen for.
+                window.dispatchEvent(new CustomEvent("faroai-evaluate-artist", { detail: { name: s.name } }));
+              }}
+              aria-label={`${t("eval.dashboard.similar.evaluate_btn")} — ${s.name}`}
+            >
+              {s.image_url ? (
+                <img
+                  src={s.image_url}
+                  alt={s.name}
+                  className="ev-similar-photo"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    const fallback = document.createElement("div");
+                    fallback.className = "ev-similar-photo ev-similar-photo-fallback";
+                    fallback.textContent = initials;
+                    target.replaceWith(fallback);
+                  }}
+                />
+              ) : (
+                <div className="ev-similar-photo ev-similar-photo-fallback">{initials}</div>
+              )}
               <div className="ev-similar-name">{s.name}</div>
-              <div className="ev-similar-meta">
-                {countryFlag(cc)} {cc}
-                {s.sp_monthly_listeners != null && ` · ${formatInt(s.sp_monthly_listeners)} monthly`}
-                {s.signed === true && " · ✓ signed"}
-                {s.signed === false && " · unsigned"}
-              </div>
-              <button
-                type="button"
-                className="evaluate-btn-link ev-similar-link"
-                onClick={() => {
-                  // Navigate to /evaluate with the artist name in URL — page
-                  // re-mounts and runs the evaluation. Simpler than passing
-                  // state through a query param: just trigger a fresh search.
-                  router.push(`/evaluate?artist=${encodeURIComponent(s.name)}`);
-                  // Fallback: if the page doesn't re-mount on same-route nav,
-                  // dispatch a custom event the page can listen for.
-                  window.dispatchEvent(new CustomEvent("faroai-evaluate-artist", { detail: { name: s.name } }));
-                }}
-              >
-                Evaluate →
-              </button>
-            </div>
+              <span className="ev-similar-link">{t("eval.dashboard.similar.evaluate_btn")}</span>
+            </button>
           );
         })}
       </div>
-      <div className="ev-source">
-        Source: Chartmetric &ldquo;related artists&rdquo; · audience overlap + collab graph (planned: tighter genre weighting in v0.3.2)
-      </div>
+      <div className="ev-source">{t("eval.dashboard.source.similar")}</div>
     </section>
   );
 }
 
 
 function Risks({ risks }: { risks?: Record<string, string> }) {
+  const t = useT();
   if (!risks) return null;
   const flagged = Object.entries(risks).filter(([, v]) => v && v !== "N/A" && v.trim() !== "");
   if (flagged.length === 0) return null;
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Risk signals</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.risks")}</h2>
       {flagged.map(([k, v]) => (
         <div key={k} className="ev-risk-row">
           <span className="ev-risk-warn">⚠</span>
           <strong>{k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}</strong> — {v}
         </div>
       ))}
-      <div className="ev-source">Source: rule-based heuristics over Chartmetric streaming and engagement data</div>
+      <div className="ev-source">{t("eval.dashboard.source.risks")}</div>
     </section>
   );
 }
 
 
 function Recommendation({ tier, accent, ident }: { tier: string; accent: string; ident: Dossier["identity"] }) {
-  const body = recommendationBody(tier, ident);
+  const t = useT();
+  const body = recommendationBody(tier, ident, t);
   return (
     <section className="ev-section">
-      <h2 className="ev-h2">Recommendation</h2>
+      <h2 className="ev-h2">{t("eval.dashboard.recommendation")}</h2>
       <div className="ev-reco" style={{ borderLeftColor: accent, background: tintFor(tier) }}>
         <div className="ev-reco-tier" style={{ color: accent }}>{tier}</div>
         <div className="ev-reco-body">{body}</div>
@@ -537,12 +577,13 @@ function formatMoney(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
-function formatDate(s: string): string {
-  // Tolerate ISO + free-form. ISO yyyy-mm-dd → "MMM d, yyyy".
+function formatDate(s: string, lang: string = "en"): string {
+  // Tolerate ISO + free-form. ISO yyyy-mm-dd → "MMM d, yyyy" / "d MMM yyyy".
   try {
     const d = new Date(s);
     if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      const locale = lang === "es" ? "es-ES" : "en-US";
+      return d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
     }
   } catch {
     /* fallthrough */
@@ -596,24 +637,25 @@ function tintFor(tier: string): string {
   }
 }
 
-function recommendationBody(tier: string, ident: Dossier["identity"]): string {
+function recommendationBody(
+  tier: string,
+  ident: Dossier["identity"],
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const lockedNote = (() => {
     const stage = (ident.career_stage ?? "").toLowerCase();
     if (ident.label && (stage === "superstar" || stage === "mainstream")) {
-      return ` Currently signed to ${ident.label}; no signing window unless contract status shifts.`;
+      return t("eval.dashboard.reco.locked_suffix", { label: ident.label });
     }
     return "";
   })();
+  let key: string;
   switch (tier.toUpperCase()) {
-    case "BUY":
-      return `Active outreach. Lead profile in this tier — push to PROSPECT pipeline.${lockedNote}`;
-    case "PROSPECT":
-      return `Schedule a deeper look this week. Strong signals, watching for momentum confirmation.${lockedNote}`;
-    case "WATCH":
-      return `Re-check quarterly. Holding pattern — signals not yet strong enough to chase.${lockedNote}`;
-    case "PASS":
-      return `Skip. Not a fit on current criteria.${lockedNote}`;
-    default:
-      return `Re-check next cycle.${lockedNote}`;
+    case "BUY": key = "eval.dashboard.reco.buy"; break;
+    case "PROSPECT": key = "eval.dashboard.reco.prospect"; break;
+    case "WATCH": key = "eval.dashboard.reco.watch"; break;
+    case "PASS": key = "eval.dashboard.reco.pass"; break;
+    default: key = "eval.dashboard.reco.default"; break;
   }
+  return `${t(key)}${lockedNote}`;
 }

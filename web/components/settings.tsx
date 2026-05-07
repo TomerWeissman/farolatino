@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Save, Brain } from "lucide-react";
+import { Save, Brain, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage, useT } from "@/lib/i18n/context";
+import { SUPPORTED_LANGUAGES } from "@/lib/i18n/messages";
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,25 +29,56 @@ type RunDetail = RunSummary & {
   response_text: string;
 };
 
-export function MemoryEditor() {
+export function Settings() {
+  const t = useT();
   return (
     <div className="page-shell">
       <header style={{ marginBottom: 32 }}>
-        <h1 className="page-title">Memory</h1>
-        <p className="page-subtitle">
-          Edit the FaroAI persona that&apos;s loaded into every chat, and browse the
-          reasoning history of past runs.
-        </p>
+        <h1 className="page-title">{t("settings.title")}</h1>
+        <p className="page-subtitle">{t("settings.subtitle")}</p>
       </header>
 
+      <LanguageSection />
       <PersonaSection />
       <ReasoningHistorySection />
     </div>
   );
 }
 
+// ─── Language toggle ───────────────────────────────────────────────────────
+function LanguageSection() {
+  const t = useT();
+  const { lang, setLang } = useLanguage();
+  return (
+    <section className="memory-section">
+      <h2 className="memory-section-title">
+        <Globe size={14} style={{ marginRight: 6, verticalAlign: "-1px" }} />
+        {t("settings.language.title")}
+      </h2>
+      <p className="memory-section-hint">{t("settings.language.hint")}</p>
+      <div className="settings-language-toggle">
+        {SUPPORTED_LANGUAGES.map((code) => (
+          <button
+            key={code}
+            type="button"
+            className={cn(
+              "settings-language-btn",
+              code === lang && "settings-language-btn-active",
+            )}
+            onClick={() => setLang(code)}
+            aria-pressed={code === lang}
+          >
+            {t(code === "en" ? "settings.language.en" : "settings.language.es")}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── FAROAI.md editor ──────────────────────────────────────────────────────
 function PersonaSection() {
+  const t = useT();
   const [text, setText] = useState("");
   const [original, setOriginal] = useState("");
   const [saving, setSaving] = useState(false);
@@ -78,7 +111,7 @@ function PersonaSection() {
         throw new Error(err.detail || "save failed");
       }
       setOriginal(text);
-      setStatus({ kind: "ok", msg: "Saved. Takes effect on the next chat message." });
+      setStatus({ kind: "ok", msg: t("settings.persona.saved") });
     } catch (e) {
       setStatus({ kind: "err", msg: e instanceof Error ? e.message : "save failed" });
     } finally {
@@ -88,9 +121,9 @@ function PersonaSection() {
 
   return (
     <section className="memory-section">
-      <h2 className="memory-section-title">FaroAI persona</h2>
+      <h2 className="memory-section-title">{t("settings.persona.title")}</h2>
       <p className="memory-section-hint">
-        <code>FAROAI.md</code> at the project root. Loaded into every chat as the system prompt.
+        <code>FAROAI.md</code> — {t("settings.persona.hint")}
       </p>
       <textarea
         className="skills-editor-textarea"
@@ -101,7 +134,7 @@ function PersonaSection() {
       />
       <div className="skills-editor-actions">
         <button type="button" className="btn btn-primary" disabled={!dirty || saving} onClick={save}>
-          <Save size={14} /> {saving ? "Saving…" : "Save"}
+          <Save size={14} /> {saving ? t("settings.persona.saving") : t("settings.persona.save")}
         </button>
         {status && (
           <span className={cn("skills-editor-status", status.kind === "err" && "skills-editor-status-err")}>
@@ -115,6 +148,7 @@ function PersonaSection() {
 
 // ─── Recent reasoning ─────────────────────────────────────────────────────
 function ReasoningHistorySection() {
+  const t = useT();
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -131,14 +165,11 @@ function ReasoningHistorySection() {
 
   return (
     <section className="memory-section memory-history">
-      <h2 className="memory-section-title">Recent reasoning</h2>
-      <p className="memory-section-hint">
-        How FaroAI thought through past chats. Click a run to expand its
-        reasoning blocks (visible only when extended thinking was on).
-      </p>
-      {loading && <div className="page-empty">Loading…</div>}
+      <h2 className="memory-section-title">{t("settings.runs.title")}</h2>
+      <p className="memory-section-hint">{t("settings.runs.hint")}</p>
+      {loading && <div className="page-empty">{t("settings.persona.loading")}</div>}
       {!loading && runs.length === 0 && (
-        <div className="page-empty">No runs yet. Send a chat from the FaroAI page first.</div>
+        <div className="page-empty">{t("settings.runs.empty")}</div>
       )}
       <div className="memory-runs">
         {runs.map((r) => (
@@ -150,6 +181,7 @@ function ReasoningHistorySection() {
 }
 
 function RunCard({ run }: { run: RunSummary }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<RunDetail | null>(null);
 
@@ -176,13 +208,19 @@ function RunCard({ run }: { run: RunSummary }) {
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent className="memory-run-content">
-        {!detail && <div className="page-empty">Loading details…</div>}
+        {!detail && <div className="page-empty">{t("settings.persona.loading")}</div>}
         {detail && (
           <>
             {detail.thinking_blocks?.length ? (
               <div>
                 <div className="memory-run-section-label">
-                  <Brain size={12} /> Reasoning ({detail.thinking_blocks.length} block{detail.thinking_blocks.length === 1 ? "" : "s"})
+                  <Brain size={12} />{" "}
+                  {t(
+                    detail.thinking_blocks.length === 1
+                      ? "settings.runs.reasoning_blocks_one"
+                      : "settings.runs.reasoning_blocks_many",
+                    { n: detail.thinking_blocks.length },
+                  )}
                 </div>
                 <div className="reasoning-panel">
                   {detail.thinking_blocks.map((b, i) => (
@@ -194,11 +232,15 @@ function RunCard({ run }: { run: RunSummary }) {
                 </div>
               </div>
             ) : (
-              <div className="page-empty">No reasoning recorded — extended thinking was off for this run.</div>
+              <div className="page-empty">{t("settings.runs.no_reasoning")}</div>
             )}
             {detail.response_text && (
               <details className="memory-run-response">
-                <summary>Response ({detail.response_text.length.toLocaleString()} chars)</summary>
+                <summary>
+                  {t("settings.runs.response_chars", {
+                    n: detail.response_text.length.toLocaleString(),
+                  })}
+                </summary>
                 <pre className="memory-run-response-pre">{detail.response_text}</pre>
               </details>
             )}

@@ -10,4 +10,4 @@ a server.
 #   - packaging/setup_py2app.py — sets CFBundleVersion + CFBundleShortVersionString
 #   - core/updater.py — compares against GitHub Releases tags
 #   - api/routes/updates.py — returned to the UI's "Check for updates"
-__version__ = "0.3.1"
+__version__ = "0.4.0"

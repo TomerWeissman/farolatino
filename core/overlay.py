@@ -70,6 +70,14 @@ _LAYER_PATHS: dict[str, dict[str, str]] = {
         "update": "FAROAI.md",
         "user": "persona.md",
     },
+    # Parallel Spanish persona — picked when ``preferences.language ==
+    # "es"`` so the LLM responds in Spanish. Falls back to the English
+    # ``persona`` if no Spanish file exists at any layer.
+    "persona_es": {
+        "default": "FAROAI.es.md",
+        "update": "FAROAI.es.md",
+        "user": "persona.es.md",
+    },
     "prompts": {
         "default": "prompts",
         "update": "prompts",

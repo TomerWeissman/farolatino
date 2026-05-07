@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ArrowRight, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useT } from "@/lib/i18n/context";
 
 const API = "/api";
 
@@ -23,6 +24,7 @@ type OnboardingStatus = {
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export function OnboardingWizard() {
+  const t = useT();
   const router = useRouter();
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
 
@@ -47,11 +49,7 @@ export function OnboardingWizard() {
   };
 
   const handleSkip = () => {
-    if (
-      confirm(
-        "Skip setup?\n\nFaroAI needs an API key to chat. You can add one later via Connections, but the chat won't work until you do."
-      )
-    ) {
+    if (confirm(t("onboarding.skip_confirm"))) {
       localStorage.setItem(SKIP_KEY, "1");
       router.push("/");
     }
@@ -68,11 +66,8 @@ export function OnboardingWizard() {
   return (
     <div className="page-shell" style={{ maxWidth: 720, margin: "0 auto", paddingTop: 32 }}>
       <header style={{ marginBottom: 32, textAlign: "center" }}>
-        <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>Welcome to FaroAI</h1>
-        <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.5 }}>
-          Paste your API keys to get started. All keys are stored locally on your machine —
-          they never leave your computer.
-        </p>
+        <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>{t("onboarding.title")}</h1>
+        <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.5 }}>{t("onboarding.subtitle")}</p>
       </header>
 
       <KeyCard

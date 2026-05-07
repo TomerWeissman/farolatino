@@ -1562,34 +1562,90 @@ button.sidebar-link {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, monospace;
 }
 
-/* Similar artists card grid. */
+/* Similar artists card grid. v0.4.0 simplified to photo + name only —
+   the card is the click target now. */
 .ev-similar-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 16px;
 }
 .ev-similar-card {
-  padding: 20px;
+  padding: 20px 16px;
   border: 1px solid #e5e5e0;
   background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+.ev-similar-card-clickable {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.ev-similar-card-clickable:hover {
+  border-color: #1a1a1a;
+}
+.ev-similar-card-clickable:hover .ev-similar-link {
+  color: #b45309;
+}
+.ev-similar-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #ececea;
+  display: block;
+  flex-shrink: 0;
+}
+.ev-similar-photo-fallback {
+  background: #1a1a1a;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 22px/1 Georgia, serif;
+  letter-spacing: 0.04em;
 }
 .ev-similar-name {
-  font: 500 16px/1.2 Georgia, serif;
-  margin-bottom: 6px;
+  font: 500 15px/1.2 Georgia, serif;
   color: #1a1a1a;
 }
-.ev-similar-meta { font-size: 12px; color: #888; line-height: 1.5; margin-bottom: 12px; }
 .ev-similar-link {
   font-size: 12px;
   color: #d97706;
-  text-decoration: underline;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
-  text-align: left;
 }
-.ev-similar-link:hover { color: #b45309; }
+
+/* Settings page — language toggle. Editorial-style segmented buttons. */
+.settings-language-toggle {
+  display: inline-flex;
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.settings-language-btn {
+  background: white;
+  color: #1a1a1a;
+  border: none;
+  padding: 8px 18px;
+  font: 500 14px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  cursor: pointer;
+  border-right: 1px solid #1a1a1a;
+}
+.settings-language-btn:last-child { border-right: none; }
+.settings-language-btn:hover { background: #f5f5f5; }
+.settings-language-btn-active {
+  background: #1a1a1a;
+  color: white;
+}
+.settings-language-btn-active:hover { background: #1a1a1a; }
 
 /* Risk signals — small, prefixed. */
 .ev-risk-row {

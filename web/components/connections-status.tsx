@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, ExternalLink, Loader2, ChevronDown, ChevronUp, Save, Eye, EyeOff, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 
 const API = "/api";
 
@@ -25,16 +26,17 @@ type EnvVar = {
 
 type EnvBundle = { vars: EnvVar[] };
 
-const STATUS_META: Record<Status, { icon: React.ReactNode; label: string; tone: "ok" | "warn" | "err" }> = {
-  ok:              { icon: <CheckCircle2 size={16} />, label: "Connected",        tone: "ok" },
-  missing_creds:   { icon: <AlertTriangle size={16} />, label: "Not configured",  tone: "warn" },
-  auth_failed:     { icon: <XCircle size={16} />,       label: "Auth failed",      tone: "err" },
-  quota_required:  { icon: <AlertTriangle size={16} />, label: "Subscription required", tone: "warn" },
-  network_error:   { icon: <XCircle size={16} />,       label: "Network error",    tone: "err" },
-  unknown:         { icon: <AlertTriangle size={16} />, label: "Unknown",          tone: "warn" },
+const STATUS_META: Record<Status, { icon: React.ReactNode; labelKey: string; tone: "ok" | "warn" | "err" }> = {
+  ok:              { icon: <CheckCircle2 size={16} />, labelKey: "connections.status.connected",            tone: "ok" },
+  missing_creds:   { icon: <AlertTriangle size={16} />, labelKey: "connections.status.not_configured",       tone: "warn" },
+  auth_failed:     { icon: <XCircle size={16} />,       labelKey: "connections.status.auth_failed",          tone: "err" },
+  quota_required:  { icon: <AlertTriangle size={16} />, labelKey: "connections.status.subscription_required", tone: "warn" },
+  network_error:   { icon: <XCircle size={16} />,       labelKey: "connections.status.network_error",        tone: "err" },
+  unknown:         { icon: <AlertTriangle size={16} />, labelKey: "connections.status.unknown",              tone: "warn" },
 };
 
 export function ConnectionsStatus() {
+  const t = useT();
   const [items, setItems] = useState<Connection[] | null>(null);
   const [envVars, setEnvVars] = useState<Record<string, EnvVar>>({});
   const [loading, setLoading] = useState(false);
@@ -82,10 +84,8 @@ export function ConnectionsStatus() {
     <div className="page-shell">
       <header className="connections-header">
         <div>
-          <h1 className="page-title">Connections</h1>
-          <p className="page-subtitle">
-            External APIs the dashboard uses. Click a row to view or edit its credentials.
-          </p>
+          <h1 className="page-title">{t("connections.title")}</h1>
+          <p className="page-subtitle">{t("connections.subtitle")}</p>
         </div>
         <button
           type="button"
@@ -94,7 +94,7 @@ export function ConnectionsStatus() {
           disabled={loading}
         >
           {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
-          {loading ? "Checking…" : "Recheck"}
+          {loading ? t("connections.checking") : t("connections.recheck")}
         </button>
       </header>
 
@@ -141,6 +141,7 @@ function ConnectionRow({
   onToggle: () => void;
   onSavedEnv: (vars: EnvVar[]) => void;
 }) {
+  const t = useT();
   const meta = STATUS_META[c.status] ?? STATUS_META.unknown;
   const hasEditable = c.env_vars.length > 0;
   return (
@@ -154,7 +155,7 @@ function ConnectionRow({
         <div className="connection-row-name">{c.name}</div>
         <div className={cn("connection-row-status", `connection-status-${meta.tone}`)}>
           {meta.icon}
-          {meta.label}
+          {t(meta.labelKey)}
         </div>
         {hasEditable && (
           <span className="connection-row-chevron">

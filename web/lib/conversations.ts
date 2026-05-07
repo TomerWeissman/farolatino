@@ -136,30 +136,34 @@ function truncateTitle(prompt: string, max = 50): string {
   return stripped.slice(0, max - 1).trim() + "…";
 }
 
-/** Group conversations into "Today", "Yesterday", "This week", "Older"
- *  buckets — used by the sidebar's date-grouped list. */
-export function groupByRecency(items: Conversation[]): Array<{ label: string; items: Conversation[] }> {
+/** Group conversations into Today / Yesterday / Last week / Older
+ *  buckets — used by the sidebar's date-grouped list. The `labelKey`
+ *  is an i18n key the sidebar resolves via `t()` at render time, so
+ *  this util stays language-agnostic. */
+export function groupByRecency(
+  items: Conversation[],
+): Array<{ labelKey: string; items: Conversation[] }> {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfYesterday = startOfToday - 24 * 3600_000;
   const startOfWeek = startOfToday - 6 * 24 * 3600_000;
 
   const buckets: Record<string, Conversation[]> = {
-    Today: [],
-    Yesterday: [],
-    "This week": [],
-    Older: [],
+    today: [],
+    yesterday: [],
+    week: [],
+    older: [],
   };
   for (const c of items) {
-    if (c.updatedAt >= startOfToday) buckets.Today.push(c);
-    else if (c.updatedAt >= startOfYesterday) buckets.Yesterday.push(c);
-    else if (c.updatedAt >= startOfWeek) buckets["This week"].push(c);
-    else buckets.Older.push(c);
+    if (c.updatedAt >= startOfToday) buckets.today.push(c);
+    else if (c.updatedAt >= startOfYesterday) buckets.yesterday.push(c);
+    else if (c.updatedAt >= startOfWeek) buckets.week.push(c);
+    else buckets.older.push(c);
   }
   return [
-    { label: "Today", items: buckets.Today },
-    { label: "Yesterday", items: buckets.Yesterday },
-    { label: "This week", items: buckets["This week"] },
-    { label: "Older", items: buckets.Older },
+    { labelKey: "sidebar.history.today", items: buckets.today },
+    { labelKey: "sidebar.history.yesterday", items: buckets.yesterday },
+    { labelKey: "sidebar.history.last_week", items: buckets.week },
+    { labelKey: "sidebar.history.older", items: buckets.older },
   ].filter((g) => g.items.length > 0);
 }

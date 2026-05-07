@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.llm.tool_dispatch import dispatch as dispatch_tool
+from core.preferences import get_language
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -85,7 +86,9 @@ def post_evaluate(req: EvaluateRequest) -> dict:
             artist_data = {}
         try:
             from mcp_server.tools.dossier_renderer import render_dossier
-            rendered_markdown = render_dossier(result["dossier"], artist_data or {})
+            rendered_markdown = render_dossier(
+                result["dossier"], artist_data or {}, lang=get_language(),
+            )
         except Exception:
             log.exception("render_dossier failed during /api/evaluate")
             rendered_markdown = ""

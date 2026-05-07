@@ -13,8 +13,10 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useT } from "@/lib/i18n/context";
 
 export function CompareStub() {
+  const t = useT();
   const searchParams = useSearchParams();
   const primary = searchParams.get("primary");
   const primaryCmId = searchParams.get("primary_cm_id");
@@ -22,22 +24,16 @@ export function CompareStub() {
   return (
     <div className="evaluate-shell">
       <header className="evaluate-header">
-        <div className="evaluate-eyebrow">Compare</div>
+        <div className="evaluate-eyebrow">{t("compare.eyebrow")}</div>
       </header>
       <div className="evaluate-empty">
         <div className="evaluate-loading-title" style={{ marginBottom: 12 }}>
-          Compare page — coming in v0.3.2
+          {t("compare.coming_soon")}
         </div>
         <p className="evaluate-empty-hint">
-          {primary ? (
-            <>
-              Carrying <strong>{primary}</strong> across as the first artist. The full
-              comparison flow (two text boxes, side-by-side graphs across reach,
-              revenue, momentum and scoring) is being built next.
-            </>
-          ) : (
-            <>The full comparison flow (two text boxes, side-by-side graphs) is being built next.</>
-          )}
+          {primary
+            ? t("compare.body_with_primary", { artist: primary })
+            : t("compare.body_no_primary")}
         </p>
         <div style={{ marginTop: 16 }}>
           <Link
@@ -46,7 +42,7 @@ export function CompareStub() {
               : "/evaluate"}
             className="evaluate-btn-link"
           >
-            ← Back to {primary ? primary + "'s dossier" : "Evaluate"}
+            {primary ? t("compare.back_to_artist", { artist: primary }) : t("compare.back_to_evaluate")}
           </Link>
         </div>
       </div>

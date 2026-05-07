@@ -1,0 +1,473 @@
+// Static-text translation tables for the FaroAI frontend.
+//
+// We deliberately don't pull in next-intl / react-intl — our footprint
+// is ~150 strings, deps stay unchanged, and the lookup is a one-line
+// `messages[lang][key]` with English fallback. Keys are dot-notated by
+// surface ("sidebar.nav.evaluate", "chat.greeting", "eval.search.placeholder")
+// so it's obvious where each lives.
+//
+// When you add a string: add the key to BOTH `en` and `es`. Missing
+// Spanish entries fall back to English so a half-translated PR still
+// renders cleanly, but missing English is a programmer error and
+// surfaces as `⟦missing:key⟧` in the UI.
+
+export type Language = "en" | "es";
+
+export const SUPPORTED_LANGUAGES: Language[] = ["en", "es"];
+export const DEFAULT_LANGUAGE: Language = "en";
+
+type Catalog = Record<string, string>;
+
+const en: Catalog = {
+  // ─── Sidebar / nav ──────────────────────────────────────────────
+  "sidebar.brand": "FaroAI",
+  "sidebar.nav.faroai": "FaroAI",
+  "sidebar.nav.evaluate": "Evaluate",
+  "sidebar.nav.skills": "Skills",
+  "sidebar.nav.settings": "Settings",
+  "sidebar.nav.files": "Files",
+  "sidebar.nav.connections": "Connections",
+  "sidebar.new_chat": "New chat",
+  "sidebar.delete_confirm": "Delete this conversation? This can't be undone.",
+  "sidebar.delete_title": "Delete conversation",
+  "sidebar.history.today": "Today",
+  "sidebar.history.yesterday": "Yesterday",
+  "sidebar.history.last_week": "Last week",
+  "sidebar.history.last_month": "Last month",
+  "sidebar.history.older": "Older",
+
+  // ─── Chat surface ───────────────────────────────────────────────
+  "chat.empty.greeting": "How can I help?",
+  "chat.empty.hint_prefix": "Type a message, or use",
+  "chat.empty.hint_suffix": "to pick a skill.",
+  "chat.input.placeholder": "Type a message, or @ to pick a skill",
+  "chat.thinking": "Thinking…",
+  "chat.error.unknown": "Unknown error",
+  "chat.error.show_details": "Show details",
+  "chat.error.hide_details": "Hide details",
+  "chat.error.open_fix": "Open fix page →",
+  "chat.error.open_connections": "Open Connections",
+  "chat.reasoning.label_one": "Reasoning ({n} block)",
+  "chat.reasoning.label_many": "Reasoning ({n} blocks)",
+  "chat.eval_pill.open_dossier": "Open dossier",
+  "chat.onboarding.no_llm_title": "No AI Model key set — chat won't work yet",
+  "chat.onboarding.no_llm_message": "Paste an Anthropic, OpenAI, or Gemini API key to start chatting.",
+  "chat.onboarding.no_llm_cta": "Set up keys →",
+  "chat.onboarding.no_chartmetric_title": "Chartmetric not connected",
+  "chat.onboarding.no_chartmetric_message": "Free-form chat works, but @evaluate / @similar can't fetch real artist data without it.",
+  "chat.onboarding.no_chartmetric_cta": "Add Chartmetric →",
+  "chat.autocomplete.no_skills": "No matching skills",
+
+  // ─── Evaluate page (search / loading / disambig / error) ────────
+  "eval.eyebrow": "Evaluate",
+  "eval.search.placeholder": "Enter an artist name to generate a full dossier",
+  "eval.search.button": "Search",
+  "eval.start_over": "Start over",
+  "eval.empty.hint": "Type an artist name above and press Search. Returns a full dossier with score, revenue projection, top markets, and recent activity. ~10–30s on first lookup, instant on re-runs.",
+  "eval.recents.title": "Recently evaluated",
+  "eval.recents.clear": "Clear history",
+  "eval.loading.title": "Evaluating {artist}",
+  "eval.loading.step.lookup": "· Looking up on Chartmetric…",
+  "eval.loading.step.pull": "· Pulling streaming + social + catalog data",
+  "eval.loading.step.score": "· Scoring across 7 dimensions",
+  "eval.loading.step.revenue": "· Projecting revenue",
+  "eval.loading.step.dossier": "· Building dossier",
+  "eval.loading.note": "Cold lookups take 10–30 seconds. Re-runs are instant (cached).",
+  "eval.disambig.title": "Multiple artists match “{query}”",
+  "eval.disambig.hint": "Pick one — re-runs evaluate with that artist.",
+  "eval.disambig.no_streaming": "no streaming data",
+  "eval.disambig.spotify_followers": "Spotify followers",
+  "eval.disambig.monthly_listeners": "monthly listeners",
+  "eval.error.title": "Couldn't evaluate {artist}",
+  "eval.error.retry": "Retry",
+  "eval.time.just_now": "just now",
+  "eval.time.minutes": "{n}m ago",
+  "eval.time.hours": "{n}h ago",
+  "eval.time.yesterday": "yesterday",
+  "eval.time.days": "{n}d ago",
+
+  // ─── Evaluate dashboard (loaded state) ──────────────────────────
+  "eval.dashboard.eyebrow": "Artist · Prospect Dossier",
+  "eval.dashboard.continue_in_chat": "Continue in chat about {artist} →",
+  "eval.dashboard.compare": "Compare to another artist",
+  "eval.dashboard.confidence_prefix": "confidence",
+  "eval.dashboard.data_complete_suffix": "complete",
+  "eval.dashboard.data_complete_label": "data",
+  // Section headers
+  "eval.dashboard.reach": "Reach",
+  "eval.dashboard.revenue": "Revenue projection",
+  "eval.dashboard.scoring": "Scoring · 7 dimensions",
+  "eval.dashboard.markets": "Top markets",
+  "eval.dashboard.milestones": "Career milestones",
+  "eval.dashboard.catalog": "Catalog",
+  "eval.dashboard.similar": "Similar artists",
+  "eval.dashboard.risks": "Risk signals",
+  "eval.dashboard.recommendation": "Recommendation",
+  // Reach stat labels
+  "eval.dashboard.reach.spotify_monthly": "Spotify monthly",
+  "eval.dashboard.reach.youtube_subs": "YouTube subs",
+  "eval.dashboard.reach.youtube_total_views": "{n} total views",
+  "eval.dashboard.reach.instagram": "Instagram",
+  "eval.dashboard.reach.tiktok": "TikTok",
+  "eval.dashboard.reach.followers_suffix": "followers",
+  "eval.dashboard.reach.likes_suffix": "total likes",
+  "eval.dashboard.reach.engagement_suffix": "engagement",
+  "eval.dashboard.reach.no_data": "no data",
+  "eval.dashboard.reach.spotify_pop": "Spotify pop",
+  "eval.dashboard.reach.cpp": "Chartmetric CPP",
+  // Revenue stat labels
+  "eval.dashboard.revenue.annual_gross": "Annual gross (BRUTO)",
+  "eval.dashboard.revenue.range": "Range {lo} – {hi} · all platforms",
+  "eval.dashboard.revenue.distributor_cut": "Distributor cut if signed (~26%)",
+  "eval.dashboard.revenue.artist_payout": "Artist payout (~74%): {amount}",
+  "eval.dashboard.revenue.per_platform_title": "Per-platform breakdown (annual gross)",
+  // Scoring column headers + legend
+  "eval.dashboard.scoring.col.dimension": "Dimension",
+  "eval.dashboard.scoring.col.score": "Score",
+  "eval.dashboard.scoring.col.confidence": "Confidence",
+  "eval.dashboard.scoring.col.weight": "Weight",
+  "eval.dashboard.scoring.legend.score": "Score",
+  "eval.dashboard.scoring.legend.score_desc": "0–100 per dimension, blended into the overall by Weight.",
+  "eval.dashboard.scoring.legend.confidence": "Confidence",
+  "eval.dashboard.scoring.legend.confidence_desc": "how complete the data is for that dimension.",
+  "eval.dashboard.scoring.legend.weight": "Weight",
+  "eval.dashboard.scoring.legend.weight_desc": "share of the overall score this dimension contributes (sums to 100%).",
+  "eval.dashboard.scoring.click_hint": "Click any row to see the rationale.",
+  // Markets
+  "eval.dashboard.markets.col.listeners": "Listeners",
+  "eval.dashboard.markets.col.delta": "90-day Δ",
+  "eval.dashboard.markets.legend": "Bars are sized relative to this artist's top market — they show country share, not population share.",
+  // Milestones
+  "eval.dashboard.milestones.empty": "—",
+  // Catalog
+  "eval.dashboard.catalog.summary": "{r6} releases · last 6 months · {r12} in last 12 months · {total} total tracks",
+  "eval.dashboard.catalog.editorial_suffix": "editorial playlists",
+  "eval.dashboard.catalog.latest_releases": "Latest releases",
+  // Similar
+  "eval.dashboard.similar.evaluate_btn": "Evaluate →",
+  // Recommendation prose (mirrors backend tier strings)
+  "eval.dashboard.reco.buy": "Active outreach. Lead profile in this tier — push to PROSPECT pipeline.",
+  "eval.dashboard.reco.prospect": "Schedule a deeper look this week. Strong signals, watching for momentum confirmation.",
+  "eval.dashboard.reco.watch": "Re-check quarterly. Holding pattern — signals not yet strong enough to chase.",
+  "eval.dashboard.reco.pass": "Skip. Not a fit on current criteria.",
+  "eval.dashboard.reco.default": "Re-check next cycle.",
+  "eval.dashboard.reco.locked_suffix": " Currently signed to {label}; no signing window unless contract status shifts.",
+  // Source footers
+  "eval.dashboard.source.reach": "Source: Chartmetric (aggregated from Spotify, YouTube, Instagram, TikTok, Shazam, Deezer, SoundCloud)",
+  "eval.dashboard.source.revenue": "Source: revenue model · streams × per-platform RPM rates · see {file}",
+  "eval.dashboard.source.scoring": "Source: scoring profile {profile} · weights and dimension definitions from {file}",
+  "eval.dashboard.source.markets": "Source: Chartmetric · Spotify monthly listeners by country",
+  "eval.dashboard.source.milestones": "Source: Chartmetric · platform-tagged events (Spotify editorial adds, YouTube views milestones, chart entries)",
+  "eval.dashboard.source.catalog": "Source: Chartmetric catalog · release dates and ISRCs from rights holders via DSPs",
+  "eval.dashboard.source.similar": "Source: Chartmetric “related artists” · audience overlap + collab graph (planned: tighter genre weighting in v0.3.2)",
+  "eval.dashboard.source.risks": "Source: rule-based heuristics over Chartmetric streaming and engagement data",
+
+  // ─── Settings page ──────────────────────────────────────────────
+  "settings.title": "Settings",
+  "settings.subtitle": "Preferences, persona, and reasoning history.",
+  "settings.language.title": "Language",
+  "settings.language.hint": "Switches the interface and the assistant's responses. Applies on the next chat message — no restart needed.",
+  "settings.language.en": "English",
+  "settings.language.es": "Español",
+  "settings.persona.title": "FaroAI persona",
+  "settings.persona.hint": "FAROAI.md at the project root. Loaded into every chat as the system prompt.",
+  "settings.persona.save": "Save",
+  "settings.persona.saving": "Saving…",
+  "settings.persona.saved": "Saved. Takes effect on the next chat message.",
+  "settings.persona.loading": "Loading…",
+  "settings.runs.title": "Recent reasoning",
+  "settings.runs.hint": "How FaroAI thought through past chats. Click a run to expand its reasoning blocks (visible only when extended thinking was on).",
+  "settings.runs.empty": "No runs yet. Send a chat from the FaroAI page first.",
+  "settings.runs.no_reasoning": "No reasoning recorded — extended thinking was off for this run.",
+  "settings.runs.response_chars": "Response ({n} chars)",
+  "settings.runs.reasoning_blocks_one": "Reasoning ({n} block)",
+  "settings.runs.reasoning_blocks_many": "Reasoning ({n} blocks)",
+
+  // ─── Connections page ───────────────────────────────────────────
+  "connections.title": "Connections",
+  "connections.subtitle": "External APIs the dashboard uses. Click a row to view or edit its credentials.",
+  "connections.recheck": "Recheck",
+  "connections.checking": "Checking…",
+  "connections.status.connected": "Connected",
+  "connections.status.not_configured": "Not configured",
+  "connections.status.auth_failed": "Auth failed",
+  "connections.status.subscription_required": "Subscription required",
+  "connections.status.network_error": "Network error",
+  "connections.status.unknown": "Unknown",
+
+  // ─── Files page ─────────────────────────────────────────────────
+  "files.title": "Files",
+  "files.subtitle": "Calibration YAMLs, the per-artist Chartmetric cache, and FaroLatino's internal datasets.",
+  "files.tab.calibration": "Calibration",
+  "files.tab.cached": "Cached artists",
+  "files.tab.internal": "Internal data",
+  "files.tag.editable": "editable",
+  "files.tag.readonly": "read-only",
+
+  // ─── Skills page ────────────────────────────────────────────────
+  "skills.title": "Skills",
+  "skills.tag.edited": "edited",
+  "skills.tag.updated": "updated",
+  "skills.tag.default": "default",
+  "skills.add": "Add skill",
+  "skills.save": "Save",
+  "skills.delete": "Delete",
+
+  // ─── Compare stub ───────────────────────────────────────────────
+  "compare.eyebrow": "Compare",
+  "compare.coming_soon": "Compare page — coming in v0.3.2",
+  "compare.body_with_primary": "Carrying {artist} across as the first artist. The full comparison flow (two text boxes, side-by-side graphs across reach, revenue, momentum and scoring) is being built next.",
+  "compare.body_no_primary": "The full comparison flow (two text boxes, side-by-side graphs) is being built next.",
+  "compare.back_to_artist": "← Back to {artist}'s dossier",
+  "compare.back_to_evaluate": "← Back to Evaluate",
+
+  // ─── Onboarding wizard ──────────────────────────────────────────
+  "onboarding.title": "Welcome to FaroAI",
+  "onboarding.subtitle": "Paste your API keys to get started. All keys are stored locally on your machine — they never leave your computer.",
+  "onboarding.skip_confirm": "Skip setup?\n\nFaroAI needs an API key to chat. You can add one later via Connections, but the chat won't work until you do.",
+  "onboarding.detected": "Detected: {provider}",
+  "onboarding.required": "Required",
+  "onboarding.recommended": "Recommended",
+  "onboarding.section.llm": "AI Model",
+  "onboarding.section.chartmetric": "Chartmetric",
+  "onboarding.skip": "Skip for now",
+  "onboarding.continue": "Continue",
+};
+
+// Spanish populated in the translation-pass commit. Until then, missing
+// keys fall back to English via `t()`.
+const es: Catalog = {
+  // ─── Sidebar / nav ──────────────────────────────────────────────
+  "sidebar.brand": "FaroAI",
+  "sidebar.nav.faroai": "FaroAI",
+  "sidebar.nav.evaluate": "Evaluar",
+  "sidebar.nav.skills": "Skills",
+  "sidebar.nav.settings": "Configuración",
+  "sidebar.nav.files": "Archivos",
+  "sidebar.nav.connections": "Conexiones",
+  "sidebar.new_chat": "Nuevo chat",
+  "sidebar.delete_confirm": "¿Eliminar esta conversación? No se puede deshacer.",
+  "sidebar.delete_title": "Eliminar conversación",
+  "sidebar.history.today": "Hoy",
+  "sidebar.history.yesterday": "Ayer",
+  "sidebar.history.last_week": "Última semana",
+  "sidebar.history.last_month": "Último mes",
+  "sidebar.history.older": "Más antiguos",
+
+  // ─── Chat surface ───────────────────────────────────────────────
+  "chat.empty.greeting": "¿En qué te puedo ayudar?",
+  "chat.empty.hint_prefix": "Escribe un mensaje, o usa",
+  "chat.empty.hint_suffix": "para elegir un skill.",
+  "chat.input.placeholder": "Escribe un mensaje, o @ para elegir un skill",
+  "chat.thinking": "Pensando…",
+  "chat.error.unknown": "Error desconocido",
+  "chat.error.show_details": "Ver detalles",
+  "chat.error.hide_details": "Ocultar detalles",
+  "chat.error.open_fix": "Abrir página de solución →",
+  "chat.error.open_connections": "Abrir Conexiones",
+  "chat.reasoning.label_one": "Razonamiento ({n} bloque)",
+  "chat.reasoning.label_many": "Razonamiento ({n} bloques)",
+  "chat.eval_pill.open_dossier": "Abrir dossier",
+  "chat.onboarding.no_llm_title": "Falta la API key del modelo — el chat aún no funciona",
+  "chat.onboarding.no_llm_message": "Pega una API key de Anthropic, OpenAI o Gemini para empezar a chatear.",
+  "chat.onboarding.no_llm_cta": "Configurar keys →",
+  "chat.onboarding.no_chartmetric_title": "Chartmetric no está conectado",
+  "chat.onboarding.no_chartmetric_message": "El chat libre funciona, pero @evaluate / @similar no pueden traer datos reales sin Chartmetric.",
+  "chat.onboarding.no_chartmetric_cta": "Agregar Chartmetric →",
+  "chat.autocomplete.no_skills": "Sin skills coincidentes",
+
+  // ─── Evaluate page (search / loading / disambig / error) ────────
+  "eval.eyebrow": "Evaluar",
+  "eval.search.placeholder": "Escribe el nombre de un artista para generar un dossier completo",
+  "eval.search.button": "Buscar",
+  "eval.start_over": "Empezar de nuevo",
+  "eval.empty.hint": "Escribe un nombre arriba y presiona Buscar. Devuelve un dossier completo con puntaje, proyección de ingresos, mercados principales y actividad reciente. ~10–30s la primera vez, instantáneo después.",
+  "eval.recents.title": "Evaluados recientemente",
+  "eval.recents.clear": "Borrar historial",
+  "eval.loading.title": "Evaluando a {artist}",
+  "eval.loading.step.lookup": "· Buscando en Chartmetric…",
+  "eval.loading.step.pull": "· Trayendo datos de streaming + redes + catálogo",
+  "eval.loading.step.score": "· Puntuando en 7 dimensiones",
+  "eval.loading.step.revenue": "· Proyectando ingresos",
+  "eval.loading.step.dossier": "· Armando el dossier",
+  "eval.loading.note": "La primera búsqueda toma 10–30 segundos. Las siguientes son instantáneas (cache).",
+  "eval.disambig.title": "Varios artistas coinciden con “{query}”",
+  "eval.disambig.hint": "Elige uno — re-ejecuta el evaluate con ese artista.",
+  "eval.disambig.no_streaming": "sin datos de streaming",
+  "eval.disambig.spotify_followers": "seguidores de Spotify",
+  "eval.disambig.monthly_listeners": "oyentes mensuales",
+  "eval.error.title": "No se pudo evaluar a {artist}",
+  "eval.error.retry": "Reintentar",
+  "eval.time.just_now": "ahora",
+  "eval.time.minutes": "hace {n}m",
+  "eval.time.hours": "hace {n}h",
+  "eval.time.yesterday": "ayer",
+  "eval.time.days": "hace {n}d",
+
+  // ─── Evaluate dashboard (loaded state) ──────────────────────────
+  "eval.dashboard.eyebrow": "Artista · Dossier de prospecto",
+  "eval.dashboard.continue_in_chat": "Continuar en chat sobre {artist} →",
+  "eval.dashboard.compare": "Comparar con otro artista",
+  "eval.dashboard.confidence_prefix": "confianza",
+  "eval.dashboard.data_complete_suffix": "completos",
+  "eval.dashboard.data_complete_label": "datos",
+  // Section headers
+  "eval.dashboard.reach": "Alcance",
+  "eval.dashboard.revenue": "Proyección de ingresos",
+  "eval.dashboard.scoring": "Puntuación · 7 dimensiones",
+  "eval.dashboard.markets": "Mercados principales",
+  "eval.dashboard.milestones": "Hitos de carrera",
+  "eval.dashboard.catalog": "Catálogo",
+  "eval.dashboard.similar": "Artistas similares",
+  "eval.dashboard.risks": "Señales de riesgo",
+  "eval.dashboard.recommendation": "Recomendación",
+  // Reach stat labels
+  "eval.dashboard.reach.spotify_monthly": "Spotify mensual",
+  "eval.dashboard.reach.youtube_subs": "Subs YouTube",
+  "eval.dashboard.reach.youtube_total_views": "{n} vistas totales",
+  "eval.dashboard.reach.instagram": "Instagram",
+  "eval.dashboard.reach.tiktok": "TikTok",
+  "eval.dashboard.reach.followers_suffix": "seguidores",
+  "eval.dashboard.reach.likes_suffix": "likes totales",
+  "eval.dashboard.reach.engagement_suffix": "engagement",
+  "eval.dashboard.reach.no_data": "sin datos",
+  "eval.dashboard.reach.spotify_pop": "Popularidad Spotify",
+  "eval.dashboard.reach.cpp": "Chartmetric CPP",
+  // Revenue stat labels
+  "eval.dashboard.revenue.annual_gross": "Bruto anual (BRUTO)",
+  "eval.dashboard.revenue.range": "Rango {lo} – {hi} · todas las plataformas",
+  "eval.dashboard.revenue.distributor_cut": "Comisión del distribuidor si firma (~26%)",
+  "eval.dashboard.revenue.artist_payout": "Pago al artista (~74%): {amount}",
+  "eval.dashboard.revenue.per_platform_title": "Desglose por plataforma (bruto anual)",
+  // Scoring column headers + legend
+  "eval.dashboard.scoring.col.dimension": "Dimensión",
+  "eval.dashboard.scoring.col.score": "Puntaje",
+  "eval.dashboard.scoring.col.confidence": "Confianza",
+  "eval.dashboard.scoring.col.weight": "Peso",
+  "eval.dashboard.scoring.legend.score": "Puntaje",
+  "eval.dashboard.scoring.legend.score_desc": "0–100 por dimensión, mezclado en el total según el Peso.",
+  "eval.dashboard.scoring.legend.confidence": "Confianza",
+  "eval.dashboard.scoring.legend.confidence_desc": "qué tan completos están los datos para esa dimensión.",
+  "eval.dashboard.scoring.legend.weight": "Peso",
+  "eval.dashboard.scoring.legend.weight_desc": "porción del puntaje total que aporta esta dimensión (suman 100%).",
+  "eval.dashboard.scoring.click_hint": "Haz clic en cualquier fila para ver el racional.",
+  // Markets
+  "eval.dashboard.markets.col.listeners": "Oyentes",
+  "eval.dashboard.markets.col.delta": "Δ 90 días",
+  "eval.dashboard.markets.legend": "Las barras están dimensionadas relativas al mercado principal de este artista — muestran share del país, no share poblacional.",
+  // Milestones
+  "eval.dashboard.milestones.empty": "—",
+  // Catalog
+  "eval.dashboard.catalog.summary": "{r6} lanzamientos · últimos 6 meses · {r12} en los últimos 12 meses · {total} tracks en total",
+  "eval.dashboard.catalog.editorial_suffix": "playlists editoriales",
+  "eval.dashboard.catalog.latest_releases": "Últimos lanzamientos",
+  // Similar
+  "eval.dashboard.similar.evaluate_btn": "Evaluar →",
+  // Recommendation prose (mirrors backend tier strings)
+  "eval.dashboard.reco.buy": "Contacto activo. Perfil líder en este nivel — moverlo al pipeline de PROSPECT.",
+  "eval.dashboard.reco.prospect": "Agendar un análisis profundo esta semana. Señales fuertes, esperando confirmación de momentum.",
+  "eval.dashboard.reco.watch": "Revisar cada trimestre. En espera — las señales aún no son lo suficientemente fuertes para perseguir.",
+  "eval.dashboard.reco.pass": "Descartar. No encaja con los criterios actuales.",
+  "eval.dashboard.reco.default": "Revisar en el próximo ciclo.",
+  "eval.dashboard.reco.locked_suffix": " Actualmente firmado con {label}; no hay ventana de firma a menos que cambie el estado del contrato.",
+  // Source footers
+  "eval.dashboard.source.reach": "Fuente: Chartmetric (agregado de Spotify, YouTube, Instagram, TikTok, Shazam, Deezer, SoundCloud)",
+  "eval.dashboard.source.revenue": "Fuente: modelo de ingresos · streams × tarifas RPM por plataforma · ver {file}",
+  "eval.dashboard.source.scoring": "Fuente: perfil de scoring {profile} · pesos y definiciones de dimensiones de {file}",
+  "eval.dashboard.source.markets": "Fuente: Chartmetric · oyentes mensuales de Spotify por país",
+  "eval.dashboard.source.milestones": "Fuente: Chartmetric · eventos por plataforma (adds editoriales de Spotify, hitos de vistas en YouTube, entradas a charts)",
+  "eval.dashboard.source.catalog": "Fuente: catálogo de Chartmetric · fechas de lanzamiento e ISRCs de los titulares vía DSPs",
+  "eval.dashboard.source.similar": "Fuente: “artistas relacionados” de Chartmetric · solapamiento de audiencia + grafo de colaboraciones (planeado: ponderación más estricta por género en v0.3.2)",
+  "eval.dashboard.source.risks": "Fuente: heurísticas basadas en reglas sobre datos de streaming y engagement de Chartmetric",
+
+  // ─── Settings page ──────────────────────────────────────────────
+  "settings.title": "Configuración",
+  "settings.subtitle": "Preferencias, persona e historial de razonamiento.",
+  "settings.language.title": "Idioma",
+  "settings.language.hint": "Cambia la interfaz y las respuestas del asistente. Aplica en el próximo mensaje del chat — no requiere reinicio.",
+  "settings.language.en": "English",
+  "settings.language.es": "Español",
+  "settings.persona.title": "Persona de FaroAI",
+  "settings.persona.hint": "FAROAI.md en la raíz del proyecto. Se carga en cada chat como el system prompt.",
+  "settings.persona.save": "Guardar",
+  "settings.persona.saving": "Guardando…",
+  "settings.persona.saved": "Guardado. Aplica en el próximo mensaje del chat.",
+  "settings.persona.loading": "Cargando…",
+  "settings.runs.title": "Razonamiento reciente",
+  "settings.runs.hint": "Cómo razonó FaroAI en chats anteriores. Haz clic en un run para expandir sus bloques de razonamiento (visibles sólo cuando extended thinking estaba activado).",
+  "settings.runs.empty": "Aún no hay runs. Envía un chat desde la página de FaroAI primero.",
+  "settings.runs.no_reasoning": "No hay razonamiento registrado — extended thinking estaba apagado en este run.",
+  "settings.runs.response_chars": "Respuesta ({n} caracteres)",
+  "settings.runs.reasoning_blocks_one": "Razonamiento ({n} bloque)",
+  "settings.runs.reasoning_blocks_many": "Razonamiento ({n} bloques)",
+
+  // ─── Connections page ───────────────────────────────────────────
+  "connections.title": "Conexiones",
+  "connections.subtitle": "APIs externas que usa el dashboard. Haz clic en una fila para ver o editar sus credenciales.",
+  "connections.recheck": "Re-chequear",
+  "connections.checking": "Chequeando…",
+  "connections.status.connected": "Conectado",
+  "connections.status.not_configured": "Sin configurar",
+  "connections.status.auth_failed": "Falló la autenticación",
+  "connections.status.subscription_required": "Requiere suscripción",
+  "connections.status.network_error": "Error de red",
+  "connections.status.unknown": "Desconocido",
+
+  // ─── Files page ─────────────────────────────────────────────────
+  "files.title": "Archivos",
+  "files.subtitle": "YAMLs de calibración, cache de Chartmetric por artista y datasets internos de FaroLatino.",
+  "files.tab.calibration": "Calibración",
+  "files.tab.cached": "Artistas en cache",
+  "files.tab.internal": "Datos internos",
+  "files.tag.editable": "editable",
+  "files.tag.readonly": "sólo lectura",
+
+  // ─── Skills page ────────────────────────────────────────────────
+  "skills.title": "Skills",
+  "skills.tag.edited": "editado",
+  "skills.tag.updated": "actualizado",
+  "skills.tag.default": "por defecto",
+  "skills.add": "Agregar skill",
+  "skills.save": "Guardar",
+  "skills.delete": "Eliminar",
+
+  // ─── Compare stub ───────────────────────────────────────────────
+  "compare.eyebrow": "Comparar",
+  "compare.coming_soon": "Página de comparación — disponible en v0.3.2",
+  "compare.body_with_primary": "Llevando a {artist} como primer artista. El flujo completo de comparación (dos campos de texto, gráficos lado a lado de alcance, ingresos, momentum y puntuación) se está construyendo a continuación.",
+  "compare.body_no_primary": "El flujo completo de comparación (dos campos de texto, gráficos lado a lado) se está construyendo a continuación.",
+  "compare.back_to_artist": "← Volver al dossier de {artist}",
+  "compare.back_to_evaluate": "← Volver a Evaluar",
+
+  // ─── Onboarding wizard ──────────────────────────────────────────
+  "onboarding.title": "Bienvenido a FaroAI",
+  "onboarding.subtitle": "Pega tus API keys para empezar. Todas las keys se guardan localmente en tu equipo — nunca salen de tu computadora.",
+  "onboarding.skip_confirm": "¿Saltar la configuración?\n\nFaroAI necesita una API key para chatear. Puedes agregarla después en Conexiones, pero el chat no funcionará hasta entonces.",
+  "onboarding.detected": "Detectado: {provider}",
+  "onboarding.required": "Requerido",
+  "onboarding.recommended": "Recomendado",
+  "onboarding.section.llm": "Modelo de IA",
+  "onboarding.section.chartmetric": "Chartmetric",
+  "onboarding.skip": "Saltar por ahora",
+  "onboarding.continue": "Continuar",
+};
+
+export const messages: Record<Language, Catalog> = { en, es };
+
+/** Look up a key with fallback to English on miss; substitute {placeholders}. */
+export function tFor(
+  lang: Language,
+  key: string,
+  vars?: Record<string, string | number>,
+): string {
+  const tbl = messages[lang] ?? messages[DEFAULT_LANGUAGE];
+  let msg = tbl[key];
+  if (!msg) msg = messages[DEFAULT_LANGUAGE][key];
+  if (!msg) return `⟦missing:${key}⟧`;
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      msg = msg.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+    }
+  }
+  return msg;
+}

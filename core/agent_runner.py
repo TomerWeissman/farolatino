@@ -131,9 +131,20 @@ def _load_persona() -> str:
     shipped update) > bundled FAROAI.md. Returns "" silently if no
     layer has it (the runner falls back to whatever the LLM thinks
     FaroAI is from the prompt alone).
+
+    When ``preferences.language == "es"`` we try the parallel Spanish
+    layer first (``persona.es.md`` / ``FAROAI.es.md``) and only fall
+    back to the English persona if Spanish is missing — that keeps
+    chat replies in the chosen language.
     """
     from core import overlay
-    found = overlay.resolve_file("persona")
+    from core.preferences import get_language
+    lang = get_language()
+    found = None
+    if lang == "es":
+        found = overlay.resolve_file("persona_es")
+    if found is None:
+        found = overlay.resolve_file("persona")
     if found is None:
         return ""
     try:
@@ -514,8 +525,11 @@ def _handle_evaluate(arg: str, on_event) -> Iterator[str]:
             artist_data = {}
 
     try:
+        from core.preferences import get_language
         from mcp_server.tools.dossier_renderer import render_dossier
-        markdown = render_dossier(result["dossier"], artist_data or {})
+        markdown = render_dossier(
+            result["dossier"], artist_data or {}, lang=get_language(),
+        )
     except Exception as exc:
         log.exception("dossier render failed")
         yield f"⚠️ Renderer error: {exc}"
@@ -561,8 +575,9 @@ def _handle_similar(arg: str, on_event) -> Iterator[str]:
         return
 
     try:
+        from core.preferences import get_language
         from mcp_server.tools.dossier_renderer import render_similar
-        markdown = render_similar(result)
+        markdown = render_similar(result, lang=get_language())
     except Exception as exc:
         log.exception("similar render failed")
         yield f"⚠️ Renderer error: {exc}"

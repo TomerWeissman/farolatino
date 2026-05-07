@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationStreamsProvider } from "@/lib/streams";
+import { I18nProvider } from "@/lib/i18n/context";
 
 // Use the bundled Geist fonts that create-next-app shipped — no Google
 // runtime fetch (would break offline / static-export end-users).
@@ -30,12 +31,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        <ConversationStreamsProvider>
-          <div className="app-shell">
-            <Sidebar />
-            <main className="main-col">{children}</main>
-          </div>
-        </ConversationStreamsProvider>
+        <I18nProvider>
+          <ConversationStreamsProvider>
+            <div className="app-shell">
+              <Sidebar />
+              <main className="main-col">{children}</main>
+            </div>
+          </ConversationStreamsProvider>
+        </I18nProvider>
       </body>
     </html>
   );
