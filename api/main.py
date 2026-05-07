@@ -30,7 +30,7 @@ from core.paths import load_credentials, resource_path  # noqa: E402
 
 load_credentials()
 
-from api.routes import chat, connections, env, files, health, persona, runs, skills, updates  # noqa: E402
+from api.routes import chat, connections, env, files, health, onboarding, persona, runs, skills, updates  # noqa: E402
 
 app = FastAPI(
     title="FaroAI",
@@ -67,6 +67,7 @@ app.include_router(files.router, prefix="/api", tags=["files"])
 app.include_router(connections.router, prefix="/api", tags=["meta"])
 app.include_router(env.router, prefix="/api", tags=["meta"])
 app.include_router(updates.router, prefix="/api", tags=["meta"])
+app.include_router(onboarding.router, prefix="/api", tags=["meta"])
 
 
 # Static SPA mount. Only attached if `web/out/` exists, so a fresh clone

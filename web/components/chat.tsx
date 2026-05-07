@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AlertCircle, ArrowRight } from "lucide-react";
 
 import { fetchSkills } from "@/lib/api";
 import type { SkillSummary, Turn } from "@/lib/types";
@@ -29,12 +31,60 @@ import {
   CommandList,
 } from "@/components/ui/command";
 
+// Onboarding redirect + reminder banner state. We pull the keys
+// status on mount: if no LLM key AND the user hasn't explicitly
+// skipped the wizard, push them to /onboarding. If they skipped or
+// have keys missing for non-blocking services (Chartmetric), show a
+// soft reminder above the chat.
+type OnboardingState = {
+  needs_onboarding: boolean;
+  has_llm_key: boolean;
+  has_chartmetric: boolean;
+};
+
+const SKIP_KEY = "faroai-onboarding-skipped";
+
+function useOnboardingGate(): OnboardingState | null {
+  const router = useRouter();
+  const [state, setState] = useState<OnboardingState | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/onboarding/status", { cache: "no-store" });
+        if (!r.ok) return;
+        const s: OnboardingState = await r.json();
+        if (cancelled) return;
+        setState(s);
+        // Redirect to wizard ONLY if:
+        //   - no LLM key (chat literally can't work), AND
+        //   - user hasn't explicitly skipped (in which case we
+        //     respect their choice and just show the reminder banner).
+        if (s.needs_onboarding && !localStorage.getItem(SKIP_KEY)) {
+          router.push("/onboarding");
+        }
+      } catch {
+        // Backend down — don't redirect, just let the chat fail
+        // with the existing structured error banner.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  return state;
+}
+
+
 export function Chat() {
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [draft, setDraft] = useState("");
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [historyTick, setHistoryTick] = useState(0); // bumps when conversation turns change
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const onboarding = useOnboardingGate();
 
   // The streams provider owns all in-flight stream state. It survives
   // navigation between routes and supports multiple parallel streams
@@ -134,6 +184,29 @@ export function Chat() {
 
   return (
     <div className="chat-shell">
+      {/* Onboarding reminder banners. Only shown when the user has
+          explicitly skipped onboarding (or has partial keys) — the
+          gate hook would have redirected them to /onboarding
+          otherwise. */}
+      {onboarding && !onboarding.has_llm_key && (
+        <OnboardingReminderBanner
+          tone="error"
+          title="No AI Model key set — chat won't work yet"
+          message="Paste an Anthropic, OpenAI, or Gemini API key to start chatting."
+          ctaLabel="Set up keys →"
+          ctaHref="/onboarding"
+        />
+      )}
+      {onboarding && onboarding.has_llm_key && !onboarding.has_chartmetric && (
+        <OnboardingReminderBanner
+          tone="warn"
+          title="Chartmetric not connected"
+          message="Free-form chat works, but @evaluate / @similar can't fetch real artist data without it."
+          ctaLabel="Add Chartmetric →"
+          ctaHref="/connections"
+        />
+      )}
+
       {history.length === 0 && !isStreaming && !isError ? (
         <div>
           <div className="empty-greet">How can I help?</div>
@@ -176,6 +249,61 @@ export function Chat() {
     </div>
   );
 }
+
+function OnboardingReminderBanner({
+  tone,
+  title,
+  message,
+  ctaLabel,
+  ctaHref,
+}: {
+  tone: "error" | "warn";
+  title: string;
+  message: string;
+  ctaLabel: string;
+  ctaHref: string;
+}) {
+  const palette = tone === "error"
+    ? { bg: "#fef2f2", border: "#fecaca", title: "#7f1d1d", body: "#991b1b" }
+    : { bg: "#fffbeb", border: "#fcd34d", title: "#78350f", body: "#92400e" };
+  return (
+    <div
+      style={{
+        background: palette.bg,
+        border: `1px solid ${palette.border}`,
+        borderRadius: 10,
+        padding: "12px 16px",
+        marginBottom: 16,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        flexWrap: "wrap",
+      }}
+    >
+      <AlertCircle size={18} color={palette.title} />
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ fontWeight: 600, color: palette.title, fontSize: 14 }}>{title}</div>
+        <div style={{ color: palette.body, fontSize: 13, marginTop: 2 }}>{message}</div>
+      </div>
+      <a
+        href={ctaHref}
+        style={{
+          color: palette.title,
+          fontWeight: 500,
+          textDecoration: "underline",
+          fontSize: 13,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {ctaLabel} <ArrowRight size={13} />
+      </a>
+    </div>
+  );
+}
+
 
 function AssistantMessage({ turn }: { turn: Turn }) {
   return (
