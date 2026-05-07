@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { evaluate } from "@/lib/api";
-import type { Dossier, EvaluateResponse, RecentEval } from "@/lib/types";
+import type { DisambigCandidate, Dossier, EvaluateResponse, RecentEval } from "@/lib/types";
 import {
   createConversation,
   saveConversation,
@@ -18,9 +18,9 @@ const RECENT_LIMIT = 5;
 type State =
   | { kind: "empty" }
   | { kind: "loading"; artist: string }
-  | { kind: "disambig"; query: string; candidates: Array<{ cm_id: number; name: string; country_code?: string; sp_followers?: number; sp_monthly_listeners?: number }> }
+  | { kind: "disambig"; query: string; candidates: DisambigCandidate[] }
   | { kind: "error"; message: string; artist: string }
-  | { kind: "loaded"; primary: LoadedDossier; secondary?: LoadedDossier };
+  | { kind: "loaded"; primary: LoadedDossier };
 
 // What we keep around per artist after a successful evaluation.
 type LoadedDossier = {
@@ -37,9 +37,6 @@ export function Evaluate() {
   const [state, setState] = useState<State>({ kind: "empty" });
   const [draft, setDraft] = useState("");
   const [recents, setRecents] = useState<RecentEval[]>([]);
-  // Compare-mode flag: when true, the second search bar is visible.
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [compareDraft, setCompareDraft] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Tracks whether we've already auto-run for the current ?artist= URL
   // so we don't re-trigger on every state change.
@@ -52,16 +49,14 @@ export function Evaluate() {
   }, []);
 
   /**
-   * Run /api/evaluate for a single artist. Handles the four response
+   * Run /api/evaluate for a single artist. Handles the three response
    * shapes: success → loaded; ambiguous → disambig; error → error.
-   * `slot` distinguishes the primary artist (default) from the
-   * comparison's second artist.
+   * Side-by-side compare was removed in v0.3.1 — comparison now lives
+   * on a dedicated /compare page (planned next).
    */
-  const run = useCallback(async (artist: string, cmId?: number, slot: "primary" | "secondary" = "primary") => {
+  const run = useCallback(async (artist: string, cmId?: number) => {
     if (!artist.trim()) return;
-    if (slot === "primary") {
-      setState({ kind: "loading", artist });
-    }
+    setState({ kind: "loading", artist });
     try {
       const r: EvaluateResponse = await evaluate(artist, cmId);
       if ("error" in r && r.error) {
@@ -79,20 +74,9 @@ export function Evaluate() {
           dossier: r.dossier,
           rendered_markdown: r.rendered_markdown,
         };
-        // Merge into current state; if we're adding a secondary,
-        // preserve the primary that's already loaded.
-        setState((cur) => {
-          if (slot === "secondary" && cur.kind === "loaded") {
-            return { ...cur, secondary: loaded };
-          }
-          return { kind: "loaded", primary: loaded };
-        });
-        // Track in recents (primary slot only — secondary is a
-        // throwaway compare).
-        if (slot === "primary") {
-          const updated = pushRecent({ name: loaded.artist, cm_id: loaded.cm_id, evaluated_at: Date.now() });
-          setRecents(updated);
-        }
+        setState({ kind: "loaded", primary: loaded });
+        const updated = pushRecent({ name: loaded.artist, cm_id: loaded.cm_id, evaluated_at: Date.now() });
+        setRecents(updated);
         return;
       }
       setState({ kind: "error", message: "Unexpected response shape", artist });
@@ -102,14 +86,18 @@ export function Evaluate() {
   }, []);
 
   // Auto-run when navigated to /evaluate?artist=Name (e.g. from a
-  // similar-artist card click). Only fires once per URL value so the
-  // user can edit + re-search without it bouncing back.
+  // similar-artist card click or a chat-pill click-back). Only fires
+  // once per URL value so the user can edit + re-search without it
+  // bouncing back. cm_id is honoured when present — lets pills jump
+  // straight to the cached dossier without re-searching.
   useEffect(() => {
     const queryArtist = searchParams.get("artist");
-    if (queryArtist && autoRanFor.current !== queryArtist) {
-      autoRanFor.current = queryArtist;
+    const queryCmId = searchParams.get("cm_id");
+    const key = queryCmId ? `${queryArtist}#${queryCmId}` : queryArtist;
+    if (queryArtist && autoRanFor.current !== key) {
+      autoRanFor.current = key;
       setDraft(queryArtist);
-      void run(queryArtist);
+      void run(queryArtist, queryCmId ? Number(queryCmId) : undefined);
     }
   }, [searchParams, run]);
 
@@ -133,11 +121,6 @@ export function Evaluate() {
     void run(draft.trim());
   };
 
-  const handleSubmitCompare = (e: React.FormEvent) => {
-    e.preventDefault();
-    void run(compareDraft.trim(), undefined, "secondary");
-  };
-
   const handlePickRecent = (r: RecentEval) => {
     setDraft(r.name);
     void run(r.name, r.cm_id);
@@ -149,43 +132,48 @@ export function Evaluate() {
   };
 
   /**
-   * Continue in chat — creates a new conversation seeded with the
-   * dossier as the first assistant turn, then navigates to /. The
-   * LLM gets the full dossier as context on the next turn via Phase 1's
-   * message-history replay. If we're in compare mode, both dossiers
-   * are concatenated so the LLM has both as context.
+   * Continue in chat — creates a new conversation with the dossier as
+   * a compact pill (clickable to return to /evaluate). The full
+   * Markdown is still in the turn's content so the LLM has the data
+   * as context via Phase 1's message-history replay; the UI just
+   * renders the pill on top of the markdown instead of dumping the
+   * whole dossier as a wall of text.
    */
   const handleContinueInChat = () => {
     if (state.kind !== "loaded") return;
-    const { primary, secondary } = state;
-    const title = secondary
-      ? `Evaluate: ${primary.artist} vs ${secondary.artist}`
-      : `Evaluate: ${primary.artist}`;
-    const conv = createConversation(title);
-    const userPrompt = secondary
-      ? `@evaluate ${primary.artist}  (then) @evaluate ${secondary.artist}`
-      : `@evaluate ${primary.artist}`;
-    const assistantContent = secondary
-      ? `${primary.rendered_markdown}\n\n---\n\n${secondary.rendered_markdown}`
-      : primary.rendered_markdown;
-    conv.turns.push({ role: "user", content: userPrompt });
-    conv.turns.push({ role: "assistant", content: assistantContent });
+    const { primary } = state;
+    const conv = createConversation(`Evaluate: ${primary.artist}`);
+    conv.turns.push({ role: "user", content: `@evaluate ${primary.artist}` });
+    conv.turns.push({
+      role: "assistant",
+      content: primary.rendered_markdown,  // LLM context — hidden from chat UI when pill is set
+      evaluatePill: {
+        artist: primary.artist,
+        cm_id: primary.cm_id,
+        image: primary.dossier.identity.image ?? undefined,
+        tier: primary.dossier.prospect_score.tier,
+        score: primary.dossier.prospect_score.overall,
+      },
+    });
     saveConversation(conv);
     setActiveConversationId(conv.id);
     router.push("/");
   };
 
-  const resetCompare = () => {
-    setCompareOpen(false);
-    setCompareDraft("");
-    setState((cur) => (cur.kind === "loaded" ? { kind: "loaded", primary: cur.primary } : cur));
+  /**
+   * Compare button → navigate to /compare with the current artist
+   * preloaded as the primary slot. The compare page does the rest;
+   * see plan for v0.3.2.
+   */
+  const handleCompare = () => {
+    if (state.kind !== "loaded") return;
+    const { primary } = state;
+    router.push(`/compare?primary=${encodeURIComponent(primary.artist)}&primary_cm_id=${primary.cm_id}`);
   };
 
   const startOver = () => {
     setState({ kind: "empty" });
     setDraft("");
-    setCompareOpen(false);
-    setCompareDraft("");
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
@@ -235,34 +223,11 @@ export function Evaluate() {
         <ErrorState message={state.message} artist={state.artist} onRetry={() => run(state.artist)} />
       )}
       {state.kind === "loaded" && (
-        <>
-          {/* Compare-mode second-artist input slides in above the dashboards */}
-          {compareOpen && !state.secondary && (
-            <form onSubmit={handleSubmitCompare} className="evaluate-compare-bar">
-              <span className="evaluate-compare-label">Compare with</span>
-              <input
-                type="text"
-                value={compareDraft}
-                onChange={(e) => setCompareDraft(e.target.value)}
-                placeholder="Second artist name…"
-                className="evaluate-input"
-                autoFocus
-              />
-              <button type="submit" className="evaluate-btn evaluate-btn-primary" disabled={!compareDraft.trim()}>
-                Add
-              </button>
-              <button type="button" onClick={resetCompare} className="evaluate-btn-link">Cancel</button>
-            </form>
-          )}
-
-          <EvaluateDashboard
-            primary={state.primary}
-            secondary={state.secondary}
-            onContinueInChat={handleContinueInChat}
-            onCompareToggle={() => setCompareOpen(true)}
-            onResetCompare={resetCompare}
-          />
-        </>
+        <EvaluateDashboard
+          primary={state.primary}
+          onContinueInChat={handleContinueInChat}
+          onCompare={handleCompare}
+        />
       )}
     </div>
   );
@@ -305,9 +270,24 @@ function EmptyState({
 
 
 function LoadingState({ artist }: { artist: string }) {
+  // Tracks how long this load has been running so the user can see
+  // something is still happening on a slow first lookup. Resets when
+  // the artist changes (LoadingState remounts).
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div className="evaluate-loading">
-      <div className="evaluate-loading-title">Evaluating {artist}</div>
+      <div className="evaluate-loading-head">
+        <span className="evaluate-spinner" aria-hidden="true" />
+        <div className="evaluate-loading-title">
+          Evaluating {artist}
+          {elapsed >= 3 && <span className="evaluate-loading-elapsed"> · {elapsed}s</span>}
+        </div>
+      </div>
       <div className="evaluate-loading-steps">
         <div>· Looking up on Chartmetric…</div>
         <div>· Pulling streaming + social + catalog data</div>
@@ -327,7 +307,7 @@ function DisambigState({
   onPick,
 }: {
   query: string;
-  candidates: Array<{ cm_id: number; name: string; country_code?: string; sp_followers?: number; sp_monthly_listeners?: number }>;
+  candidates: DisambigCandidate[];
   onPick: (cmId: number, name: string) => void;
 }) {
   return (
@@ -337,12 +317,40 @@ function DisambigState({
       {candidates.map((c) => {
         const listeners = c.sp_monthly_listeners ?? c.sp_followers ?? 0;
         const listenersLbl = c.sp_monthly_listeners ? "monthly listeners" : "Spotify followers";
+        // Chartmetric search returns code2; the API can also surface
+        // a country_code field on other endpoints. Either works.
+        const country = c.country_code ?? c.code2 ?? "—";
+        const initials = c.name
+          .split(" ")
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((s) => s[0]?.toUpperCase() ?? "")
+          .join("") || "?";
         return (
           <button key={c.cm_id} type="button" className="evaluate-disambig-row" onClick={() => onPick(c.cm_id, c.name)}>
-            <span className="evaluate-disambig-name">{c.name}</span>
-            <span className="evaluate-disambig-meta">
-              {c.country_code ?? "—"} · {listeners ? `${formatInt(listeners)} ${listenersLbl}` : "no streaming data"}
-            </span>
+            {c.image_url ? (
+              <img
+                src={c.image_url}
+                alt={c.name}
+                className="evaluate-disambig-photo"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  const fallback = document.createElement("div");
+                  fallback.className = "evaluate-disambig-photo evaluate-disambig-photo-fallback";
+                  fallback.textContent = initials;
+                  target.replaceWith(fallback);
+                }}
+              />
+            ) : (
+              <div className="evaluate-disambig-photo evaluate-disambig-photo-fallback">{initials}</div>
+            )}
+            <div className="evaluate-disambig-text">
+              <span className="evaluate-disambig-name">{c.name}</span>
+              <span className="evaluate-disambig-meta">
+                {country} · {listeners ? `${formatInt(listeners)} ${listenersLbl}` : "no streaming data"}
+                {c.genres && c.genres.length > 0 && ` · ${c.genres.slice(0, 2).join(", ")}`}
+              </span>
+            </div>
           </button>
         );
       })}

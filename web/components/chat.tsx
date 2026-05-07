@@ -311,11 +311,55 @@ function AssistantMessage({ turn }: { turn: Turn }) {
       {turn.thinking && turn.thinking.length > 0 && (
         <ReasoningPanel blocks={turn.thinking} />
       )}
-      {turn.content ? (
+      {/* When the dashboard handed off into chat, render a compact pill
+          instead of dumping the full Markdown dossier. The Markdown is
+          still in turn.content so the LLM sees the dossier as context
+          on the next turn — we just hide it from the UI. */}
+      {turn.evaluatePill ? (
+        <EvaluatePillCard pill={turn.evaluatePill} />
+      ) : turn.content ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
       ) : null}
       {turn.error && <ErrorBanner error={turn.error} />}
     </div>
+  );
+}
+
+function EvaluatePillCard({ pill }: { pill: NonNullable<Turn["evaluatePill"]> }) {
+  const router = useRouter();
+  const initials = pill.artist
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+  return (
+    <button
+      type="button"
+      className="chat-eval-pill"
+      onClick={() => {
+        // Send back to /evaluate with both name + cm_id so it skips
+        // the search step and re-renders straight from cache.
+        const params = new URLSearchParams({ artist: pill.artist });
+        if (pill.cm_id) params.set("cm_id", String(pill.cm_id));
+        router.push(`/evaluate?${params.toString()}`);
+      }}
+      title="Open dossier"
+    >
+      {pill.image ? (
+        <img src={pill.image} alt={pill.artist} className="chat-eval-pill-photo" />
+      ) : (
+        <div className="chat-eval-pill-photo chat-eval-pill-photo-fallback">{initials}</div>
+      )}
+      <div className="chat-eval-pill-body">
+        <div className="chat-eval-pill-name">{pill.artist}</div>
+        <div className="chat-eval-pill-meta">
+          {pill.score != null && <span className="chat-eval-pill-score">{Math.round(pill.score)}/100</span>}
+          {pill.tier && <span className="chat-eval-pill-tier">{pill.tier}</span>}
+          <span className="chat-eval-pill-link">Open dossier <ArrowRight size={12} /></span>
+        </div>
+      </div>
+    </button>
   );
 }
 

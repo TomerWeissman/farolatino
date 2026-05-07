@@ -1160,14 +1160,38 @@ button.sidebar-link {
 .evaluate-recents-time { font-size: 12px; color: #999; }
 .evaluate-recents-clear { margin-top: 16px; }
 
-/* Loading state — text-only, no spinners. */
+/* Loading state — minimal but with a small spinner so the user can
+   see it's still alive on a 30-second cold lookup. */
 .evaluate-loading { padding: 32px 0; }
+.evaluate-loading-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
 .evaluate-loading-title {
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 11px;
   color: #999;
-  margin-bottom: 16px;
+}
+.evaluate-loading-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: #999;
+  margin-left: 4px;
+  letter-spacing: normal;
+}
+.evaluate-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #e5e5e0;
+  border-top-color: #d97706;
+  animation: evaluate-spin 0.9s linear infinite;
+  display: inline-block;
+}
+@keyframes evaluate-spin {
+  to { transform: rotate(360deg); }
 }
 .evaluate-loading-steps {
   font-size: 14px;
@@ -1189,10 +1213,10 @@ button.sidebar-link {
 .evaluate-disambig-hint { font-size: 14px; color: #666; margin-bottom: 16px; }
 .evaluate-disambig-row {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  gap: 14px;
   width: 100%;
-  padding: 16px 0;
+  padding: 14px 0;
   border-top: 1px solid #f0f0eb;
   background: none;
   border-left: none; border-right: none; border-bottom: none;
@@ -1203,6 +1227,30 @@ button.sidebar-link {
 }
 .evaluate-disambig-row:last-of-type { border-bottom: 1px solid #f0f0eb; }
 .evaluate-disambig-row:hover .evaluate-disambig-name { color: #d97706; }
+.evaluate-disambig-photo {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: #ececea;
+  display: block;
+}
+.evaluate-disambig-photo-fallback {
+  background: #1a1a1a;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 16px/1 Georgia, serif;
+  letter-spacing: 0.04em;
+}
+.evaluate-disambig-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
 .evaluate-disambig-name { font-size: 16px; font-weight: 500; }
 .evaluate-disambig-meta { font-size: 13px; color: #666; }
 
@@ -1570,6 +1618,131 @@ button.sidebar-link {
   line-height: 1.55;
   color: #333;
 }
+
+/* Column-header row inside a section — same grid as data rows but
+   labels-only, no bar/values. Reuses .ev-row sizing and just restyles
+   the cells. */
+.ev-row-headers {
+  border-bottom: 1px solid #e5e5e0;
+  padding-bottom: 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #aaa;
+  cursor: default;
+}
+.ev-row-headers .ev-row-label,
+.ev-row-headers .ev-num-mono {
+  color: #aaa;
+  font-weight: 400;
+}
+.ev-row-headers:hover .ev-row-label { color: #aaa !important; }
+
+/* Per-section legend — explains scoring/markets terms inline. */
+.ev-legend {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.6;
+}
+.ev-legend strong { color: #1a1a1a; font-weight: 500; }
+
+/* "Source: …" footer per section. Tiny, italic, low-contrast — meant
+   to anchor each block to where the data came from without drawing
+   attention away from the data itself. */
+.ev-source {
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e5e0;
+  font-size: 11px;
+  color: #999;
+  font-style: italic;
+}
+.ev-source code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, monospace;
+  font-size: 11px;
+  background: #f5f3ed;
+  padding: 1px 4px;
+  border-radius: 0;
+  color: #666;
+}
+
+/* Chat: compact dossier pill — replaces the dumped Markdown when a
+   turn was created via /evaluate's "Continue in chat" handoff. Click
+   anywhere on the pill to jump back to the dashboard. */
+.chat-eval-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 8px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  border-radius: 999px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  margin: 6px 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-eval-pill:hover {
+  border-color: #1a1a1a;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+.chat-eval-pill-photo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #ececea;
+  flex-shrink: 0;
+  display: block;
+}
+.chat-eval-pill-photo-fallback {
+  background: #1a1a1a;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 13px/1 Georgia, serif;
+  letter-spacing: 0.04em;
+}
+.chat-eval-pill-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.chat-eval-pill-name {
+  font: 500 14px/1.2 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #1a1a1a;
+}
+.chat-eval-pill-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 11px;
+  color: #999;
+  letter-spacing: 0.04em;
+}
+.chat-eval-pill-score {
+  font-variant-numeric: tabular-nums;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+.chat-eval-pill-tier {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #d97706;
+  font-weight: 500;
+}
+.chat-eval-pill-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #999;
+}
+.chat-eval-pill:hover .chat-eval-pill-link { color: #1a1a1a; }
 
 /* Compact responsive — collapse 4-col reach to 2-col on narrow window. */
 @media (max-width: 720px) {

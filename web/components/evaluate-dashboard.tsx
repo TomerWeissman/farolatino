@@ -24,38 +24,24 @@ const TIER_COLOR: Record<string, string> = {
 
 export function EvaluateDashboard({
   primary,
-  secondary,
   onContinueInChat,
-  onCompareToggle,
-  onResetCompare,
+  onCompare,
 }: {
   primary: LoadedDossier;
-  secondary?: LoadedDossier;
   onContinueInChat: () => void;
-  onCompareToggle: () => void;
-  onResetCompare: () => void;
+  onCompare: () => void;
 }) {
-  const isCompare = !!secondary;
-
   return (
-    <div className={isCompare ? "evaluate-dashboard evaluate-dashboard-compare" : "evaluate-dashboard"}>
+    <div className="evaluate-dashboard">
       <ArtistColumn data={primary} />
-      {isCompare && secondary && <ArtistColumn data={secondary} />}
 
       <div className="evaluate-cta-row">
         <button type="button" className="evaluate-btn evaluate-btn-primary" onClick={onContinueInChat}>
-          Continue in chat about {isCompare ? `${primary.artist} & ${secondary?.artist}` : primary.artist} →
+          Continue in chat about {primary.artist} →
         </button>
-        {!isCompare && (
-          <button type="button" className="evaluate-btn evaluate-btn-secondary" onClick={onCompareToggle}>
-            Compare to another artist
-          </button>
-        )}
-        {isCompare && (
-          <button type="button" className="evaluate-btn evaluate-btn-secondary" onClick={onResetCompare}>
-            Drop comparison
-          </button>
-        )}
+        <button type="button" className="evaluate-btn evaluate-btn-secondary" onClick={onCompare}>
+          Compare to another artist
+        </button>
       </div>
     </div>
   );
@@ -73,9 +59,13 @@ function ArtistColumn({ data }: { data: LoadedDossier }) {
   return (
     <article className="evaluate-column">
       <Hero data={data} accent={accent} />
+      {/* Scoring distribution comes first — the user wants to see WHY
+          the overall score landed where it did before the supporting
+          metrics. Reach / Revenue / Markets are the evidence behind
+          each dimension, not the headline. */}
+      <Scoring score={dossier.prospect_score} />
       <Reach metrics={dossier.metrics} />
       <Revenue revenue={dossier.revenue_projection} />
-      <Scoring score={dossier.prospect_score} />
       <Markets markets={dossier.geographic_profile?.top_markets} />
       <Milestones milestones={dossier.career_trajectory?.milestones} />
       <Catalog catalog={dossier.catalog} urls={dossier.identity.urls} />
@@ -225,6 +215,7 @@ function Reach({ metrics }: { metrics: Dossier["metrics"] }) {
           {cpp != null && <span>Chartmetric CPP <strong>{cpp.toFixed(2)}</strong></span>}
         </div>
       )}
+      <div className="ev-source">Source: Chartmetric (aggregated from Spotify, YouTube, Instagram, TikTok, Shazam, Deezer, SoundCloud)</div>
     </section>
   );
 }
@@ -270,6 +261,7 @@ function Revenue({ revenue }: { revenue: Dossier["revenue_projection"] }) {
           })}
         </>
       )}
+      <div className="ev-source">Source: revenue model · streams × per-platform RPM rates · see <code>mcp_server/tools/revenue_model.py</code></div>
     </section>
   );
 }
@@ -286,6 +278,17 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
   return (
     <section className="ev-section">
       <h2 className="ev-h2">Scoring · 7 dimensions</h2>
+      {/* Column headers — without these, the trailing "85%" / "20%"
+          numbers each row ends with read as random noise. Spelling
+          "Confidence" and "Weight" out costs one line and removes a
+          chunk of cognitive load. */}
+      <div className="ev-row ev-row-headers" aria-hidden="true">
+        <div className="ev-row-label">Dimension</div>
+        <div />
+        <div className="ev-num-mono">Score</div>
+        <div className="ev-num-mono">Confidence</div>
+        <div className="ev-num-mono">Weight</div>
+      </div>
       {rows.map(([name, d]) => {
         const label = name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
         const cls = d.score >= 80 ? "" : d.score >= 50 ? "warn" : "bad";
@@ -301,8 +304,8 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
               <div className="ev-row-label">{label}</div>
               <div className="ev-bar"><span className={cls} style={{ width: `${Math.min(100, d.score)}%` }} /></div>
               <div className="ev-num-mono ev-score-num">{Math.round(d.score)}</div>
-              <div className="ev-num-mono ev-conf-num">conf {Math.round((d.confidence ?? 0) * 100)}%</div>
-              <div className="ev-num-mono ev-weight-num">w {Math.round((d.weight ?? 0) * 100)}%</div>
+              <div className="ev-num-mono ev-conf-num">{Math.round((d.confidence ?? 0) * 100)}%</div>
+              <div className="ev-num-mono ev-weight-num">{Math.round((d.weight ?? 0) * 100)}%</div>
             </button>
             {isOpen && d.rationale && (
               <div className="ev-rationale">{d.rationale}</div>
@@ -310,7 +313,13 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
           </div>
         );
       })}
+      <div className="ev-legend">
+        <strong>Score</strong> — 0–100 per dimension, blended into the overall by Weight.{" "}
+        <strong>Confidence</strong> — how complete the data is for that dimension.{" "}
+        <strong>Weight</strong> — share of the overall score this dimension contributes (sums to 100%).
+      </div>
       <div className="ev-help">Click any row to see the rationale.</div>
+      <div className="ev-source">Source: scoring profile <code>default</code> · weights and dimension definitions from <code>config/profiles.yaml</code></div>
     </section>
   );
 }
@@ -322,6 +331,13 @@ function Markets({ markets }: { markets?: Dossier["geographic_profile"] extends 
   return (
     <section className="ev-section">
       <h2 className="ev-h2">Top markets</h2>
+      <div className="ev-row ev-market-row ev-row-headers" aria-hidden="true">
+        <span />
+        <div />
+        <div />
+        <div className="ev-num-mono">Listeners</div>
+        <div className="ev-num-mono">90-day Δ</div>
+      </div>
       <div className="ev-markets">
         {markets.slice(0, 6).map((m, i) => {
           const cc = m.country_code ?? m.country ?? "—";
@@ -339,6 +355,10 @@ function Markets({ markets }: { markets?: Dossier["geographic_profile"] extends 
           );
         })}
       </div>
+      <div className="ev-legend">
+        Bars are sized relative to this artist&apos;s top market — they show country share, not population share.
+      </div>
+      <div className="ev-source">Source: Chartmetric · Spotify monthly listeners by country</div>
     </section>
   );
 }
@@ -358,6 +378,7 @@ function Milestones({ milestones }: { milestones?: Array<{ text: string; date?: 
           </div>
         ))}
       </div>
+      <div className="ev-source">Source: Chartmetric · platform-tagged events (Spotify editorial adds, YouTube views milestones, chart entries)</div>
     </section>
   );
 }
@@ -404,6 +425,7 @@ function Catalog({
           })}
         </>
       )}
+      <div className="ev-source">Source: Chartmetric catalog · release dates and ISRCs from rights holders via DSPs</div>
     </section>
   );
 }
@@ -446,6 +468,9 @@ function Similar({ similar }: { similar?: Dossier["competitive_context"] extends
           );
         })}
       </div>
+      <div className="ev-source">
+        Source: Chartmetric &ldquo;related artists&rdquo; · audience overlap + collab graph (planned: tighter genre weighting in v0.3.2)
+      </div>
     </section>
   );
 }
@@ -464,6 +489,7 @@ function Risks({ risks }: { risks?: Record<string, string> }) {
           <strong>{k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}</strong> — {v}
         </div>
       ))}
+      <div className="ev-source">Source: rule-based heuristics over Chartmetric streaming and engagement data</div>
     </section>
   );
 }

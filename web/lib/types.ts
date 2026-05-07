@@ -59,6 +59,18 @@ export type ChatEvent =
   | ResultEvent
   | ErrorEvent;
 
+// Compact "I evaluated X" chip rendered in the chat instead of a
+// big Markdown wall. Click → goes back to /evaluate?artist=X. The
+// dossier is still in the turn's `content` field so the LLM has it
+// as context — the UI just renders the pill on top of the markdown.
+export type EvaluatePill = {
+  artist: string;
+  cm_id: number;
+  image?: string;
+  tier?: string;
+  score?: number;
+};
+
 // What we keep in client state per chat turn.
 export type Turn = {
   role: "user" | "assistant";
@@ -67,6 +79,10 @@ export type Turn = {
   toolCalls?: { name: string; label: string }[]; // assistant only
   result?: Pick<ResultEvent, "run_id" | "duration_s" | "cost_usd" | "status">;
   error?: TurnError; // assistant only; populated when the turn errored
+  // When set, the chat renders a compact pill instead of `content`.
+  // `content` still holds the full dossier markdown so the LLM has
+  // context for follow-up questions via Phase 1's history replay.
+  evaluatePill?: EvaluatePill;
 };
 
 // ─── /api/evaluate response types ──────────────────────────────────────
@@ -168,8 +184,11 @@ export type DisambigCandidate = {
   cm_id: number;
   name: string;
   country_code?: string;
+  code2?: string;  // Chartmetric uses this for country in some endpoints
   sp_followers?: number;
   sp_monthly_listeners?: number;
+  image_url?: string;  // small profile photo from Chartmetric search
+  genres?: string[] | null;
 };
 
 export type EvaluateResponse =
