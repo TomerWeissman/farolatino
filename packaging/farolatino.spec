@@ -29,9 +29,12 @@ block_cipher = None
 PROJECT_ROOT = Path(SPECPATH).resolve().parent
 
 # Read version from core/__init__.py (single source of truth).
+# Looks for `_BUNDLED_VERSION = "..."` — runtime `__version__` resolves
+# from the overlay manifest, but the bundled .exe's CFBundleVersion /
+# FileVersion needs the static fallback we baked into core/__init__.py.
 __version__ = "0.2.0"
 for _line in (PROJECT_ROOT / "core" / "__init__.py").read_text().splitlines():
-    if _line.strip().startswith("__version__"):
+    if _line.strip().startswith("_BUNDLED_VERSION"):
         __version__ = _line.split("=", 1)[1].strip().strip('"').strip("'")
         break
 

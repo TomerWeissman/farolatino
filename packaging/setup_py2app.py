@@ -23,9 +23,12 @@ from setuptools import setup
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Read version from core/__init__.py — single source of truth.
+# Looks for `_BUNDLED_VERSION = "..."`; runtime `__version__` resolves
+# from the overlay manifest first, but at build time there's no
+# overlay so we use the hardcoded fallback constant.
 VERSION = "0.2.0"
 for line in (PROJECT_ROOT / "core" / "__init__.py").read_text().splitlines():
-    if line.strip().startswith("__version__"):
+    if line.strip().startswith("_BUNDLED_VERSION"):
         VERSION = line.split("=", 1)[1].strip().strip('"').strip("'")
         break
 
