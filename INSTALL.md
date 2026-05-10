@@ -1,234 +1,186 @@
-# Installing FaroAI — Step-by-Step
+# Installing FaroAI
 
-A no-jargon walkthrough from "open your web browser" to "use the app".
-About 15–20 minutes the first time. After that, double-click an icon and
-you're in.
+A short walkthrough from "open your web browser" to "use the app." About
+5 minutes the first time. After that, you double-click the FaroAI icon
+and it opens.
 
 If a step doesn't work, jump to **Troubleshooting** at the bottom.
 
 ---
 
-## What you'll need before starting
+## What you'll need
 
-- A computer running macOS or Windows.
+- A Mac or Windows computer.
 - An internet connection.
-- An **Anthropic account** — free, you'll create one in Step 4 if you
-  don't already have one. No credit card required.
-- A **Chartmetric refresh token** — you already have this. Keep it handy
-  in a notes app; you'll paste it in the very last step.
+- The two **API keys** Tomer sent you in your welcome email:
+  - An AI Model key (starts with `sk-ant-`, `sk-`, or `AIza`).
+  - A Chartmetric refresh token (a long random string).
 
-That's it. No paid subscriptions, no developer tools.
+Keep both keys handy — you'll paste them into the app on first launch.
 
 ---
 
-## Step 1 — Download FaroAI from GitHub
+## Mac install
 
-1. Open your web browser (Safari, Chrome, Edge — any works).
+### Step 1 — Download FaroAI
+
+1. Open your web browser.
 2. Go to: **<https://github.com/TomerWeissman/farolatino/releases/latest>**
-3. The page will be titled with a version number, e.g. "v0.1.0". Scroll
-   down to the **Assets** section.
-4. Click **`farolatino-v0.1.0.zip`** to download it.
-5. Find the file in your **Downloads** folder.
-   - **Mac**: open Finder → Downloads.
-   - **Windows**: open File Explorer → Downloads.
-6. Double-click the `.zip` to unzip it. You'll get a folder named
-   `farolatino-v0.1.0`.
-7. Move that folder somewhere you can find again — your **Documents**
-   folder is a good choice.
+3. Scroll down to the **Assets** section.
+4. Click **`FaroAI-v0.4.2.dmg`** to download (78 MB, ~30 seconds on a
+   normal connection).
 
-> If the Releases page doesn't show a `.zip` file, message Tomer — a
-> release may not have been published yet.
+The file lands in your **Downloads** folder.
 
----
+### Step 2 — Install the app
 
-## Step 2 — Install Python
+1. Double-click `FaroAI-v0.4.2.dmg`. A window appears showing a single
+   `FaroAI` icon.
+2. Drag that `FaroAI` icon onto your **Applications** folder. (You can
+   open Applications via Finder → Applications, or just drag the icon
+   into the sidebar.)
+3. Eject the disk image: in Finder's left sidebar, click the small
+   ⏏ next to `FaroAI`.
 
-Python is the language FaroAI runs on. Install it once, forget it
-exists.
+### Step 3 — Unblock the app (one-time, ~30 seconds)
 
-1. Go to **<https://www.python.org/downloads/>**
-2. Click the big yellow **Download Python 3.x** button (anything 3.11 or
-   higher works).
-3. Open the downloaded installer.
+Because FaroAI isn't signed by an Apple Developer account, macOS will
+refuse to open it on the first try. We unblock it with a single
+Terminal command. You only do this once per computer.
 
-### On Mac
-
-- Double-click the installer and click **Continue** through every
-  screen, then **Install**.
-
-### On Windows
-
-- **IMPORTANT**: on the very first screen of the installer, check the
-  box that says **Add Python to PATH** before clicking Install. If you
-  forget, run the installer again and tick it.
-
-### Check it worked
-
-You'll need to open Terminal (Mac) or PowerShell (Windows). If you've
-never done this:
-
-- **Mac**: press `Cmd + Space`, type `Terminal`, press Enter. A small
-  black window appears.
-- **Windows**: press the Windows key, type `PowerShell`, press Enter. A
-  blue window appears.
-
-In that window, type this exactly and press Enter:
-
-```
-python3 --version
-```
-
-(On Windows, type `python --version` instead.)
-
-You should see something like `Python 3.11.5`. If you get "command not
-found":
-
-- **Mac**: close Terminal, reopen it, try again.
-- **Windows**: re-run the Python installer and tick **Add Python to
-  PATH**.
-
-You can close the Terminal/PowerShell window after this check.
-
----
-
-## Step 3 — Install Node.js
-
-FaroAI uses Claude Code as its AI engine, and Claude Code needs Node.js.
-Same drill — install once and forget it.
-
-1. Go to **<https://nodejs.org/>**
-2. Click the big green **LTS** download button on the left.
-3. Open the installer and click **Continue** / **Next** through every
-   screen — don't change any defaults.
-
-To verify, open Terminal/PowerShell again (close any old window first
-so it picks up the new install) and type:
-
-```
-node --version
-```
-
-You should see `v20.x.x` or similar.
-
----
-
-## Step 4 — Install Claude Code
-
-Claude Code is the AI engine FaroAI uses to answer questions.
-
-1. Go to **<https://claude.com/claude-code>**
-2. Follow the install steps on that page. Usually it's a single command
-   you paste into Terminal/PowerShell.
-3. Once it finishes, in the same Terminal/PowerShell window, type:
+1. Press **Cmd + Space** to open Spotlight Search.
+2. Type **Terminal** and press Enter. A small text window opens.
+3. Click in the Terminal window, then **copy and paste this exact line**
+   (don't retype it — copy from this page):
 
    ```
-   claude login
+   xattr -cr /Applications/FaroAI.app && open /Applications/FaroAI.app
    ```
 
-4. Your web browser will open. Sign in with an **Anthropic account**.
-   If you don't have one, click **Sign up** — it's free, no credit card.
-5. Approve the permissions Claude Code requests.
-6. Go back to Terminal — it should say something like "Logged in".
+4. Press Enter.
+5. FaroAI opens. You'll see a "Welcome to FaroAI" screen.
 
-You only do this **once**. Future FaroAI launches don't need it.
+### Step 4 — Paste your keys
 
----
+The Welcome screen shows two fields:
 
-## Step 5 — Launch FaroAI
+1. **AI Model** — paste the `sk-ant-…` / `sk-…` / `AIza…` key Tomer sent
+   you. The app auto-detects which provider it's for.
+2. **Chartmetric** — paste the long refresh token Tomer sent you.
 
-The setup is done. Now to actually start the app:
+Click **Continue**. You're in.
 
-### On Mac
+### Future launches
 
-1. Open Finder and navigate to the `farolatino-v0.1.0` folder.
-2. Find the file called `start.command`.
-3. **Right-click** it and choose **Open**. (On a trackpad, "right-click"
-   means a two-finger tap, or hold the `Control` key while clicking.)
-4. macOS will ask "Are you sure you want to open it?" — click **Open**.
-
-> The right-click is only needed the very first time. After that, you
-> can double-click normally.
-
-### On Windows
-
-1. Open File Explorer and navigate to the `farolatino-v0.1.0` folder.
-2. Find the file called `start.bat`.
-3. **Double-click** it.
-4. Windows SmartScreen may say "Windows protected your PC" — click
-   **More info** → **Run anyway**.
-
-### What happens next
-
-A Terminal window opens and shows progress messages. The first launch
-takes about **60 seconds** while it sets things up; subsequent launches
-take ~5 seconds.
-
-When ready, your web browser opens automatically to the FaroAI
-dashboard. **Don't close the Terminal window** — closing it shuts the
-app down. Just minimize it and forget about it.
+Double-click the FaroAI icon in Applications. No Terminal needed — the
+unblock step from Step 3 is permanent.
 
 ---
 
-## Step 6 — Paste your Chartmetric token (in the app)
+## Windows install
 
-The dashboard is open. Last step:
+### Step 1 — Download FaroAI
 
-1. In the left sidebar, click **Connections**.
-2. You'll see rows for Chartmetric, Spotify, YouTube. Click the
-   **Chartmetric** row to expand it.
-3. Paste your Chartmetric refresh token into the text box.
-4. Click **Save**. The status indicator on that row should turn green
-   and say "ok".
-5. Click **FaroAI** at the top of the sidebar to return to the chat.
+1. Open your web browser.
+2. Go to: **<https://github.com/TomerWeissman/farolatino/releases/latest>**
+3. Scroll down to the **Assets** section.
+4. Click **`FaroAI-Setup-v0.4.2.exe`** to download (29 MB).
 
-That's it. Try typing **`@evaluate Bad Bunny`** to see a full artist
-dossier.
+### Step 2 — Run the installer
+
+1. Find the file in your Downloads folder. Double-click it.
+2. Windows shows a blue **"Windows protected your PC"** dialog. This is
+   normal — Windows is being cautious about an app it hasn't seen
+   before. Click the small **More info** link near the top.
+3. A blue **Run anyway** button appears at the bottom. Click it.
+4. The installer runs. Click **Next** through the wizard, then
+   **Install**, then **Finish**.
+
+FaroAI is now in your Start Menu.
+
+### Step 3 — Launch and paste your keys
+
+1. Click Start, type **FaroAI**, press Enter.
+2. The Welcome screen shows two fields. Paste:
+   - **AI Model**: the `sk-ant-…` / `sk-…` / `AIza…` key Tomer sent.
+   - **Chartmetric**: the long refresh token Tomer sent.
+3. Click **Continue**. You're in.
+
+### Future launches
+
+Click Start, type FaroAI, press Enter. Or pin it to your Taskbar from
+the Start Menu (right-click the icon → Pin to Taskbar) for one-click
+access.
 
 ---
 
-## Day-to-day use
+## Updates
 
-- **Start FaroAI**: double-click `start.command` (Mac) or `start.bat`
-  (Windows). Browser opens automatically. Takes ~5 seconds.
-- **Stop FaroAI**: close the Terminal window. Your browser tab can stay
-  open — it'll just show a connection error until you relaunch.
-- **Update FaroAI**: when a new release comes out, download the new
-  `.zip` from GitHub the same way as Step 1, unzip it, and replace your
-  old folder. Your Chartmetric token lives in a hidden file inside the
-  folder; the easiest way to keep it is to re-paste it in the
-  Connections page after updating.
+When Tomer ships a new version, FaroAI can update itself in place — no
+re-downloading installers.
+
+1. Open FaroAI.
+2. Click **Connections** in the left sidebar.
+3. Scroll to the **Updates** section. Click **Check for updates**.
+4. If a newer version is available, click **Apply**. The app downloads
+   the changes (~1–5 MB), restarts, and you're on the new version.
+
+---
+
+## Switching the app to Spanish
+
+Once you're inside FaroAI:
+
+1. Click **Settings** in the left sidebar.
+2. Under **Language**, click **Español**.
+
+The interface and the assistant's responses both switch to Spanish on
+the next message. Toggle back to English the same way. Your choice
+persists across launches.
 
 ---
 
 ## Troubleshooting
 
-| What you see | What it means | What to do |
-|---|---|---|
-| Terminal/PowerShell closes the moment it opens | Something's missing — usually Python or Claude Code | Re-launch `start.command` / `start.bat`, watch the window for the actual error message |
-| Window says "Python isn't installed" | Step 2 didn't take | Re-do Step 2; on Windows make sure **Add Python to PATH** is ticked |
-| Window says "Claude Code isn't installed" | Step 4 didn't take | Re-do Steps 3 and 4 |
-| `claude: command not found` when running `claude login` | Either Node.js or Claude Code isn't on your PATH | Restart Terminal/PowerShell, retry. If still failing, redo Steps 3 and 4 |
-| Browser shows "This site can't be reached" | The launcher is still booting | Wait 5 seconds, refresh the browser tab |
-| "Address already in use" | A previous FaroAI is still running | Quit its Terminal window, relaunch |
-| Chat says "Backend closed the stream..." | Connection to the launcher dropped | Quit Terminal, relaunch |
-| Connections page shows Chartmetric as red | Token is wrong or expired | Re-paste it; if still red, the token has been rotated — ask Tomer for a new one |
+### Mac: "FaroAI cannot be opened" or the icon disappeared from Applications
 
-Still stuck? Take a screenshot of the Terminal window (the error
-message is shown verbatim there) and send it to Tomer. That's almost
-always enough to debug remotely.
+You skipped Step 3 (the Terminal unblock command), or you clicked
+"Move to Trash" on a Gatekeeper dialog by mistake. Re-download the
+.dmg, drag FaroAI to Applications again, then run the Terminal
+command from Step 3 BEFORE double-clicking the app.
 
-- **Screenshot on Mac**: `Cmd + Shift + 4`, drag a box around the
-  Terminal window. The image saves to your Desktop.
-- **Screenshot on Windows**: press `PrtScn` (or `Win + Shift + S` for a
-  selection box), then paste into a chat or email.
+### Mac: Terminal says "command not found" or shows a long error
 
----
+You probably retyped the command instead of copying it. The line is:
 
-## What you can safely ignore
+```
+xattr -cr /Applications/FaroAI.app && open /Applications/FaroAI.app
+```
 
-- The hidden **`.env`** file inside the FaroAI folder. The Connections
-  page in the app handles everything inside it for you.
-- The other subfolders (`api`, `core`, `web`, …) — those are the app's
-  source code. Don't move or rename them.
+Copy the whole line — including the `&&` in the middle — paste it,
+press Enter.
 
-Welcome to FaroAI.
+### Windows: SmartScreen has no "Run anyway" link
+
+Some corporate Windows installs disable that button via Group Policy.
+If you're on a managed work laptop, ask IT to allow the FaroAI
+installer, or use a personal machine.
+
+### Windows: Installer runs but the app doesn't open
+
+After Finish, FaroAI should be in the Start Menu under "FaroAI". If it
+isn't:
+- Look in `C:\Program Files\FaroAI\` for `FaroAI.exe` and double-click.
+- If even that doesn't open the app, your Windows Defender may have
+  quarantined a file. Open Defender → "Protection history", look for a
+  FaroAI entry, click **Restore** if found.
+
+### "AI Model key not detected"
+
+The key needs to be exact — no quotes around it, no leading/trailing
+spaces. Paste from your email straight into the field.
+
+### Anything else
+
+Email or message Tomer. Include a screenshot of whatever screen you're
+stuck on if you can — it makes debugging fast.
