@@ -22,6 +22,7 @@ internet.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import os
@@ -160,7 +161,10 @@ def apply_update(info: UpdateInfo, *, restart: bool = True) -> None:
     with tempfile.TemporaryDirectory(prefix="faroai-update-") as staging:
         staging_path = Path(staging)
         try:
-            with zipfile.ZipFile(_BytesAsFile(zip_bytes)) as zf:
+            # io.BytesIO is already a fully file-like object — no need
+            # for a custom adapter (and Python 3.14's zipfile requires
+            # ``seekable()`` which our old wrapper didn't implement).
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
                 # Reject path-traversal attempts. zipfile's default
                 # extractall is unsafe against zip-slip attacks.
                 _safe_extract(zf, staging_path)
@@ -252,25 +256,6 @@ def _download(url: str, timeout: float = 60.0) -> bytes:
         return resp.content
     except httpx.HTTPError as exc:
         raise UpdateError(f"Download failed: {exc}") from exc
-
-
-class _BytesAsFile:
-    """Adapter: in-memory bytes -> file-like object zipfile accepts.
-    Skips writing the zip to disk before extraction.
-    """
-
-    def __init__(self, data: bytes) -> None:
-        import io
-        self._buf = io.BytesIO(data)
-
-    def read(self, *a, **kw):
-        return self._buf.read(*a, **kw)
-
-    def seek(self, *a, **kw):
-        return self._buf.seek(*a, **kw)
-
-    def tell(self):
-        return self._buf.tell()
 
 
 def _safe_extract(zf: zipfile.ZipFile, target: Path) -> None:
