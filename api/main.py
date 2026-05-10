@@ -102,7 +102,26 @@ class _CachingStaticFiles(StaticFiles):
         return resp
 
 
-_WEB_OUT = resource_path("web/out")
+def _resolve_web_out() -> Path:
+    """Pick the active web/out directory.
+
+    Prefers the user code overlay (``~/Library/.../FaroAI/code/web/out``)
+    so a code-only update can ship a new frontend without a full
+    reinstall. Falls back to the bundled web/out when no overlay is
+    active or when the overlay is missing the build output. Defensive
+    against any error — the bundled path is always a safe fallback.
+    """
+    try:
+        from core.paths import app_config_dir
+        overlay = app_config_dir() / "code" / "web" / "out"
+        if (overlay / "index.html").is_file():
+            return overlay
+    except Exception:
+        pass
+    return resource_path("web/out")
+
+
+_WEB_OUT = _resolve_web_out()
 if _WEB_OUT.is_dir():
     app.mount(
         "/",

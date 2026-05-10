@@ -102,9 +102,47 @@ jobs:
           path: dist/FaroAI-Setup-v*.exe
           if-no-files-found: error
 
+  # ─── Code-only update zip (in-app patch path) ───────────────────────
+  # Built on Linux (1x billing multiplier) in parallel with the heavy
+  # installers. Produces faroai-code-vX.Y.Z.zip (~1–5 MB) — what the
+  # in-app updater pulls when a v0.4.1+ user clicks "Check for updates".
+  build-codezip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js (for the frontend build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'web/package-lock.json'
+
+      - name: Install frontend deps + build web/out
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build code zip
+        run: ./packaging/build_code_zip.sh "${{ github.ref_name }}"
+
+      - name: Upload code zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-zip
+          path: dist/faroai-code-v*.zip
+          if-no-files-found: error
+
   # ─── Publish to GitHub Releases ─────────────────────────────────────
   release:
-    needs: [build-mac, build-windows]
+    needs: [build-mac, build-windows, build-codezip]
     runs-on: ubuntu-latest
     steps:
       - name: Download Mac installer
@@ -119,6 +157,12 @@ jobs:
           name: windows-installer
           path: ./artifacts
 
+      - name: Download code zip
+        uses: actions/download-artifact@v4
+        with:
+          name: code-zip
+          path: ./artifacts
+
       - name: Compute SHA256 checksums + write release notes
         # core/updater.py reads SHA256s from release notes via regex when
         # the user clicks "Check for updates" — verifies the downloaded
@@ -127,7 +171,7 @@ jobs:
         run: |
           cd ./artifacts
           {
-            echo "## Install"
+            echo "## Install (first time / coming from v0.4.0 or older)"
             echo
             echo "**Mac:** download \`FaroAI-${{ github.ref_name }}.dmg\`, drag to Applications."
             echo "First launch: right-click FaroAI.app → Open → confirm Gatekeeper warning."
@@ -135,10 +179,16 @@ jobs:
             echo "**Windows:** download \`FaroAI-Setup-${{ github.ref_name }}.exe\`, run it."
             echo "First launch: SmartScreen warns 'unrecognized app' → click 'More info' → 'Run anyway'."
             echo
+            echo "## Update in-app (already on v0.4.1+)"
+            echo
+            echo "Open the app → Connections → **Check for updates**. Pulls"
+            echo "\`faroai-code-${{ github.ref_name }}.zip\` (~1–5 MB), verifies the SHA below,"
+            echo "applies it, and restarts. No reinstall."
+            echo
             echo "## Checksums"
             echo
             echo '```'
-            for f in FaroAI-*.dmg FaroAI-Setup-*.exe; do
+            for f in FaroAI-*.dmg FaroAI-Setup-*.exe faroai-code-*.zip; do
               [ -f "$f" ] || continue
               sha=$(shasum -a 256 "$f" | cut -d' ' -f1)
               echo "$f: $sha"
@@ -154,5 +204,6 @@ jobs:
           files: |
             ./artifacts/FaroAI-v*.dmg
             ./artifacts/FaroAI-Setup-v*.exe
+            ./artifacts/faroai-code-v*.zip
           fail_on_unmatched_files: true
           generate_release_notes: false
