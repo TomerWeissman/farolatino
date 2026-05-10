@@ -96,11 +96,13 @@ unblock step from Step 3 is permanent.
 4. The installer runs. Click **Next** through the wizard, then
    **Install**, then **Finish**.
 
-FaroAI is now in your Start Menu.
+The installer drops a **FaroAI** icon on your **Desktop** and adds it
+to the **Start Menu**.
 
 ### Step 3 — Launch and paste your keys
 
-1. Click Start, type **FaroAI**, press Enter.
+1. **Double-click the FaroAI icon on your Desktop.** (Or click Start,
+   type FaroAI, press Enter — same thing.)
 2. The Welcome screen shows two fields. Paste:
    - **AI Model**: the `sk-ant-…` / `sk-…` / `AIza…` key Tomer sent.
    - **Chartmetric**: the long refresh token Tomer sent.
@@ -108,9 +110,7 @@ FaroAI is now in your Start Menu.
 
 ### Future launches
 
-Click Start, type FaroAI, press Enter. Or pin it to your Taskbar from
-the Start Menu (right-click the icon → Pin to Taskbar) for one-click
-access.
+Double-click the FaroAI icon on your Desktop. That's it.
 
 ---
 
