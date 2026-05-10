@@ -119,6 +119,10 @@ EXCLUDES = [
 
 OPTIONS = {
     "argv_emulation": False,  # we don't take CLI args; faster boot
+    # Native dock + Finder icon. py2app copies the .icns into
+    # Contents/Resources/ and wires CFBundleIconFile automatically.
+    # Without this, py2app falls back to its generic PythonApplet.icns.
+    "iconfile": str(PROJECT_ROOT / "packaging" / "FaroAI.icns"),
     "packages": PACKAGES,
     # Use `includes` for namespace-package members py2app's old
     # find_module can't enumerate. Modulegraph still walks transitive

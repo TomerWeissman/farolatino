@@ -46,8 +46,11 @@ SetCompressor /SOLID lzma
 
 ; License page intentionally skipped (internal tool).
 !define MUI_ABORTWARNING
-!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
-!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
+; Branded installer wizard icon (title bar + window). Path is relative
+; to this .nsi file, which lives in packaging/. FaroAI.ico is the same
+; multi-resolution .ico embedded in FaroAI.exe by PyInstaller.
+!define MUI_ICON "FaroAI.ico"
+!define MUI_UNICON "FaroAI.ico"
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES

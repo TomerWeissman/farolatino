@@ -190,7 +190,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    # Branded Windows icon. PyInstaller embeds it into FaroAI.exe so
+    # the file shows the right icon in Explorer + the NSIS installer
+    # propagates it to the Start Menu and Desktop shortcuts (via
+    # CreateShortcut's -i argument referencing the .exe).
+    icon=str(PROJECT_ROOT / "packaging" / "FaroAI.ico"),
     version=None,
 )
 
