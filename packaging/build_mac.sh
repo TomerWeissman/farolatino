@@ -79,7 +79,10 @@ fi
 #    drags FaroAI.app onto /Applications inside the mounted disk image.
 #    Skip with SKIP_DMG=1 ./packaging/build_mac.sh during dev.
 if [ -d "dist/FaroAI.app" ] && [ -z "${SKIP_DMG:-}" ]; then
-    VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\'](.*)[\"\']', open('core/__init__.py').read()).group(1))")
+    # Read _BUNDLED_VERSION (the literal fallback). Runtime __version__
+    # is a function call now, so we grep the constant the function falls
+    # back to — same value, parseable from the source file.
+    VERSION=$(python -c "import re; print(re.search(r'_BUNDLED_VERSION\s*=\s*[\"\'](.*)[\"\']', open('core/__init__.py').read()).group(1))")
     DMG="dist/FaroAI-v${VERSION}.dmg"
     # Use ASCII dots — macOS's bundled bash 3.2 parses the Unicode
     # ellipsis (…) as part of the adjacent variable name, hitting

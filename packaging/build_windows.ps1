@@ -43,11 +43,18 @@ if (-not (Test-Path "web\out\index.html")) {
 }
 
 # 3. Read version from core/__init__.py — single source of truth, same
-#    one setup_py2app.py reads.
+#    one setup_py2app.py reads. Looks for _BUNDLED_VERSION since the
+#    runtime __version__ is now a function call, not a literal.
 $initText = Get-Content "core\__init__.py" -Raw
-$Version = "0.2.0"
-if ($initText -match '__version__\s*=\s*[''"]([^''"]+)[''"]') {
+$Version = "0.0.0"
+if ($initText -match '_BUNDLED_VERSION\s*=\s*[''"]([^''"]+)[''"]') {
     $Version = $Matches[1]
+} else {
+    # Fail loudly — silently shipping the wrong version is worse than
+    # blocking the build. The fallback above is only reached when a
+    # future refactor breaks this regex.
+    Write-Error "could not parse _BUNDLED_VERSION from core/__init__.py"
+    exit 1
 }
 Write-Host "==> Building FaroAI v$Version"
 
