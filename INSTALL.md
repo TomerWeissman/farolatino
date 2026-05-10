@@ -54,11 +54,17 @@ Terminal command. You only do this once per computer.
    (don't retype it — copy from this page):
 
    ```
-   xattr -cr /Applications/FaroAI.app && open /Applications/FaroAI.app
+   xattr -cr /Applications/FaroAI.app 2>/dev/null; open /Applications/FaroAI.app
    ```
 
 4. Press Enter.
 5. FaroAI opens. You'll see a "Welcome to FaroAI" screen.
+
+> If your Mac shows a dialog saying *"FaroAI is damaged and can't be
+> opened"* before you run the Terminal command, **click Cancel — never
+> "Move to Trash"** or the app will be deleted and you'll have to
+> re-download. Cancel keeps the app in place; the Terminal command
+> above unblocks it.
 
 ### Step 4 — Paste your keys
 
