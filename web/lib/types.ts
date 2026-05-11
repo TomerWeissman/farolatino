@@ -236,6 +236,16 @@ export type Dossier = {
     social_links?: Record<string, string>;
     tier?: string;
   };
+  // v0.5.2 — verified signing status (Chartmetric flag + record_label
+  // + recent-album labels cross-check). Drives the Hero badge.
+  signing?: {
+    chartmetric_flag?: boolean | null;
+    verified_status?: "signed_major" | "signed_indie" | "self_released" | "unknown";
+    confidence?: "high" | "medium" | "low";
+    evidence?: string[];
+    discrepancy?: boolean;
+    label_display?: string;
+  };
 };
 
 export type DisambigCandidate = {

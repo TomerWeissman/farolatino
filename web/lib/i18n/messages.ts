@@ -155,6 +155,13 @@ const en: Catalog = {
   "eval.dashboard.hero.sound_profile.danceability": "Danceability",
   "eval.dashboard.hero.sound_profile.energy": "Energy",
   "eval.dashboard.hero.sound_profile.tempo_bpm": "BPM",
+  // Hero — signing-status badge (v0.5.2)
+  "eval.dashboard.hero.signing.signed": "Signed",
+  "eval.dashboard.hero.signing.verified": "verified",
+  "eval.dashboard.hero.signing.indie": "Indie",
+  "eval.dashboard.hero.signing.self_released": "Self-released",
+  "eval.dashboard.hero.signing.unknown": "Signing status unknown",
+  "eval.dashboard.hero.signing.unclear": "Signing unclear",
   // Content velocity section (v0.5.0)
   "eval.dashboard.content_velocity": "Content velocity",
   "eval.dashboard.content_velocity.spotify": "Spotify",
@@ -400,6 +407,13 @@ const es: Catalog = {
   "eval.dashboard.hero.sound_profile.danceability": "Bailabilidad",
   "eval.dashboard.hero.sound_profile.energy": "Energía",
   "eval.dashboard.hero.sound_profile.tempo_bpm": "BPM",
+  // Hero — signing-status badge (v0.5.2)
+  "eval.dashboard.hero.signing.signed": "Firmado",
+  "eval.dashboard.hero.signing.verified": "verificado",
+  "eval.dashboard.hero.signing.indie": "Indie",
+  "eval.dashboard.hero.signing.self_released": "Auto-editado",
+  "eval.dashboard.hero.signing.unknown": "Estado de firma desconocido",
+  "eval.dashboard.hero.signing.unclear": "Firma incierta",
   // Content velocity section (v0.5.0)
   "eval.dashboard.content_velocity": "Velocidad de contenido",
   "eval.dashboard.content_velocity.spotify": "Spotify",

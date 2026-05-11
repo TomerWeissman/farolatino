@@ -88,6 +88,7 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
   const ident = dossier.identity;
   const score = dossier.prospect_score;
   const sound = dossier.sound_profile;
+  const signing = dossier.signing;
   const initials = ident.name
     .split(" ")
     .filter(Boolean)
@@ -158,10 +159,17 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
                 {ident.career_trend && ` / ${ident.career_trend}`}
               </>
             )}
-            {ident.label && (
-              <>
-                {" · "}signed to <strong>{ident.label}</strong>
-              </>
+            {/* v0.5.2 — signing-status badge replaces the bare
+                "signed to X" string with the verified-status outcome.
+                Falls back to the raw label when signing data is absent. */}
+            {signing?.verified_status ? (
+              <SigningBadge signing={signing} fallbackLabel={ident.label ?? undefined} />
+            ) : (
+              ident.label && (
+                <>
+                  {" · "}signed to <strong>{ident.label}</strong>
+                </>
+              )
             )}
           </div>
           {socials.length > 0 && (
@@ -724,6 +732,60 @@ function Stat({ big, label, sub }: { big: string; label: string; sub?: string })
       <div className="ev-stat-lbl">{label}</div>
       {sub && <div className="ev-stat-sub">{sub}</div>}
     </div>
+  );
+}
+
+
+function SigningBadge({
+  signing,
+  fallbackLabel,
+}: {
+  signing: NonNullable<Dossier["signing"]>;
+  fallbackLabel?: string;
+}) {
+  const t = useT();
+  const labelText = signing.label_display || fallbackLabel || "—";
+  const tooltip = (signing.evidence ?? []).join(" · ");
+  const status = signing.verified_status;
+  const isWarn = signing.discrepancy;
+
+  let body: React.ReactNode;
+  if (isWarn) {
+    body = (
+      <>
+        ⚠️ {t("eval.dashboard.hero.signing.unclear")} ·{" "}
+        <strong>{labelText}</strong>
+      </>
+    );
+  } else if (status === "signed_major") {
+    body = (
+      <>
+        {t("eval.dashboard.hero.signing.signed")} ·{" "}
+        <strong>{labelText}</strong>{" "}
+        <em>({t("eval.dashboard.hero.signing.verified")})</em>
+      </>
+    );
+  } else if (status === "signed_indie") {
+    body = (
+      <>
+        {t("eval.dashboard.hero.signing.indie")} ·{" "}
+        <strong>{labelText}</strong>
+      </>
+    );
+  } else if (status === "self_released") {
+    body = <>{t("eval.dashboard.hero.signing.self_released")}</>;
+  } else {
+    body = <>{t("eval.dashboard.hero.signing.unknown")}</>;
+  }
+
+  return (
+    <span
+      className={isWarn ? "ev-signing-badge ev-signing-badge-warn" : "ev-signing-badge"}
+      title={tooltip || undefined}
+    >
+      {" · "}
+      {body}
+    </span>
   );
 }
 

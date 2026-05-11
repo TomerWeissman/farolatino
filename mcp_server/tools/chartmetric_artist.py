@@ -560,7 +560,12 @@ def _build_tracks_from_albums(albums: list) -> list[dict]:
 
 
 def _build_albums(raw_albums: list) -> list[dict]:
-    """Convert raw album API data to our album format."""
+    """Convert raw album API data to our album format.
+
+    `album_label` is the imprint Chartmetric records for the release —
+    used by ``signing_check.py`` to corroborate Chartmetric's signed
+    flag with real per-release evidence.
+    """
     albums = []
     for album in raw_albums:
         if not isinstance(album, dict):
@@ -570,6 +575,7 @@ def _build_albums(raw_albums: list) -> list[dict]:
             "release_date": (album.get("release_date", "") or "")[:10],
             "track_count": _safe_int(album.get("num_track")),
             "album_type": "single" if album.get("is_single") else "album",
+            "album_label": album.get("label") or "",
         })
     return albums
 

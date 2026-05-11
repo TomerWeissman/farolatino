@@ -3,6 +3,8 @@
 from core.cadence import compute_release_cadence
 from mcp_server.models import build_artist
 from mcp_server.server import mcp
+from mcp_server.tools.scoring.bot_detection import assess_bot_risk
+from mcp_server.tools.signing_check import verify_signing_status
 
 
 def _pct_change(current: int, previous: int) -> str:
@@ -207,6 +209,19 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
         "content_velocity": dims.get("content_velocity", {}).get("rationale", "N/A"),
     }
 
+    # 8b. Bot-suspicion risk (v0.5.2). The existing engagement_quality
+    # dimension folds these signals into a score; this row surfaces the
+    # specific firing reasons as a discrete ⚠️ row when the composite
+    # level is medium/high.
+    bot = assess_bot_risk(artist, artist.yt_latest_videos or [])
+    if bot["level"] != "low":
+        risk["bot_suspicion"] = "; ".join(bot["reasons"])
+
+    # 8c. Signing-status verification (v0.5.2). Cross-checks Chartmetric's
+    # signed flag against record_label + recent album labels so the
+    # Hero badge can show a confidence level alongside the raw flag.
+    signing = verify_signing_status(artist)
+
     # 9. Competitive context
     # Includes image_url + country_code + sp_monthly_listeners so the
     # dashboard's Similar-artists section can render a profile photo
@@ -248,4 +263,5 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
     }
     if sound_profile:
         result["sound_profile"] = sound_profile
+    result["signing"] = signing
     return result

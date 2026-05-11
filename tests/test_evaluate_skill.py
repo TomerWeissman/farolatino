@@ -36,6 +36,9 @@ from core.agent_runner import THINKING_PREFIX, run_claude_streaming
 from core.cadence import compute_release_cadence
 from core.llm import detect_provider_name
 from core.llm.tool_dispatch import dispatch
+from mcp_server.models import Album, ArtistProfile
+from mcp_server.tools.scoring.bot_detection import assess_bot_risk
+from mcp_server.tools.signing_check import verify_signing_status
 from mcp_server.tools.spotify_search import _avg_features
 
 # Stable, well-known artist with rich Chartmetric data. Bad Bunny has
@@ -113,6 +116,84 @@ def test_sound_profile_averaging():
     assert abs(avg["danceability"] - 0.90) < 0.001
     assert abs(avg["energy"] - 0.80) < 0.001
     assert abs(avg["tempo"] - 94.0) < 0.001
+
+
+def test_bot_detection_high_risk_signature():
+    """Three firing signals → composite level "high"."""
+    artist = ArtistProfile(
+        name="Suspicious Test Artist",
+        sp_monthly_listeners=800_000,
+        sp_followers=30_000,
+        sp_followers_to_listeners_ratio=0.04,  # signal 1: < 0.05 on > 10K listeners
+        sp_monthly_listeners_diff_pct=350.0,   # signal 2a: huge listener spike
+        sp_followers_diff_pct=8.0,             # signal 2b: flat followers → divergence
+        yt_subscribers=5_000,                   # signal 5a
+        tiktok_followers=10_000,                # signal 5b
+    )
+    yt_videos = []  # no YT data → signals 3, 4 don't fire
+    out = assess_bot_risk(artist, yt_videos)
+    assert out["level"] == "high", out
+    # signals 1, 2, 5 should all fire
+    assert len(out["reasons"]) >= 3
+    assert out["score"] <= 50
+
+
+def test_bot_detection_clean_artist():
+    """Healthy metrics → no signals fire, level stays low."""
+    artist = ArtistProfile(
+        name="Clean Test Artist",
+        sp_monthly_listeners=2_000_000,
+        sp_followers=400_000,
+        sp_followers_to_listeners_ratio=0.20,
+        sp_monthly_listeners_diff_pct=15.0,
+        sp_followers_diff_pct=10.0,
+        yt_subscribers=500_000,
+        tiktok_followers=300_000,
+    )
+    out = assess_bot_risk(artist, [])
+    assert out["level"] == "low"
+    assert out["reasons"] == []
+    assert out["score"] == 100
+
+
+def test_signing_check_major_label_verified():
+    """record_label matches a major → signed_major + high confidence."""
+    artist = ArtistProfile(
+        name="Bad Bunny Test",
+        record_label="Rimas",
+        albums=[Album(name="Test Album", release_date="2026-01-01", album_type="album", track_count=12)],
+    )
+    out = verify_signing_status(artist)
+    assert out["verified_status"] == "signed_major"
+    assert out["confidence"] == "high"
+    assert out["discrepancy"] is False
+    assert "rimas" in out["label_display"].lower()
+
+
+def test_signing_check_discrepancy_flag():
+    """No record_label + no album label evidence → unknown.
+    When chartmetric_flag (via record_label presence) is None, we
+    classify as unknown without a discrepancy.
+    """
+    artist = ArtistProfile(
+        name="Mystery Artist",
+        record_label=None,
+        albums=[],
+    )
+    out = verify_signing_status(artist)
+    # No CM signed flag and no album evidence → unknown
+    assert out["verified_status"] in ("unknown", "self_released")
+
+
+def test_signing_check_self_released():
+    """Empty/self label → self_released."""
+    artist = ArtistProfile(
+        name="Indie Test",
+        record_label="Independent",
+        albums=[Album(name="EP", release_date="2025-12-01", album_label="Independent", album_type="ep", track_count=4)],
+    )
+    out = verify_signing_status(artist)
+    assert out["verified_status"] in ("self_released", "unknown")
 
 
 def test_sound_profile_averaging_skips_missing():

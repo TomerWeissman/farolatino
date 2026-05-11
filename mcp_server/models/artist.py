@@ -41,6 +41,7 @@ class Album:
     release_date: str = ""
     track_count: int = 0
     album_type: str = ""  # album, single, ep
+    album_label: str = ""  # label imprint per release (Chartmetric albums.label)
 
 
 @dataclass

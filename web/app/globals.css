@@ -1733,6 +1733,15 @@ button.sidebar-link {
 }
 .ev-sound-profile strong { color: #1a1a1a; font-weight: 500; }
 
+/* v0.5.2 — signing-status badge in the Hero meta row. Inline span
+   that follows the genres + career-stage context. .warn variant
+   subtly tints the row when Chartmetric and the label evidence
+   disagree. Hover shows the underlying evidence as a tooltip. */
+.ev-signing-badge { color: #1a1a1a; }
+.ev-signing-badge em { color: #888; font-style: italic; }
+.ev-signing-badge-warn { color: #b45309; }
+.ev-signing-badge-warn strong { color: #b45309; }
+
 /* v0.5.0 — Catalog top-tracks mini-table. Reuses .ev-row but with a
    3-col grid sized for track name | release date | popularity bar.
    The trailing .ev-num-mono cell carries the "85/100" score. */

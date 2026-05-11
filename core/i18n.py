@@ -295,6 +295,28 @@ _MESSAGES: dict[str, dict[str, str]] = {
     # ─── Header subtitle (`stage / trend`) — formatting only ─────────
     "dossier.header.unknown": {"en": "Unknown", "es": "Desconocido"},
 
+    # ─── Signing-status badge (v0.5.2) ────────────────────────────────
+    "dossier.signing.major": {
+        "en": "Signed · **{label}** (verified)",
+        "es": "Firmado · **{label}** (verificado)",
+    },
+    "dossier.signing.indie": {
+        "en": "Indie · **{label}**",
+        "es": "Indie · **{label}**",
+    },
+    "dossier.signing.self": {
+        "en": "Self-released",
+        "es": "Auto-editado",
+    },
+    "dossier.signing.unknown": {
+        "en": "Signing status unknown",
+        "es": "Estado de firma desconocido",
+    },
+    "dossier.signing.unclear": {
+        "en": "⚠️ Signing unclear · {label}",
+        "es": "⚠️ Firma incierta · {label}",
+    },
+
     # ─── v0.5.0 sound profile + content velocity ─────────────────────
     "dossier.section.sound_profile": {
         "en": "Sound profile",

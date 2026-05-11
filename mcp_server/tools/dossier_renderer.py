@@ -443,6 +443,7 @@ def _b_header(dossier: dict, lang: str = "en") -> str:
     """Big name + score + one-line context. The first thing the user sees."""
     ident = dossier.get("identity") or {}
     score = dossier.get("prospect_score") or {}
+    signing = dossier.get("signing") or {}
     name = ident.get("name") or t("dossier.header.unknown", lang)
     stage = ident.get("career_stage") or "—"
     trend = ident.get("career_trend") or "—"
@@ -462,8 +463,12 @@ def _b_header(dossier: dict, lang: str = "en") -> str:
     ]
 
     context_bits = [f"_{stage} / {trend}_"] if stage != "—" else []
-    if label and label != "—":
-        # "signed to X" / "firmado con X"
+    # v0.5.2 — signing-status badge replaces the bare "signed to X"
+    # context bit so the analyst sees the verified status + a ⚠️
+    # marker when Chartmetric and the label evidence disagree.
+    if signing.get("verified_status"):
+        context_bits.append(_render_signing_badge(signing, label, lang))
+    elif label and label != "—":
         signed_to = "signed to" if lang == "en" else "firmado con"
         context_bits.append(f"{signed_to} **{label}**")
     if primary_genre:
@@ -472,6 +477,30 @@ def _b_header(dossier: dict, lang: str = "en") -> str:
         parts.append(" · ".join(context_bits))
 
     return "\n".join(parts)
+
+
+def _render_signing_badge(signing: dict, fallback_label: str, lang: str) -> str:
+    """One-line signing-status badge for the chat-side header.
+
+    Examples:
+        Signed · Rimas (verified)
+        Indie · Some Label
+        Self-released
+        ⚠️ Signing unclear — Chartmetric says signed but no label evidence
+    """
+    status = signing.get("verified_status")
+    label_display = signing.get("label_display") or fallback_label or "—"
+    discrepancy = signing.get("discrepancy")
+
+    if discrepancy:
+        return t("dossier.signing.unclear", lang, label=label_display)
+    if status == "signed_major":
+        return t("dossier.signing.major", lang, label=label_display)
+    if status == "signed_indie":
+        return t("dossier.signing.indie", lang, label=label_display)
+    if status == "self_released":
+        return t("dossier.signing.self", lang)
+    return t("dossier.signing.unknown", lang)
 
 
 def _b_streaming_audience(dossier: dict, lang: str = "en") -> str:
