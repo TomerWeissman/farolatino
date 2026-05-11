@@ -609,8 +609,12 @@ def _b_geographic(dossier: dict, lang: str = "en") -> str:
 
 
 def _b_catalog(dossier: dict, lang: str = "en") -> str:
-    """Catalog activity — recent releases vs total + cadence extension +
-    top-tracks mini-table."""
+    """Catalog activity — recent releases vs total + top-tracks mini-table.
+
+    Cadence info intentionally lives only in the Content velocity
+    section so the same number isn't surfaced twice (was redundant in
+    v0.5.0).
+    """
     cat = dossier.get("catalog") or {}
     if not cat:
         return ""
@@ -618,20 +622,6 @@ def _b_catalog(dossier: dict, lang: str = "en") -> str:
     r12 = cat.get("releases_12m", 0)
     total = cat.get("total_tracks") or "—"
     summary = t("dossier.catalog.summary", lang, r6=r6, r12=r12, total=total)
-
-    # Optional cadence extension — "Latest: 12 days ago · cadence 1 every 21 days, accelerating"
-    days_since = cat.get("days_since_latest_release")
-    cadence = cat.get("release_cadence_days")
-    trend = cat.get("cadence_trend")
-    if days_since is not None and cadence:
-        trend_word = t(f"dossier.cadence.{trend or 'steady'}", lang)
-        summary += " " + t(
-            "dossier.catalog.cadence_extension",
-            lang,
-            n=days_since,
-            cadence=cadence,
-            trend=trend_word,
-        )
 
     lines = [f"## {t('dossier.section.catalog', lang)}", "", summary]
 

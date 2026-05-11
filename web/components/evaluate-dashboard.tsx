@@ -441,30 +441,12 @@ function Catalog({
   const topTracks = catalog.top_tracks ?? [];
   const spotifyArtistUrl = urls?.spotify;
 
-  // Cadence extension — only when both numbers exist (graceful skip otherwise).
-  const daysSince = catalog.days_since_latest_release;
-  const cadence = catalog.release_cadence_days;
-  const trend = catalog.cadence_trend;
-  const trendLabel = trend
-    ? t(`eval.dashboard.catalog.trend.${trend}`)
-    : null;
-
   return (
     <section className="ev-section">
       <h2 className="ev-h2">{t("eval.dashboard.catalog")}</h2>
       <div className="ev-catalog-stats">
         {t("eval.dashboard.catalog.summary", { r6, r12, total })}
         {editorial > 0 && (<> · <strong>{editorial}</strong> {t("eval.dashboard.catalog.editorial_suffix")}</>)}
-        {daysSince != null && cadence != null && trendLabel != null && (
-          <>
-            {" "}
-            {t("eval.dashboard.catalog.cadence_extension", {
-              days: daysSince,
-              cadence,
-              trend: trendLabel,
-            })}
-          </>
-        )}
       </div>
       {tracks.length > 0 && (
         <>

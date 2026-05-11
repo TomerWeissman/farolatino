@@ -339,8 +339,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "es": "Última subida",
     },
     "dossier.velocity.avg_views": {
-        "en": "Avg views (last 3)",
-        "es": "Vistas promedio (últimos 3)",
+        "en": "Avg views (last 3 videos)",
+        "es": "Vistas promedio (últimos 3 videos)",
     },
     "dossier.velocity.like_ratio": {
         "en": "Like ratio",
