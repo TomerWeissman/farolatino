@@ -555,6 +555,13 @@ function ContentVelocity({ velocity }: { velocity?: Dossier["content_velocity"] 
                 </strong>
               </div>
             )}
+            {(yt.avg_views_recent_3 != null
+              || yt.avg_like_ratio_pct != null
+              || yt.avg_comments_per_view_pct != null) && (
+              <div className="ev-velocity-scope">
+                {t("eval.dashboard.content_velocity.recent3_scope")}
+              </div>
+            )}
             {yt.avg_views_recent_3 != null && (
               <div className="ev-velocity-row">
                 <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.avg_views")}</span>
@@ -604,9 +611,6 @@ function ContentVelocity({ velocity }: { velocity?: Dossier["content_velocity"] 
               )}
               <div className="ev-top-video-title">{v.title}</div>
               <div className="ev-num-mono">{formatInt(v.view_count)}</div>
-              <div className="ev-num-mono">
-                {v.like_ratio != null ? `${v.like_ratio.toFixed(1)}%` : "—"}
-              </div>
             </a>
           ))}
         </div>

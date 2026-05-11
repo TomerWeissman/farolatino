@@ -339,20 +339,20 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "es": "Última subida",
     },
     "dossier.velocity.avg_views": {
-        "en": "Avg views (last 3 videos)",
-        "es": "Vistas promedio (últimos 3 videos)",
+        "en": "Avg views",
+        "es": "Vistas promedio",
     },
     "dossier.velocity.like_ratio": {
         "en": "Like ratio",
         "es": "Ratio de likes",
     },
-    "dossier.velocity.like_ratio_short": {
-        "en": "like ratio",
-        "es": "ratio likes",
-    },
     "dossier.velocity.comments_per_view": {
         "en": "Comments/view",
         "es": "Comentarios/vista",
+    },
+    "dossier.velocity.recent3_scope": {
+        "en": "_(based on the 3 most recent videos)_",
+        "es": "_(basado en los 3 videos más recientes)_",
     },
     "dossier.velocity.top_videos_title": {
         "en": "Top videos (lifetime views)",

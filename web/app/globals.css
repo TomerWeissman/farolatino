@@ -1769,6 +1769,12 @@ button.sidebar-link {
 .ev-velocity-row:last-child { border-bottom: none; }
 .ev-velocity-label { color: #888; }
 .ev-velocity-row strong { color: #1a1a1a; font-weight: 500; }
+.ev-velocity-scope {
+  font-size: 11px;
+  font-style: italic;
+  color: #aaa;
+  margin: 10px 0 4px;
+}
 
 /* v0.5.2 — top videos block under the Content velocity two-column
    layout. Each row is a clickable link: thumbnail · title · view
@@ -1777,7 +1783,7 @@ button.sidebar-link {
 .ev-top-videos { margin-top: 32px; }
 .ev-top-videos-row {
   display: grid;
-  grid-template-columns: 80px 1fr 90px 60px;
+  grid-template-columns: 80px 1fr 90px;
   gap: 16px;
   align-items: center;
   padding: 10px 0;

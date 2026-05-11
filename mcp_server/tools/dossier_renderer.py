@@ -696,18 +696,23 @@ def _b_content_velocity(dossier: dict, lang: str = "en") -> str:
         lines.append("")
         lines += _block("dossier.velocity.youtube_label", "dossier.velocity.last_upload", yt)
         avg_views = yt.get("avg_views_recent_3")
+        ratio = yt.get("avg_like_ratio_pct")
+        cpv = yt.get("avg_comments_per_view_pct")
+        # Italic scope qualifier appears once above the three
+        # latest-3-derived stats so each label can stay short.
+        if avg_views or ratio is not None or cpv is not None:
+            lines.append("")
+            lines.append(t("dossier.velocity.recent3_scope", lang))
         if avg_views:
             lines.append(f"- {t('dossier.velocity.avg_views', lang)}: {_fmt_int(avg_views)}")
-        ratio = yt.get("avg_like_ratio_pct")
         if ratio is not None:
             lines.append(f"- {t('dossier.velocity.like_ratio', lang)}: {ratio:.1f}%")
-        # Comments-per-view (v0.5.2) — sits right under Like ratio as
-        # they're related engagement signals.
-        cpv = yt.get("avg_comments_per_view_pct")
         if cpv is not None:
             lines.append(f"- {t('dossier.velocity.comments_per_view', lang)}: {cpv:.2f}%")
 
-        # Top videos by lifetime views (v0.5.2)
+        # Top videos by lifetime views (v0.5.2). Like ratio dropped —
+        # adds visual noise without much A&R signal at the per-video
+        # level (the aggregate avg_like_ratio_pct still shown above).
         top_videos = yt.get("top_videos") or []
         if top_videos:
             lines.append("")
@@ -718,11 +723,7 @@ def _b_content_velocity(dossier: dict, lang: str = "en") -> str:
                 url = v.get("url")
                 title_md = f"[{title}]({url})" if url else title
                 view_count = v.get("view_count") or 0
-                bits = [f"{_fmt_int(view_count)} {views_suffix}"]
-                lr = v.get("like_ratio")
-                if lr is not None:
-                    bits.append(f"{lr:.1f}% {t('dossier.velocity.like_ratio_short', lang)}")
-                lines.append(f"- {title_md} — {' · '.join(bits)}")
+                lines.append(f"- {title_md} — {_fmt_int(view_count)} {views_suffix}")
 
     return "\n".join(lines)
 
