@@ -1788,6 +1788,145 @@ button.sidebar-link {
 .ev-signing-pill-unknown { background: #f3f3f0; color: #6b7280; border-color: #e0e0d8; }
 .ev-signing-pill-warn  { background: #fdf2e2; color: #92400e; border-color: #f5c6a0; }
 
+/* v0.5.2 — /compare page styling.
+   Two text inputs + Compare button at top; per-side status panels
+   side-by-side until both load; then a header strip + overlaid bar
+   rows for each comparison dimension. */
+.cmp-search {
+  display: grid;
+  grid-template-columns: 1fr 30px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.cmp-vs {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+}
+.cmp-side-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+.cmp-side {
+  padding: 20px;
+  border: 1px solid #e5e5e0;
+  background: #fafaf7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100px;
+}
+.cmp-side-label {
+  font: 600 14px/1 Georgia, serif;
+  letter-spacing: -0.02em;
+  color: #999;
+  text-transform: uppercase;
+}
+.cmp-side-empty-hint, .cmp-side-error { font-size: 13px; color: #888; }
+.cmp-side-loading { align-items: flex-start; }
+.cmp-side-disambig-title { font-size: 14px; color: #1a1a1a; font-weight: 500; }
+.cmp-disambig-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  background: white;
+  border: 1px solid #e5e5e0;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+.cmp-disambig-row:hover { border-color: #d97706; }
+.cmp-disambig-row strong { font-size: 13px; }
+.cmp-disambig-meta { font-size: 11px; color: #888; margin-top: 2px; }
+.cmp-side-ready-name { font: 500 22px/1 Georgia, serif; }
+.cmp-side-ready-tier { font-size: 13px; color: #888; }
+
+/* Header strip with both artists side-by-side once they're loaded. */
+.cmp-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 32px;
+}
+.cmp-header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-top: 3px solid;  /* color set via inline style */
+}
+.cmp-header-vs {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  color: #999;
+}
+.cmp-header-photo {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  background: #ececea;
+}
+.cmp-header-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  color: white;
+  font: 600 24px/1 Georgia, serif;
+}
+.cmp-header-name { font: 500 24px/1.1 Georgia, serif; text-align: center; }
+.cmp-header-tier { font-size: 13px; letter-spacing: 0.05em; }
+
+/* Bar comparison row: label | value A | overlaid bar | value B */
+.cmp-bar-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 2fr 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0eb;
+  font-size: 13px;
+}
+.cmp-bar-row:last-child { border-bottom: none; }
+.cmp-bar-label { color: #1a1a1a; }
+.cmp-bar-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+.cmp-bar-value-a { text-align: right; }
+.cmp-bar-value-b { text-align: left; }
+
+/* Overlay bar — two children stacked at full width, each sized
+   independently. Lower z-index for B so A wins when widths are equal. */
+.cmp-overlay-bar {
+  position: relative;
+  height: 14px;
+  background: #ececea;
+  overflow: hidden;
+}
+.cmp-overlay-bar > span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  display: block;
+  opacity: 0.7;
+}
+.cmp-bar-a { z-index: 2; }
+.cmp-bar-b { z-index: 1; }
+
 /* v0.5.0 — Catalog top-tracks mini-table. Reuses .ev-row but with a
    3-col grid sized for track name | release date | popularity bar.
    The trailing .ev-num-mono cell carries the "85/100" score. */

@@ -3,6 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT, useLanguage } from "@/lib/i18n/context";
+import {
+  TIER_COLOR,
+  countryFlag,
+  countryName,
+  formatDate,
+  formatInt,
+  formatMoney,
+  tintFor,
+} from "@/lib/format";
 import type { Dossier } from "@/lib/types";
 
 // What the parent (evaluate.tsx) hands us per artist slot.
@@ -11,16 +20,6 @@ type LoadedDossier = {
   cm_id: number;
   dossier: Dossier;
   rendered_markdown: string;
-};
-
-// Tier → accent color. Editorial palette: used minimally as accent on
-// the score, tier label, recommendation border. Everything else is
-// black/gray text on cream background.
-const TIER_COLOR: Record<string, string> = {
-  BUY: "#16a34a",
-  PROSPECT: "#2563eb",
-  WATCH: "#d97706",
-  PASS: "#6b7280",
 };
 
 export function EvaluateDashboard({
@@ -795,78 +794,11 @@ function SigningPill({
 
 
 // ─── Helpers ──────────────────────────────────────────────────────
-
-function formatInt(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toLocaleString();
-}
-
-function formatMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
-function formatDate(s: string, lang: string = "en"): string {
-  // Tolerate ISO + free-form. ISO yyyy-mm-dd → "MMM d, yyyy" / "d MMM yyyy".
-  try {
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const locale = lang === "es" ? "es-ES" : "en-US";
-      return d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
-    }
-  } catch {
-    /* fallthrough */
-  }
-  return s;
-}
-
-/**
- * Country code → flag emoji. ISO 3166-1 alpha-2 codes map to two
- * regional indicator symbols (each letter + 0x1F1A5 offset).
- */
-function countryFlag(cc: string): string {
-  if (!cc || cc.length !== 2) return "🌐";
-  const upper = cc.toUpperCase();
-  // Map A-Z to regional indicator code points (offset 0x1F1A5).
-  // Avoiding spread on a string to keep TS happy without
-  // --downlevelIteration on the older target.
-  return (
-    String.fromCodePoint(upper.charCodeAt(0) + 127397) +
-    String.fromCodePoint(upper.charCodeAt(1) + 127397)
-  );
-}
-
-const COUNTRY_NAMES: Record<string, string> = {
-  US: "United States", MX: "Mexico", AR: "Argentina", BR: "Brazil",
-  CO: "Colombia", CL: "Chile", PE: "Peru", VE: "Venezuela",
-  EC: "Ecuador", BO: "Bolivia", PY: "Paraguay", UY: "Uruguay",
-  ES: "Spain", PT: "Portugal", FR: "France", DE: "Germany",
-  IT: "Italy", GB: "United Kingdom", NL: "Netherlands", PR: "Puerto Rico",
-  DO: "Dominican Rep.", CA: "Canada", JP: "Japan", KR: "Korea",
-  AU: "Australia", ZA: "South Africa", IN: "India", CN: "China",
-};
-function countryName(cc: string): string {
-  return COUNTRY_NAMES[cc.toUpperCase()] ?? cc;
-}
+// Most formatters moved to web/lib/format.ts in v0.5.2 so /compare
+// can re-use them. Only file-local helpers stay here.
 
 function buildSpotifySearchUrl(track: string): string {
   return `https://open.spotify.com/search/${encodeURIComponent(track)}`;
-}
-
-function tintFor(tier: string): string {
-  // Subtle off-white tints behind the recommendation block. Editorial
-  // aesthetic — barely-there color, just enough to distinguish from
-  // body bg.
-  switch (tier) {
-    case "BUY": return "#f0f7f0";
-    case "PROSPECT": return "#f0f4fa";
-    case "WATCH": return "#f5f3ed";
-    case "PASS": return "#f5f5f5";
-    default: return "#f5f3ed";
-  }
 }
 
 function recommendationBody(
