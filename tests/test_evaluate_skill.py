@@ -27,13 +27,16 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import date, timedelta
 from typing import Any
 
 import pytest
 
 from core.agent_runner import THINKING_PREFIX, run_claude_streaming
+from core.cadence import compute_release_cadence
 from core.llm import detect_provider_name
 from core.llm.tool_dispatch import dispatch
+from mcp_server.tools.spotify_search import _avg_features
 
 # Stable, well-known artist with rich Chartmetric data. Bad Bunny has
 # been the canonical V1/V2 smoke artist since launch — millions of
@@ -43,6 +46,85 @@ REGRESSION_ARTIST = "Bad Bunny"
 # listeners come back well above 30. Gives margin without being so
 # loose that a regression to "no streaming data, partial geo" passes.
 MIN_REAL_DOSSIER_SCORE = 30
+
+
+# ─── v0.5.0 unit tests — cadence + audio-feature averaging ─────────────
+
+
+def test_release_cadence_accelerating():
+    """Cadence trend: 6m gaps tighter than 12m → accelerating."""
+    today = date(2026, 5, 1)
+    # 12m window: releases every ~60 days; 6m window: every ~14 days.
+    dates_12m = [(today - timedelta(days=60 * i)).isoformat() for i in range(6, 0, -1)]
+    dates_6m = [(today - timedelta(days=14 * i)).isoformat() for i in range(10, 0, -1)]
+    out = compute_release_cadence(dates_12m + dates_6m, today=today)
+    assert out["trend"] == "accelerating", out
+    assert out["days_since_latest"] is not None
+    assert out["cadence_days_6m"] is not None
+    assert out["cadence_days_12m"] is not None
+    assert out["cadence_days_6m"] < out["cadence_days_12m"]
+
+
+def test_release_cadence_decelerating():
+    """Cadence trend: 6m gaps much wider than 12m → decelerating."""
+    today = date(2026, 5, 1)
+    # Dense releases in months 7-12 (every 30 days), then a long gap.
+    dates_old = [(today - timedelta(days=185 + 30 * i)).isoformat() for i in range(7)]
+    # Only two releases inside the 6m window, spaced ~160 days apart.
+    dates_recent = [
+        (today - timedelta(days=170)).isoformat(),
+        (today - timedelta(days=10)).isoformat(),
+    ]
+    out = compute_release_cadence(dates_old + dates_recent, today=today)
+    assert out["trend"] == "decelerating", out
+    assert out["cadence_days_6m"] > out["cadence_days_12m"]
+
+
+def test_release_cadence_steady():
+    """Cadence trend: comparable 6m vs 12m gaps → steady."""
+    today = date(2026, 5, 1)
+    # Even 30-day spacing across both windows.
+    dates = [(today - timedelta(days=30 * i)).isoformat() for i in range(11, 0, -1)]
+    out = compute_release_cadence(dates, today=today)
+    assert out["trend"] == "steady", out
+
+
+def test_release_cadence_empty_input():
+    """No dates → all-None numerics + steady trend (silent degrade)."""
+    out = compute_release_cadence([])
+    assert out["latest_date"] is None
+    assert out["days_since_latest"] is None
+    assert out["cadence_days_6m"] is None
+    assert out["cadence_days_12m"] is None
+    assert out["trend"] == "steady"
+
+
+def test_sound_profile_averaging():
+    """Five audio-feature dicts average correctly across each metric."""
+    features = [
+        {"id": "a", "danceability": 0.90, "energy": 0.80, "tempo": 96.0},
+        {"id": "b", "danceability": 0.92, "energy": 0.78, "tempo": 92.0},
+        {"id": "c", "danceability": 0.88, "energy": 0.82, "tempo": 100.0},
+        {"id": "d", "danceability": 0.94, "energy": 0.76, "tempo": 88.0},
+        {"id": "e", "danceability": 0.86, "energy": 0.84, "tempo": 94.0},
+    ]
+    avg = _avg_features(features)
+    assert avg["sample_size"] == 5
+    assert abs(avg["danceability"] - 0.90) < 0.001
+    assert abs(avg["energy"] - 0.80) < 0.001
+    assert abs(avg["tempo"] - 94.0) < 0.001
+
+
+def test_sound_profile_averaging_skips_missing():
+    """A partial response (one track missing tempo) shouldn't crash."""
+    features = [
+        {"id": "a", "danceability": 0.9, "energy": 0.8, "tempo": 100.0},
+        {"id": "b", "danceability": 0.8, "energy": 0.7},  # missing tempo
+    ]
+    avg = _avg_features(features)
+    assert "danceability" in avg
+    assert "energy" in avg
+    assert avg["tempo"] == 100.0
 
 
 # ─── Fast regression test (no LLM) ──────────────────────────────────────

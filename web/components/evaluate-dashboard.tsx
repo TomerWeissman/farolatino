@@ -71,6 +71,7 @@ function ArtistColumn({ data }: { data: LoadedDossier }) {
       <Markets markets={dossier.geographic_profile?.top_markets} />
       <Milestones milestones={dossier.career_trajectory?.milestones} />
       <Catalog catalog={dossier.catalog} urls={dossier.identity.urls} />
+      <ContentVelocity velocity={dossier.content_velocity} />
       <Similar similar={dossier.competitive_context?.similar_artists} />
       <Risks risks={dossier.risk_signals} />
       <Recommendation tier={tier} accent={accent} ident={dossier.identity} />
@@ -86,6 +87,7 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
   const { dossier } = data;
   const ident = dossier.identity;
   const score = dossier.prospect_score;
+  const sound = dossier.sound_profile;
   const initials = ident.name
     .split(" ")
     .filter(Boolean)
@@ -128,6 +130,26 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
         )}
         <div>
           <h1 className="ev-name">{ident.name}</h1>
+          {sound && (sound.danceability != null || sound.energy != null || sound.tempo != null) && (
+            <div className="ev-sound-profile">
+              {t("eval.dashboard.hero.sound_profile.title")}
+              {sound.danceability != null && (
+                <>
+                  {" — "}{t("eval.dashboard.hero.sound_profile.danceability")} <strong>{sound.danceability.toFixed(2)}</strong>
+                </>
+              )}
+              {sound.energy != null && (
+                <>
+                  {" · "}{t("eval.dashboard.hero.sound_profile.energy")} <strong>{sound.energy.toFixed(2)}</strong>
+                </>
+              )}
+              {sound.tempo != null && (
+                <>
+                  {" · "}<strong>{Math.round(sound.tempo)}</strong> {t("eval.dashboard.hero.sound_profile.tempo_bpm")}
+                </>
+              )}
+            </div>
+          )}
           <div className="ev-meta">
             {(ident.genres ?? []).slice(0, 5).join(" · ") || "—"}
             {ident.career_stage && (
@@ -416,18 +438,33 @@ function Catalog({
   const total = catalog.total_tracks ?? 0;
   const editorial = catalog.editorial_playlists ?? 0;
   const tracks = catalog.latest_tracks ?? [];
+  const topTracks = catalog.top_tracks ?? [];
   const spotifyArtistUrl = urls?.spotify;
+
+  // Cadence extension — only when both numbers exist (graceful skip otherwise).
+  const daysSince = catalog.days_since_latest_release;
+  const cadence = catalog.release_cadence_days;
+  const trend = catalog.cadence_trend;
+  const trendLabel = trend
+    ? t(`eval.dashboard.catalog.trend.${trend}`)
+    : null;
+
   return (
     <section className="ev-section">
       <h2 className="ev-h2">{t("eval.dashboard.catalog")}</h2>
-      <div
-        className="ev-catalog-stats"
-        // The summary string carries inline {r6}/{r12}/{total} placeholders;
-        // we let the i18n layer interpolate plain strings then render — no
-        // bolds inside the template, the bare numbers are fine here.
-      >
+      <div className="ev-catalog-stats">
         {t("eval.dashboard.catalog.summary", { r6, r12, total })}
         {editorial > 0 && (<> · <strong>{editorial}</strong> {t("eval.dashboard.catalog.editorial_suffix")}</>)}
+        {daysSince != null && cadence != null && trendLabel != null && (
+          <>
+            {" "}
+            {t("eval.dashboard.catalog.cadence_extension", {
+              days: daysSince,
+              cadence,
+              trend: trendLabel,
+            })}
+          </>
+        )}
       </div>
       {tracks.length > 0 && (
         <>
@@ -449,7 +486,109 @@ function Catalog({
           })}
         </>
       )}
+      {topTracks.length > 0 && (
+        <>
+          <div className="ev-catalog-subtitle">{t("eval.dashboard.catalog.top_tracks_title")}</div>
+          {topTracks.slice(0, 5).map((tr, i) => {
+            const trackUrl = spotifyArtistUrl ? buildSpotifySearchUrl(tr.name) : null;
+            const pop = tr.popularity ?? 0;
+            return (
+              <div key={i} className="ev-row ev-track-stats-row">
+                {trackUrl ? (
+                  <a href={trackUrl} target="_blank" rel="noopener noreferrer" className="ev-track-link">
+                    {tr.name}<span className="ev-social-arrow">↗</span>
+                  </a>
+                ) : (
+                  <span className="ev-track-name">{tr.name}</span>
+                )}
+                <span className="ev-track-date">{tr.release_date ? formatDate(tr.release_date, lang) : ""}</span>
+                <div className="ev-bar"><span style={{ width: `${Math.min(100, pop)}%` }} /></div>
+                <div className="ev-num-mono">{pop}/100</div>
+              </div>
+            );
+          })}
+          <div className="ev-help">{t("eval.dashboard.catalog.popularity_label")}</div>
+        </>
+      )}
       <div className="ev-source">{t("eval.dashboard.source.catalog")}</div>
+    </section>
+  );
+}
+
+
+function ContentVelocity({ velocity }: { velocity?: Dossier["content_velocity"] }) {
+  const t = useT();
+  if (!velocity) return null;
+  const sp = velocity.spotify;
+  const yt = velocity.youtube;
+  if (!sp && !yt) return null;
+
+  const trendLabel = (
+    trend: "accelerating" | "steady" | "decelerating" | null | undefined,
+  ): string => (trend ? t(`eval.dashboard.catalog.trend.${trend}`) : "—");
+
+  return (
+    <section className="ev-section">
+      <h2 className="ev-h2">{t("eval.dashboard.content_velocity")}</h2>
+      <div className="ev-content-velocity">
+        {sp && (
+          <div className="ev-velocity-block">
+            <div className="ev-velocity-subhead">{t("eval.dashboard.content_velocity.spotify")}</div>
+            {sp.days_since_latest != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.last_release")}</span>
+                <strong>{t("eval.dashboard.content_velocity.days_ago", { n: sp.days_since_latest })}</strong>
+              </div>
+            )}
+            {sp.cadence_days != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.cadence")}</span>
+                <strong>
+                  {t("eval.dashboard.content_velocity.cadence_value", {
+                    days: sp.cadence_days,
+                    trend: trendLabel(sp.trend),
+                  })}
+                </strong>
+              </div>
+            )}
+          </div>
+        )}
+        {yt && (
+          <div className="ev-velocity-block">
+            <div className="ev-velocity-subhead">{t("eval.dashboard.content_velocity.youtube")}</div>
+            {yt.days_since_latest != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.last_upload")}</span>
+                <strong>{t("eval.dashboard.content_velocity.days_ago", { n: yt.days_since_latest })}</strong>
+              </div>
+            )}
+            {yt.cadence_days != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.cadence")}</span>
+                <strong>
+                  {t("eval.dashboard.content_velocity.cadence_value", {
+                    days: yt.cadence_days,
+                    trend: trendLabel(yt.trend),
+                  })}
+                </strong>
+              </div>
+            )}
+            {yt.avg_views_recent_3 != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.avg_views")}</span>
+                <strong>{formatInt(yt.avg_views_recent_3)}</strong>
+              </div>
+            )}
+            {yt.avg_like_ratio_pct != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.like_ratio")}</span>
+                <strong>{yt.avg_like_ratio_pct.toFixed(1)}%</strong>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="ev-source">{t("eval.dashboard.source.content_velocity")}</div>
     </section>
   );
 }

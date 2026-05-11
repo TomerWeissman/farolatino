@@ -417,11 +417,13 @@ def render_dossier(dossier: dict, profile: dict, lang: str = "en") -> str:
     """
     sections = [
         _b_header(dossier, lang),
+        _b_sound_profile(dossier, lang),
         _b_streaming_audience(dossier, lang),
         _b_revenue(dossier, profile, lang),
         _b_scoring(dossier, lang),
         _b_geographic(dossier, lang),
         _b_catalog(dossier, lang),
+        _b_content_velocity(dossier, lang),
         _b_comps(dossier, lang),
         _b_risks(dossier, lang),
         _b_recommendation(dossier, lang),
@@ -607,7 +609,8 @@ def _b_geographic(dossier: dict, lang: str = "en") -> str:
 
 
 def _b_catalog(dossier: dict, lang: str = "en") -> str:
-    """Catalog activity — recent releases vs total. One-line."""
+    """Catalog activity — recent releases vs total + cadence extension +
+    top-tracks mini-table."""
     cat = dossier.get("catalog") or {}
     if not cat:
         return ""
@@ -615,7 +618,101 @@ def _b_catalog(dossier: dict, lang: str = "en") -> str:
     r12 = cat.get("releases_12m", 0)
     total = cat.get("total_tracks") or "—"
     summary = t("dossier.catalog.summary", lang, r6=r6, r12=r12, total=total)
-    return f"## {t('dossier.section.catalog', lang)}\n\n{summary}"
+
+    # Optional cadence extension — "Latest: 12 days ago · cadence 1 every 21 days, accelerating"
+    days_since = cat.get("days_since_latest_release")
+    cadence = cat.get("release_cadence_days")
+    trend = cat.get("cadence_trend")
+    if days_since is not None and cadence:
+        trend_word = t(f"dossier.cadence.{trend or 'steady'}", lang)
+        summary += " " + t(
+            "dossier.catalog.cadence_extension",
+            lang,
+            n=days_since,
+            cadence=cadence,
+            trend=trend_word,
+        )
+
+    lines = [f"## {t('dossier.section.catalog', lang)}", "", summary]
+
+    # Top tracks mini-table
+    top_tracks = cat.get("top_tracks") or []
+    if top_tracks:
+        lines.append("")
+        lines.append(f"**{t('dossier.section.top_tracks', lang)}**")
+        lines.append("")
+        cols = (
+            f"| {t('dossier.col.artist', lang).replace('Artist', 'Track').replace('Artista', 'Track')} "
+            f"| {t('dossier.col.popularity', lang)} |"
+        )
+        lines.append(cols)
+        lines.append("|---|---|")
+        for tr in top_tracks[:5]:
+            name = tr.get("name") or "—"
+            pop = tr.get("popularity")
+            pop_str = f"{pop}/100" if pop is not None else "—"
+            lines.append(f"| {name} | {pop_str} |")
+
+    return "\n".join(lines)
+
+
+def _b_sound_profile(dossier: dict, lang: str = "en") -> str:
+    """One-line sound-profile signature (danceability + energy + BPM)."""
+    sp = dossier.get("sound_profile") or {}
+    dance = sp.get("danceability")
+    energy = sp.get("energy")
+    tempo = sp.get("tempo")
+    if dance is None and energy is None and tempo is None:
+        return ""
+    summary = t(
+        "dossier.sound.summary",
+        lang,
+        dance=f"{dance:.2f}" if dance is not None else "—",
+        energy=f"{energy:.2f}" if energy is not None else "—",
+        tempo=f"{tempo:.0f}" if tempo is not None else "—",
+    )
+    return f"## {t('dossier.section.sound_profile', lang)}\n\n{summary}"
+
+
+def _b_content_velocity(dossier: dict, lang: str = "en") -> str:
+    """Side-by-side Spotify + YouTube cadence + recent-video performance."""
+    cv = dossier.get("content_velocity") or {}
+    sp = cv.get("spotify") or {}
+    yt = cv.get("youtube") or {}
+    if not sp and not yt:
+        return ""
+
+    days_ago_key = "dossier.velocity.days_ago"
+    cadence_key = "dossier.velocity.cadence_summary"
+
+    lines = [f"## {t('dossier.section.content_velocity', lang)}", ""]
+
+    def _block(label_key: str, last_key: str, blk: dict) -> list[str]:
+        if not blk:
+            return []
+        bits = [f"**{t(label_key, lang)}**"]
+        ds = blk.get("days_since_latest")
+        if ds is not None:
+            bits.append(f"- {t(last_key, lang)}: {t(days_ago_key, lang, n=ds)}")
+        cad = blk.get("cadence_days")
+        trend = blk.get("trend")
+        if cad:
+            trend_word = t(f"dossier.cadence.{trend or 'steady'}", lang)
+            bits.append(f"- {t(cadence_key, lang, cadence=cad, trend=trend_word)}")
+        return bits
+
+    lines += _block("dossier.velocity.spotify_label", "dossier.velocity.last_release", sp)
+    if yt:
+        lines.append("")
+        lines += _block("dossier.velocity.youtube_label", "dossier.velocity.last_upload", yt)
+        avg_views = yt.get("avg_views_recent_3")
+        if avg_views:
+            lines.append(f"- {t('dossier.velocity.avg_views', lang)}: {_fmt_int(avg_views)}")
+        ratio = yt.get("avg_like_ratio_pct")
+        if ratio is not None:
+            lines.append(f"- {t('dossier.velocity.like_ratio', lang)}: {ratio:.1f}%")
+
+    return "\n".join(lines)
 
 
 def _b_comps(dossier: dict, lang: str = "en") -> str:

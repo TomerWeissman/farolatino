@@ -294,6 +294,72 @@ _MESSAGES: dict[str, dict[str, str]] = {
 
     # ─── Header subtitle (`stage / trend`) — formatting only ─────────
     "dossier.header.unknown": {"en": "Unknown", "es": "Desconocido"},
+
+    # ─── v0.5.0 sound profile + content velocity ─────────────────────
+    "dossier.section.sound_profile": {
+        "en": "Sound profile",
+        "es": "Perfil de sonido",
+    },
+    "dossier.section.content_velocity": {
+        "en": "Content velocity",
+        "es": "Velocidad de contenido",
+    },
+    "dossier.section.top_tracks": {
+        "en": "Top tracks (by Spotify popularity)",
+        "es": "Top tracks (por popularidad en Spotify)",
+    },
+    "dossier.col.popularity": {"en": "Popularity", "es": "Popularidad"},
+    "dossier.col.cadence": {"en": "Cadence", "es": "Cadencia"},
+    "dossier.col.trend": {"en": "Trend", "es": "Tendencia"},
+    "dossier.cadence.accelerating": {
+        "en": "accelerating",
+        "es": "acelerando",
+    },
+    "dossier.cadence.steady": {"en": "steady", "es": "estable"},
+    "dossier.cadence.decelerating": {
+        "en": "decelerating",
+        "es": "desacelerando",
+    },
+    "dossier.sound.danceability": {
+        "en": "Danceability",
+        "es": "Bailabilidad",
+    },
+    "dossier.sound.energy": {"en": "Energy", "es": "Energía"},
+    "dossier.sound.tempo": {"en": "Tempo", "es": "Tempo"},
+    "dossier.sound.summary": {
+        "en": "Danceability **{dance}** · Energy **{energy}** · {tempo} BPM",
+        "es": "Bailabilidad **{dance}** · Energía **{energy}** · {tempo} BPM",
+    },
+    "dossier.velocity.last_release": {
+        "en": "Last release",
+        "es": "Último lanzamiento",
+    },
+    "dossier.velocity.last_upload": {
+        "en": "Last upload",
+        "es": "Última subida",
+    },
+    "dossier.velocity.avg_views": {
+        "en": "Avg views (last 3)",
+        "es": "Vistas promedio (últimos 3)",
+    },
+    "dossier.velocity.like_ratio": {
+        "en": "Like ratio",
+        "es": "Ratio de likes",
+    },
+    "dossier.velocity.days_ago": {
+        "en": "{n} days ago",
+        "es": "hace {n} días",
+    },
+    "dossier.velocity.cadence_summary": {
+        "en": "1 every {cadence} days · {trend}",
+        "es": "1 cada {cadence} días · {trend}",
+    },
+    "dossier.velocity.spotify_label": {"en": "Spotify", "es": "Spotify"},
+    "dossier.velocity.youtube_label": {"en": "YouTube", "es": "YouTube"},
+    "dossier.catalog.cadence_extension": {
+        "en": "· Latest: {n} days ago · cadence 1 every {cadence} days, {trend}",
+        "es": "· Último: hace {n} días · cadencia 1 cada {cadence} días, {trend}",
+    },
 }
 
 

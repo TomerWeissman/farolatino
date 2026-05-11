@@ -162,6 +162,47 @@ export type Dossier = {
     latest_tracks?: Array<{ name: string; release_date?: string; isrc?: string }>;
     editorial_playlists?: number;
     total_playlists?: number;
+    // v0.5.0 — Spotify cadence + top-tracks enrichment
+    latest_release_date?: string | null;
+    days_since_latest_release?: number | null;
+    release_cadence_days?: number | null;
+    cadence_trend?: "accelerating" | "steady" | "decelerating" | null;
+    top_tracks?: Array<{
+      name: string;
+      release_date?: string;
+      popularity?: number;
+      spotify_id?: string;
+    }>;
+  };
+  // v0.5.0 — averaged Spotify audio features (top tracks)
+  sound_profile?: {
+    danceability?: number;
+    energy?: number;
+    tempo?: number;
+    sample_size?: number;
+  };
+  // v0.5.0 — Spotify + YouTube cadence + YT recent-video performance
+  content_velocity?: {
+    spotify?: {
+      latest_date?: string | null;
+      days_since_latest?: number | null;
+      cadence_days?: number | null;
+      trend?: "accelerating" | "steady" | "decelerating" | null;
+    } | null;
+    youtube?: {
+      latest_date?: string | null;
+      days_since_latest?: number | null;
+      cadence_days?: number | null;
+      trend?: "accelerating" | "steady" | "decelerating" | null;
+      avg_views_recent_3?: number | null;
+      avg_like_ratio_pct?: number | null;
+      latest_videos?: Array<{
+        title: string;
+        published_at: string;
+        view_count: number;
+        like_count: number;
+      }>;
+    } | null;
   };
   risk_signals?: Record<string, string>;
   competitive_context?: {

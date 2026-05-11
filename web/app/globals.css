@@ -1723,6 +1723,53 @@ button.sidebar-link {
   color: #666;
 }
 
+/* v0.5.0 — Hero sound profile line. Sits between the name and the meta
+   row. Italic + slightly lighter weight to read as a sub-signature for
+   the artist's sonic identity (danceability / energy / BPM). */
+.ev-sound-profile {
+  font: italic 400 13px/1.5 Georgia, serif;
+  color: #888;
+  margin-bottom: 8px;
+}
+.ev-sound-profile strong { color: #1a1a1a; font-weight: 500; }
+
+/* v0.5.0 — Catalog top-tracks mini-table. Reuses .ev-row but with a
+   3-col grid sized for track name | release date | popularity bar.
+   The trailing .ev-num-mono cell carries the "85/100" score. */
+.ev-track-stats-row {
+  grid-template-columns: 1fr 120px 1fr 60px;
+}
+
+/* v0.5.0 — Content velocity section. Two-column grid (Spotify left,
+   YouTube right) with a vertical divider. Each block is a stack of
+   label/value rows. */
+.ev-content-velocity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+.ev-velocity-block { padding: 0 24px; }
+.ev-velocity-block:first-child { padding-left: 0; border-right: 1px solid #f0f0eb; }
+.ev-velocity-block:last-child { padding-right: 0; }
+.ev-velocity-subhead {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 16px;
+}
+.ev-velocity-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f3ed;
+  font-size: 14px;
+}
+.ev-velocity-row:last-child { border-bottom: none; }
+.ev-velocity-label { color: #888; }
+.ev-velocity-row strong { color: #1a1a1a; font-weight: 500; }
+
 /* Chat: compact dossier pill — replaces the dumped Markdown when a
    turn was created via /evaluate's "Continue in chat" handoff. Click
    anywhere on the pill to jump back to the dashboard. */

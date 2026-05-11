@@ -154,6 +154,14 @@ class ArtistProfile:
     # Engagement
     ig_engagement_rate: float | None = None
 
+    # Native Spotify enrichment (v0.5.0 — backward-compatible, optional)
+    sp_artist_id: str | None = None
+    sp_top_tracks: list[dict] = field(default_factory=list)
+    sp_audio_features: dict = field(default_factory=dict)
+
+    # Native YouTube enrichment (v0.5.0)
+    yt_latest_videos: list[dict] = field(default_factory=list)
+
     # Metadata
     data_fetched_at: str = ""  # ISO datetime
     data_completeness: float = 0.0  # 0-1, how many fields are populated

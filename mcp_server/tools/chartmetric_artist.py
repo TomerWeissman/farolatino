@@ -21,6 +21,7 @@ Endpoints called:
 import time
 from datetime import datetime, timedelta
 
+from core.cadence import compute_release_cadence
 from mcp_server.server import mcp
 from mcp_server.tools.chartmetric_auth import api_get
 from mcp_server.tools.data_cache import raw_cache_get, raw_cache_set
@@ -702,6 +703,97 @@ def _is_populated(value, kind: str) -> bool:
     return bool(value)
 
 
+# ─── v0.5.0 enrichment ──────────────────────────────────────────────
+#
+# These pull data directly from Spotify and YouTube (not Chartmetric) to
+# answer questions Chartmetric's snapshot can't: per-track popularity,
+# audio features (danceability/energy/tempo), and YouTube content
+# velocity. Every step is wrapped — a missing Spotify ID or rate-limited
+# YouTube call must NOT break the dossier path.
+
+
+def _resolve_spotify_artist_id(metadata: dict, artist_name: str) -> str | None:
+    """Find a Spotify artist ID for this Chartmetric artist.
+
+    Tries Chartmetric metadata first (in case a future API revision
+    surfaces it), then falls back to a Spotify name search. Returns
+    ``None`` if neither path produces an ID.
+    """
+    cm_stats = metadata.get("cm_statistics") or {}
+    for key in ("sp_id", "spotify_id", "spotify_artist_id"):
+        v = metadata.get(key) or cm_stats.get(key)
+        if isinstance(v, str) and v:
+            return v
+    if not artist_name:
+        return None
+    try:
+        from mcp_server.tools.spotify_search import search_spotify_artist
+        result = search_spotify_artist(artist_name, limit=1)
+        artists = result.get("artists") or []
+        if artists:
+            return artists[0].get("spotify_id")
+    except Exception:
+        return None
+    return None
+
+
+def _fetch_sp_top_tracks_and_features(spotify_id: str) -> tuple[list[dict], dict]:
+    """Call Spotify top-tracks + audio-features, return (tracks, avg_features).
+
+    Degrades silently — any error returns ``([], {})``.
+    """
+    try:
+        from mcp_server.tools.spotify_search import (
+            get_spotify_artist_top_tracks,
+            get_spotify_audio_features,
+        )
+        top = get_spotify_artist_top_tracks(spotify_id, limit=5)
+        tracks = top.get("tracks") or []
+        track_ids = [t.get("id") for t in tracks if t.get("id")]
+        if not track_ids:
+            return tracks, {}
+        feats = get_spotify_audio_features(track_ids)
+        return tracks, feats.get("average") or {}
+    except Exception:
+        return [], {}
+
+
+def _resolve_youtube_uploads_playlist(artist_name: str) -> str | None:
+    """Resolve the channel's uploads playlist ID via name search → channel lookup.
+
+    Two calls (search_youtube_channel, get_youtube_channel) — both have
+    YouTube quota costs, so we only ever run this on a cold get_artist_data.
+    """
+    if not artist_name:
+        return None
+    try:
+        from mcp_server.tools.youtube_search import (
+            search_youtube_channel,
+            get_youtube_channel,
+        )
+        search = search_youtube_channel(artist_name, limit=1)
+        channels = search.get("channels") or []
+        if not channels:
+            return None
+        channel_id = channels[0].get("channel_id")
+        if not channel_id:
+            return None
+        details = get_youtube_channel(channel_id)
+        return details.get("uploads_playlist_id")
+    except Exception:
+        return None
+
+
+def _fetch_yt_latest_videos(uploads_playlist_id: str) -> list[dict]:
+    """Pull the channel's latest 3 videos. Returns ``[]`` on any error."""
+    try:
+        from mcp_server.tools.youtube_search import get_youtube_latest_videos
+        result = get_youtube_latest_videos(uploads_playlist_id, limit=3)
+        return result.get("videos") or []
+    except Exception:
+        return []
+
+
 def _compute_completeness(profile: dict) -> float:
     """Fraction of required fields that are meaningfully populated."""
     populated = sum(
@@ -872,6 +964,38 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
         "data_fetched_at": datetime.now().isoformat(),
         "data_completeness": 0.0,
     }
+
+    # ─── Step 7: native Spotify + YouTube enrichment (v0.5.0) ──────────
+    #
+    # Per-track popularity + audio features (Sound profile), plus
+    # YouTube content velocity. Cached per data type — cold lookup only.
+    # Every fetch wrapped in try/except so the dossier still ships when
+    # an enrichment partner is rate-limited or unavailable.
+    artist_name = profile.get("name") or ""
+
+    def _fetch_sp_enrichment(_id):
+        spid = _resolve_spotify_artist_id(metadata, artist_name)
+        if not spid:
+            return {"sp_artist_id": None, "top_tracks": [], "audio_features": {}}
+        tracks, avg_feats = _fetch_sp_top_tracks_and_features(spid)
+        return {"sp_artist_id": spid, "top_tracks": tracks, "audio_features": avg_feats}
+
+    def _fetch_yt_enrichment(_id):
+        playlist_id = _resolve_youtube_uploads_playlist(artist_name)
+        if not playlist_id:
+            return {"uploads_playlist_id": None, "videos": []}
+        return {
+            "uploads_playlist_id": playlist_id,
+            "videos": _fetch_yt_latest_videos(playlist_id),
+        }
+
+    sp_enrich = _cached_fetch(cm_artist_id, "sp_enrichment_v1", _fetch_sp_enrichment, c)
+    yt_enrich = _cached_fetch(cm_artist_id, "yt_enrichment_v1", _fetch_yt_enrichment, c)
+
+    profile["sp_artist_id"] = sp_enrich.get("sp_artist_id")
+    profile["sp_top_tracks"] = sp_enrich.get("top_tracks") or []
+    profile["sp_audio_features"] = sp_enrich.get("audio_features") or {}
+    profile["yt_latest_videos"] = yt_enrich.get("videos") or []
 
     # Add per-platform audience geography (used by revenue model for proper
     # per-(platform, country) CPM application). Country codes are normalized

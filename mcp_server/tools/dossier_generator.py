@@ -1,5 +1,6 @@
 """Dossier generator — assembles a structured artist dossier from scored data."""
 
+from core.cadence import compute_release_cadence
 from mcp_server.models import build_artist
 from mcp_server.server import mcp
 
@@ -101,6 +102,17 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
 
     # 7. Catalog & activity
     recent_tracks = sorted(artist.tracks, key=lambda t: t.release_date, reverse=True)[:5]
+    album_release_dates = [a.release_date for a in artist.albums if a.release_date]
+    sp_cadence = compute_release_cadence(album_release_dates)
+    top_tracks = [
+        {
+            "name": tr.get("name") or "",
+            "release_date": tr.get("release_date") or "",
+            "popularity": tr.get("popularity"),
+            "spotify_id": tr.get("id"),
+        }
+        for tr in (artist.sp_top_tracks or [])
+    ]
     catalog = {
         "releases_6m": artist.recent_release_count_6m,
         "releases_12m": artist.recent_release_count_12m,
@@ -111,6 +123,56 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
         ],
         "editorial_playlists": len(artist.editorial_playlists),
         "total_playlists": len(artist.playlists),
+        "latest_release_date": sp_cadence.get("latest_date"),
+        "days_since_latest_release": sp_cadence.get("days_since_latest"),
+        # Prefer the 6m window when present, else fall back to 12m so
+        # legacy/heritage acts with sparse recent activity still report
+        # a number; tag downstream with `_window` so the UI can label it.
+        "release_cadence_days": sp_cadence.get("cadence_days_6m") or sp_cadence.get("cadence_days_12m"),
+        "cadence_trend": sp_cadence.get("trend"),
+        "top_tracks": top_tracks,
+    }
+
+    # 7b. Sound profile (Spotify audio-features average across top tracks)
+    avg = artist.sp_audio_features or {}
+    sound_profile = {
+        "danceability": avg.get("danceability"),
+        "energy": avg.get("energy"),
+        "tempo": avg.get("tempo"),
+        "sample_size": avg.get("sample_size") or len(top_tracks),
+    } if avg else None
+
+    # 7c. Content velocity (Spotify + YouTube cadence + recent video performance)
+    yt_videos = artist.yt_latest_videos or []
+    yt_publish_dates = [v.get("published_at") for v in yt_videos if v.get("published_at")]
+    yt_cadence = compute_release_cadence([d[:10] for d in yt_publish_dates if d])
+    yt_views = [v.get("view_count") for v in yt_videos if v.get("view_count")]
+    yt_ratios = [v.get("like_ratio") for v in yt_videos if v.get("like_ratio") is not None]
+    yt_block: dict = {
+        "latest_date": yt_cadence.get("latest_date"),
+        "days_since_latest": yt_cadence.get("days_since_latest"),
+        "cadence_days": yt_cadence.get("cadence_days_6m") or yt_cadence.get("cadence_days_12m"),
+        "trend": yt_cadence.get("trend"),
+        "avg_views_recent_3": (sum(yt_views) // len(yt_views)) if yt_views else None,
+        "avg_like_ratio_pct": (sum(yt_ratios) / len(yt_ratios)) if yt_ratios else None,
+        "latest_videos": [
+            {
+                "title": v.get("title") or "",
+                "published_at": v.get("published_at") or "",
+                "view_count": v.get("view_count") or 0,
+                "like_count": v.get("like_count") or 0,
+            }
+            for v in yt_videos
+        ],
+    }
+    content_velocity = {
+        "spotify": {
+            "latest_date": sp_cadence.get("latest_date"),
+            "days_since_latest": sp_cadence.get("days_since_latest"),
+            "cadence_days": sp_cadence.get("cadence_days_6m") or sp_cadence.get("cadence_days_12m"),
+            "trend": sp_cadence.get("trend"),
+        },
+        "youtube": yt_block if yt_videos else None,
     }
 
     # 8. Risk signals
@@ -147,7 +209,7 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
         "tier": score_result.get("tier", "PASS"),
     }
 
-    return {
+    result = {
         "identity": identity,
         "metrics": metrics,
         "prospect_score": prospect_score,
@@ -158,4 +220,8 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
         "risk_signals": risk,
         "competitive_context": competitive,
         "actionable": actionable,
+        "content_velocity": content_velocity,
     }
+    if sound_profile:
+        result["sound_profile"] = sound_profile
+    return result

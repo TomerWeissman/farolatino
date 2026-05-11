@@ -143,6 +143,30 @@ const en: Catalog = {
   "eval.dashboard.catalog.summary": "{r6} releases · last 6 months · {r12} in last 12 months · {total} total tracks",
   "eval.dashboard.catalog.editorial_suffix": "editorial playlists",
   "eval.dashboard.catalog.latest_releases": "Latest releases",
+  // Catalog — v0.5.0 cadence extension + top-tracks mini-table
+  "eval.dashboard.catalog.cadence_extension": "· Latest: {days} days ago · cadence 1 every {cadence} days, {trend}",
+  "eval.dashboard.catalog.top_tracks_title": "Top 5 tracks by Spotify popularity",
+  "eval.dashboard.catalog.popularity_label": "Popularity: Spotify's 0–100 score (decays when streams slow).",
+  "eval.dashboard.catalog.trend.accelerating": "accelerating",
+  "eval.dashboard.catalog.trend.steady": "steady",
+  "eval.dashboard.catalog.trend.decelerating": "decelerating",
+  // Hero — sound profile (v0.5.0)
+  "eval.dashboard.hero.sound_profile.title": "Sound profile",
+  "eval.dashboard.hero.sound_profile.danceability": "Danceability",
+  "eval.dashboard.hero.sound_profile.energy": "Energy",
+  "eval.dashboard.hero.sound_profile.tempo_bpm": "BPM",
+  // Content velocity section (v0.5.0)
+  "eval.dashboard.content_velocity": "Content velocity",
+  "eval.dashboard.content_velocity.spotify": "Spotify",
+  "eval.dashboard.content_velocity.youtube": "YouTube",
+  "eval.dashboard.content_velocity.last_release": "Last release",
+  "eval.dashboard.content_velocity.last_upload": "Last upload",
+  "eval.dashboard.content_velocity.cadence": "Cadence",
+  "eval.dashboard.content_velocity.cadence_value": "1 every {days} days · {trend}",
+  "eval.dashboard.content_velocity.avg_views": "Avg views (last 3)",
+  "eval.dashboard.content_velocity.like_ratio": "Like ratio",
+  "eval.dashboard.content_velocity.days_ago": "{n} days ago",
+  "eval.dashboard.source.content_velocity": "Source: Spotify Web API (album release dates) + YouTube Data API v3 (uploads playlist, video statistics)",
   // Similar
   "eval.dashboard.similar.evaluate_btn": "Evaluate →",
   // Recommendation prose (mirrors backend tier strings)
@@ -361,6 +385,30 @@ const es: Catalog = {
   "eval.dashboard.catalog.summary": "{r6} lanzamientos · últimos 6 meses · {r12} en los últimos 12 meses · {total} tracks en total",
   "eval.dashboard.catalog.editorial_suffix": "playlists editoriales",
   "eval.dashboard.catalog.latest_releases": "Últimos lanzamientos",
+  // Catalog — v0.5.0 cadence extension + top-tracks mini-table
+  "eval.dashboard.catalog.cadence_extension": "· Último: hace {days} días · cadencia 1 cada {cadence} días, {trend}",
+  "eval.dashboard.catalog.top_tracks_title": "Top 5 tracks por popularidad en Spotify",
+  "eval.dashboard.catalog.popularity_label": "Popularidad: puntaje 0–100 de Spotify (decae cuando bajan los streams).",
+  "eval.dashboard.catalog.trend.accelerating": "acelerando",
+  "eval.dashboard.catalog.trend.steady": "estable",
+  "eval.dashboard.catalog.trend.decelerating": "desacelerando",
+  // Hero — sound profile (v0.5.0)
+  "eval.dashboard.hero.sound_profile.title": "Perfil de sonido",
+  "eval.dashboard.hero.sound_profile.danceability": "Bailabilidad",
+  "eval.dashboard.hero.sound_profile.energy": "Energía",
+  "eval.dashboard.hero.sound_profile.tempo_bpm": "BPM",
+  // Content velocity section (v0.5.0)
+  "eval.dashboard.content_velocity": "Velocidad de contenido",
+  "eval.dashboard.content_velocity.spotify": "Spotify",
+  "eval.dashboard.content_velocity.youtube": "YouTube",
+  "eval.dashboard.content_velocity.last_release": "Último lanzamiento",
+  "eval.dashboard.content_velocity.last_upload": "Última subida",
+  "eval.dashboard.content_velocity.cadence": "Cadencia",
+  "eval.dashboard.content_velocity.cadence_value": "1 cada {days} días · {trend}",
+  "eval.dashboard.content_velocity.avg_views": "Vistas promedio (últimos 3)",
+  "eval.dashboard.content_velocity.like_ratio": "Ratio de likes",
+  "eval.dashboard.content_velocity.days_ago": "hace {n} días",
+  "eval.dashboard.source.content_velocity": "Fuente: Spotify Web API (fechas de álbumes) + YouTube Data API v3 (playlist de subidas, estadísticas de videos)",
   // Similar
   "eval.dashboard.similar.evaluate_btn": "Evaluar →",
   // Recommendation prose (mirrors backend tier strings)
