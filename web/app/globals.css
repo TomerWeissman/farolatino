@@ -1887,45 +1887,134 @@ button.sidebar-link {
 .cmp-header-name { font: 500 24px/1.1 Georgia, serif; text-align: center; }
 .cmp-header-tier { font-size: 13px; letter-spacing: 0.05em; }
 
-/* Bar comparison row: label | value A | overlaid bar | value B */
-.cmp-bar-row {
+/* v0.5.2 radar comparison.
+   Two-column wrap: SVG radar on the left, color-keyed value legend
+   table on the right. Each radar gets its own .cmp-radar-wrap. */
+.cmp-radar-wrap {
   display: grid;
-  grid-template-columns: 1fr 90px 2fr 90px;
-  gap: 12px;
+  grid-template-columns: 360px 1fr;
+  gap: 32px;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0eb;
+}
+.cmp-radar-svg { display: block; }
+.cmp-radar-label {
+  font-size: 11px;
+  fill: #1a1a1a;
+  letter-spacing: 0.02em;
+}
+.cmp-radar-legend {
+  display: flex;
+  flex-direction: column;
   font-size: 13px;
 }
-.cmp-bar-row:last-child { border-bottom: none; }
-.cmp-bar-label { color: #1a1a1a; }
-.cmp-bar-value {
-  font-variant-numeric: tabular-nums;
+.cmp-radar-legend-head {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 4px;
+}
+.cmp-radar-legend-name {
+  text-align: right;
+  font-weight: 600;
   font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-radar-legend-spacer {}
+.cmp-radar-legend-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0eb;
+  align-items: baseline;
+}
+.cmp-radar-legend-row:last-child { border-bottom: none; }
+.cmp-radar-legend-dim { color: #555; }
+.cmp-radar-legend-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   color: #1a1a1a;
   font-weight: 500;
 }
-.cmp-bar-value-a { text-align: right; }
-.cmp-bar-value-b { text-align: left; }
 
-/* Overlay bar — two children stacked at full width, each sized
-   independently. Lower z-index for B so A wins when widths are equal. */
-.cmp-overlay-bar {
-  position: relative;
-  height: 14px;
+/* Stack radar + legend on narrow viewports */
+@media (max-width: 900px) {
+  .cmp-radar-wrap { grid-template-columns: 1fr; }
+  .cmp-radar-svg { margin: 0 auto; }
+}
+
+/* Disambig row inside a /compare side panel — mirrors /evaluate's
+   disambig styling: photo on the left, name + meta stacked right. */
+.cmp-disambig-row {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+  align-items: center;
+  background: white;
+  border: 1px solid #e5e5e0;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+  margin-top: 6px;
+}
+.cmp-disambig-row:hover { border-color: #d97706; }
+.cmp-disambig-photo {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
   background: #ececea;
-  overflow: hidden;
-}
-.cmp-overlay-bar > span {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
   display: block;
-  opacity: 0.7;
 }
-.cmp-bar-a { z-index: 2; }
-.cmp-bar-b { z-index: 1; }
+.cmp-disambig-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  color: white;
+  font: 600 14px/1 Georgia, serif;
+}
+.cmp-disambig-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cmp-disambig-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-disambig-meta {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-side-disambig-hint { font-size: 12px; color: #888; }
+
+/* Loading state inside a side panel — elapsed seconds counter +
+   3-step list mirroring /evaluate's full LoadingState. */
+.cmp-side-loading-head { display: flex; align-items: center; gap: 12px; }
+.cmp-side-loading-title { font-size: 14px; color: #1a1a1a; font-weight: 500; }
+.cmp-side-loading-steps { font-size: 11px; color: #888; }
+.cmp-side-loading-steps > div { padding: 2px 0; }
+
+/* Error state inside a side panel */
+.cmp-side-error-title { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+.cmp-side-error-message { font-size: 12px; color: #b45309; }
 
 /* v0.5.0 — Catalog top-tracks mini-table. Reuses .ev-row but with a
    3-col grid sized for track name | release date | popularity bar.

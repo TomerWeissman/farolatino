@@ -1,17 +1,22 @@
 "use client";
 
-// /compare — overlay-style two-artist comparison.
+// /compare — two-artist comparison via twin radar charts (v0.5.2).
 //
 // Two text inputs at top (Artist A / Artist B). Fires POST /api/evaluate
 // for each in parallel; loading + disambiguation states are independent
 // per side so one slow lookup doesn't block the other. Once both
-// resolve, renders a vertical stack of overlaid bar charts — each row
-// has the dimension label, value A, an overlaid bar (A in tier accent,
-// B in a secondary accent), value B.
+// resolve, renders two radar charts:
 //
-// No new backend endpoint: this is purely a frontend assembly of two
-// /api/evaluate responses. Cache hits on either side make the
-// comparison effectively instant after the first cold lookup.
+//   - REACH (6 platform metrics, each axis scaled to max(a,b))
+//   - PERFORMANCE (7 scoring dimensions, each axis on 0-100)
+//
+// Each artist contributes a colored polygon to both radars. Artist A
+// in tier-accent color; Artist B in a contrasting purple. A small data
+// table below each radar shows the exact values + the delta — the
+// shapes give a fast read, the table answers "how much".
+//
+// The input UX mirrors /evaluate: photos + initials on disambig
+// candidates, elapsed-seconds spinner during loading, structured error.
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -19,70 +24,34 @@ import { evaluate } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
 import { TIER_COLOR, formatInt, formatMoney } from "@/lib/format";
 import type { DisambigCandidate, Dossier, EvaluateResponse } from "@/lib/types";
+import { RadarChart, type RadarDim } from "@/components/radar-chart";
 
-// Per-side state. Each slot evolves independently of the other.
 type SideState =
   | { kind: "empty" }
   | { kind: "loading"; artist: string }
   | { kind: "disambig"; query: string; candidates: DisambigCandidate[] }
-  | { kind: "error"; message: string }
+  | { kind: "error"; message: string; artist: string }
   | { kind: "loaded"; artist: string; cm_id: number; dossier: Dossier };
 
-// One row in the comparison stack — formatter + extractor per dimension.
-type Dim = {
-  key: string;
-  // i18n key for the row's label (without "compare.dim." prefix); appended below.
-  labelKey: string;
-  // Pull the raw numeric value from a dossier. null = missing data.
-  get: (d: Dossier) => number | null;
-  // Render the value for display next to the bar.
-  fmt: (n: number) => string;
-  // When true, smaller numbers are "better" (e.g., release cadence days
-  // — fewer days between drops = more active). The bar still sizes by
-  // value/max(a,b) so the visual is correct; this flag lets us label the
-  // dimension with the right framing.
-  lowerIsBetter?: boolean;
-};
+// Artist B's color across all tier accents — chosen to be visually
+// distinct from any TIER_COLOR (orange / blue / green / gray).
+const SECONDARY_ACCENT = "#a855f7";
 
-const DIMENSIONS: Dim[] = [
-  { key: "score", labelKey: "compare.dim.score",
-    get: (d) => d.prospect_score?.overall ?? null,
-    fmt: (n) => `${Math.round(n)}/100` },
-  { key: "sp_listeners", labelKey: "compare.dim.sp_listeners",
-    get: (d) => d.metrics?.spotify?.monthly_listeners ?? null,
-    fmt: formatInt },
-  { key: "sp_followers", labelKey: "compare.dim.sp_followers",
-    get: (d) => d.metrics?.spotify?.followers ?? null,
-    fmt: formatInt },
-  { key: "yt_subs", labelKey: "compare.dim.yt_subs",
-    get: (d) => d.metrics?.youtube?.subscribers ?? null,
-    fmt: formatInt },
-  { key: "yt_views", labelKey: "compare.dim.yt_views",
-    get: (d) => d.metrics?.youtube?.views ?? null,
-    fmt: formatInt },
-  { key: "ig_followers", labelKey: "compare.dim.ig_followers",
-    get: (d) => d.metrics?.instagram?.followers ?? null,
-    fmt: formatInt },
-  { key: "tt_followers", labelKey: "compare.dim.tt_followers",
-    get: (d) => d.metrics?.tiktok?.followers ?? null,
-    fmt: formatInt },
-  { key: "revenue", labelKey: "compare.dim.revenue",
-    get: (d) => d.revenue_projection?.annual_projected ?? null,
-    fmt: formatMoney },
-  { key: "sp_cadence", labelKey: "compare.dim.sp_cadence", lowerIsBetter: true,
-    get: (d) => d.content_velocity?.spotify?.cadence_days ?? null,
-    fmt: (n) => `${Math.round(n)}d` },
-  { key: "yt_avg_views", labelKey: "compare.dim.yt_avg_views",
-    get: (d) => d.content_velocity?.youtube?.avg_views_recent_3 ?? null,
-    fmt: formatInt },
-  { key: "releases_12m", labelKey: "compare.dim.releases_12m",
-    get: (d) => d.catalog?.releases_12m ?? null,
-    fmt: (n) => `${Math.round(n)}` },
+// Reach radar — six platform-presence axes, normalized per-axis to
+// max(a, b) so the bigger artist always touches the outer ring.
+const REACH_DIMS: Array<{
+  labelKey: string;
+  fmt: (n: number) => string;
+  get: (d: Dossier) => number | null;
+}> = [
+  { labelKey: "compare.dim.sp_listeners", fmt: formatInt, get: (d) => d.metrics?.spotify?.monthly_listeners ?? null },
+  { labelKey: "compare.dim.sp_followers", fmt: formatInt, get: (d) => d.metrics?.spotify?.followers ?? null },
+  { labelKey: "compare.dim.yt_subs",      fmt: formatInt, get: (d) => d.metrics?.youtube?.subscribers ?? null },
+  { labelKey: "compare.dim.yt_views",     fmt: formatInt, get: (d) => d.metrics?.youtube?.views ?? null },
+  { labelKey: "compare.dim.tt_followers", fmt: formatInt, get: (d) => d.metrics?.tiktok?.followers ?? null },
+  { labelKey: "compare.dim.ig_followers", fmt: formatInt, get: (d) => d.metrics?.instagram?.followers ?? null },
 ];
 
-// Artist B uses a secondary accent across all tier colors so the
-// overlay bars are visually distinct from A's tier-accent.
-const SECONDARY_ACCENT = "#a855f7"; // purple — far from any tier color
 
 export function CompareDashboard() {
   const t = useT();
@@ -92,26 +61,6 @@ export function CompareDashboard() {
   const [sideA, setSideA] = useState<SideState>({ kind: "empty" });
   const [sideB, setSideB] = useState<SideState>({ kind: "empty" });
 
-  // Pre-populate from URL params: ?primary=A&primary_cm_id=X&secondary=B&secondary_cm_id=Y.
-  // The cm_id params skip the search step on each side (mirrors the
-  // /evaluate pattern). Used by the future compare-pill chat handoff
-  // and by the /evaluate "Compare to another artist" CTA.
-  useEffect(() => {
-    const a = searchParams.get("primary");
-    const b = searchParams.get("secondary");
-    const aId = searchParams.get("primary_cm_id");
-    const bId = searchParams.get("secondary_cm_id");
-    if (a) {
-      setDraftA(a);
-      void runSide("A", a, aId ? Number(aId) : undefined);
-    }
-    if (b) {
-      setDraftB(b);
-      void runSide("B", b, bId ? Number(bId) : undefined);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   const runSide = useCallback(async (side: "A" | "B", artist: string, cmId?: number) => {
     if (!artist.trim()) return;
     const setter = side === "A" ? setSideA : setSideB;
@@ -119,7 +68,7 @@ export function CompareDashboard() {
     try {
       const r: EvaluateResponse = await evaluate(artist, cmId);
       if ("error" in r && r.error) {
-        setter({ kind: "error", message: r.error });
+        setter({ kind: "error", message: r.error, artist });
         return;
       }
       if ("needs_disambiguation" in r && r.needs_disambiguation) {
@@ -135,9 +84,25 @@ export function CompareDashboard() {
         });
       }
     } catch (e) {
-      setter({ kind: "error", message: e instanceof Error ? e.message : "Network error" });
+      setter({ kind: "error", message: e instanceof Error ? e.message : "Network error", artist });
     }
   }, []);
+
+  // Pre-populate from URL: ?primary=A&primary_cm_id=X&secondary=B&secondary_cm_id=Y
+  useEffect(() => {
+    const a = searchParams.get("primary");
+    const b = searchParams.get("secondary");
+    const aId = searchParams.get("primary_cm_id");
+    const bId = searchParams.get("secondary_cm_id");
+    if (a) {
+      setDraftA(a);
+      void runSide("A", a, aId ? Number(aId) : undefined);
+    }
+    if (b) {
+      setDraftB(b);
+      void runSide("B", b, bId ? Number(bId) : undefined);
+    }
+  }, [searchParams, runSide]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,8 +110,6 @@ export function CompareDashboard() {
     if (draftB.trim()) void runSide("B", draftB.trim());
   };
 
-  // Show the comparison only when BOTH sides are loaded. Until then, the
-  // per-side state UI tells the user what's happening on each side.
   const bothLoaded = sideA.kind === "loaded" && sideB.kind === "loaded";
 
   return (
@@ -183,11 +146,20 @@ export function CompareDashboard() {
         </form>
       </header>
 
-      {/* Per-side status panels. Stack vertically when not both loaded. */}
       {!bothLoaded && (
         <div className="cmp-side-status-grid">
-          <SideStatus side="A" state={sideA} onPick={(id, name) => { setDraftA(name); void runSide("A", name, id); }} />
-          <SideStatus side="B" state={sideB} onPick={(id, name) => { setDraftB(name); void runSide("B", name, id); }} />
+          <SideStatus
+            side="A"
+            state={sideA}
+            onPick={(id, name) => { setDraftA(name); void runSide("A", name, id); }}
+            onRetry={(name) => void runSide("A", name)}
+          />
+          <SideStatus
+            side="B"
+            state={sideB}
+            onPick={(id, name) => { setDraftB(name); void runSide("B", name, id); }}
+            onRetry={(name) => void runSide("B", name)}
+          />
         </div>
       )}
 
@@ -203,10 +175,12 @@ function SideStatus({
   side,
   state,
   onPick,
+  onRetry,
 }: {
   side: "A" | "B";
   state: SideState;
   onPick: (cmId: number, name: string) => void;
+  onRetry: (artist: string) => void;
 }) {
   const t = useT();
   if (state.kind === "empty") {
@@ -218,13 +192,7 @@ function SideStatus({
     );
   }
   if (state.kind === "loading") {
-    return (
-      <div className="cmp-side cmp-side-loading">
-        <div className="cmp-side-label">{side}</div>
-        <span className="evaluate-spinner" aria-hidden="true" />
-        <div>{t("eval.loading.title", { artist: state.artist })}</div>
-      </div>
-    );
+    return <SideLoading side={side} artist={state.artist} />;
   }
   if (state.kind === "disambig") {
     return (
@@ -233,21 +201,9 @@ function SideStatus({
         <div className="cmp-side-disambig-title">
           {t("eval.disambig.title", { query: state.query })}
         </div>
+        <div className="cmp-side-disambig-hint">{t("eval.disambig.hint")}</div>
         {state.candidates.map((c) => (
-          <button
-            key={c.cm_id}
-            type="button"
-            className="cmp-disambig-row"
-            onClick={() => onPick(c.cm_id, c.name)}
-          >
-            <strong>{c.name}</strong>
-            <span className="cmp-disambig-meta">
-              {(c.country_code ?? c.code2 ?? "—")} ·{" "}
-              {c.sp_monthly_listeners
-                ? `${formatInt(c.sp_monthly_listeners)} ${t("eval.disambig.monthly_listeners")}`
-                : t("eval.disambig.no_streaming")}
-            </span>
-          </button>
+          <DisambigRow key={c.cm_id} c={c} onPick={onPick} />
         ))}
       </div>
     );
@@ -256,12 +212,21 @@ function SideStatus({
     return (
       <div className="cmp-side cmp-side-error">
         <div className="cmp-side-label">{side}</div>
-        <div>{state.message}</div>
+        <div className="cmp-side-error-title">
+          {t("eval.error.title", { artist: state.artist })}
+        </div>
+        <div className="cmp-side-error-message">{state.message}</div>
+        <button
+          type="button"
+          className="evaluate-btn evaluate-btn-secondary"
+          onClick={() => onRetry(state.artist)}
+        >
+          {t("eval.error.retry")}
+        </button>
       </div>
     );
   }
-  // loaded — show a compact "ready" card; the actual comparison is
-  // rendered separately by ComparisonView once both sides are loaded.
+  // loaded — show a compact "ready" card
   return (
     <div className="cmp-side cmp-side-ready">
       <div className="cmp-side-label">{side}</div>
@@ -270,6 +235,88 @@ function SideStatus({
         {state.dossier.prospect_score.tier} · {Math.round(state.dossier.prospect_score.overall)}/100
       </div>
     </div>
+  );
+}
+
+
+function SideLoading({ side, artist }: { side: "A" | "B"; artist: string }) {
+  const t = useT();
+  // Elapsed seconds — same UX as /evaluate's LoadingState. Resets per
+  // mount because the component remounts when the artist changes.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="cmp-side cmp-side-loading">
+      <div className="cmp-side-label">{side}</div>
+      <div className="cmp-side-loading-head">
+        <span className="evaluate-spinner" aria-hidden="true" />
+        <div className="cmp-side-loading-title">
+          {t("eval.loading.title", { artist })}
+          {elapsed >= 3 && <span className="evaluate-loading-elapsed"> · {elapsed}s</span>}
+        </div>
+      </div>
+      <div className="evaluate-loading-steps cmp-side-loading-steps">
+        <div>{t("eval.loading.step.lookup")}</div>
+        <div>{t("eval.loading.step.pull")}</div>
+        <div>{t("eval.loading.step.score")}</div>
+      </div>
+    </div>
+  );
+}
+
+
+function DisambigRow({
+  c,
+  onPick,
+}: {
+  c: DisambigCandidate;
+  onPick: (cmId: number, name: string) => void;
+}) {
+  const t = useT();
+  const country = c.country_code ?? c.code2 ?? "—";
+  const initials = c.name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+  const listenersLbl = c.sp_monthly_listeners
+    ? t("eval.disambig.monthly_listeners")
+    : t("eval.disambig.spotify_followers");
+  const listeners = c.sp_monthly_listeners ?? c.sp_followers ?? 0;
+  return (
+    <button
+      type="button"
+      className="cmp-disambig-row"
+      onClick={() => onPick(c.cm_id, c.name)}
+    >
+      {c.image_url ? (
+        <img
+          src={c.image_url}
+          alt={c.name}
+          className="cmp-disambig-photo"
+          onError={(e) => {
+            const tgt = e.currentTarget;
+            const fb = document.createElement("div");
+            fb.className = "cmp-disambig-photo cmp-disambig-photo-fallback";
+            fb.textContent = initials;
+            tgt.replaceWith(fb);
+          }}
+        />
+      ) : (
+        <div className="cmp-disambig-photo cmp-disambig-photo-fallback">{initials}</div>
+      )}
+      <div className="cmp-disambig-text">
+        <span className="cmp-disambig-name">{c.name}</span>
+        <span className="cmp-disambig-meta">
+          {country} · {listeners ? `${formatInt(listeners)} ${listenersLbl}` : t("eval.disambig.no_streaming")}
+          {c.genres && c.genres.length > 0 && ` · ${c.genres.slice(0, 2).join(", ")}`}
+        </span>
+      </div>
+    </button>
   );
 }
 
@@ -285,27 +332,45 @@ function ComparisonView({
   const accentA = TIER_COLOR[a.dossier.prospect_score.tier?.toUpperCase() ?? ""] ?? "#1a1a1a";
   const accentB = SECONDARY_ACCENT;
 
+  const reachDims: RadarDim[] = REACH_DIMS.map((d) => ({
+    label: t(d.labelKey),
+    fmt: d.fmt,
+    valueA: d.get(a.dossier),
+    valueB: d.get(b.dossier),
+  }));
+
+  // Scoring radar — pull all dimensions that both dossiers expose.
+  const scoringNames = Array.from(
+    new Set([
+      ...Object.keys(a.dossier.prospect_score.dimensions ?? {}),
+      ...Object.keys(b.dossier.prospect_score.dimensions ?? {}),
+    ])
+  );
+  const scoringDims: RadarDim[] = scoringNames.map((name) => ({
+    label: name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+    fmt: (n) => `${Math.round(n)}`,
+    valueA: a.dossier.prospect_score.dimensions?.[name]?.score ?? null,
+    valueB: b.dossier.prospect_score.dimensions?.[name]?.score ?? null,
+  }));
+
   return (
     <article className="evaluate-column">
       <CompareHeader a={a} b={b} accentA={accentA} accentB={accentB} />
 
       <section className="ev-section">
-        <h2 className="ev-h2">{t("compare.dimensions_title")}</h2>
-        {DIMENSIONS.map((dim) => (
-          <CompareRow
-            key={dim.key}
-            dim={dim}
-            valA={dim.get(a.dossier)}
-            valB={dim.get(b.dossier)}
-            accentA={accentA}
-            accentB={accentB}
-          />
-        ))}
+        <h2 className="ev-h2">{t("compare.reach_title")}</h2>
+        <div className="cmp-radar-wrap">
+          <RadarChart dims={reachDims} accentA={accentA} accentB={accentB} normalizeMode="max" />
+          <RadarLegend a={a} b={b} accentA={accentA} accentB={accentB} dims={reachDims} />
+        </div>
       </section>
 
       <section className="ev-section">
         <h2 className="ev-h2">{t("compare.scoring_title")}</h2>
-        <ScoringCompare a={a.dossier} b={b.dossier} accentA={accentA} accentB={accentB} />
+        <div className="cmp-radar-wrap">
+          <RadarChart dims={scoringDims} accentA={accentA} accentB={accentB} normalizeMode="percent" />
+          <RadarLegend a={a} b={b} accentA={accentA} accentB={accentB} dims={scoringDims} />
+        </div>
       </section>
 
       <div className="ev-source">{t("compare.source")}</div>
@@ -358,11 +423,11 @@ function PhotoOrInitials({ name, image }: { name: string; image?: string | null 
         src={image}
         alt={name}
         onError={(e) => {
-          const t = e.target as HTMLImageElement;
+          const tgt = e.target as HTMLImageElement;
           const fb = document.createElement("div");
           fb.className = "cmp-header-photo cmp-header-photo-fallback";
           fb.textContent = initials;
-          t.replaceWith(fb);
+          tgt.replaceWith(fb);
         }}
       />
     );
@@ -371,85 +436,44 @@ function PhotoOrInitials({ name, image }: { name: string; image?: string | null 
 }
 
 
-function CompareRow({
-  dim, valA, valB, accentA, accentB,
+function RadarLegend({
+  a,
+  b,
+  accentA,
+  accentB,
+  dims,
 }: {
-  dim: Dim;
-  valA: number | null;
-  valB: number | null;
+  a: Extract<SideState, { kind: "loaded" }>;
+  b: Extract<SideState, { kind: "loaded" }>;
   accentA: string;
   accentB: string;
+  dims: RadarDim[];
 }) {
-  const t = useT();
-  const max = Math.max(valA ?? 0, valB ?? 0);
-  // Both null = nothing to compare. Render an empty row marker for
-  // transparency; user can see we did try to pull this dimension.
-  const widthA = max > 0 && valA != null ? (valA / max) * 100 : 0;
-  const widthB = max > 0 && valB != null ? (valB / max) * 100 : 0;
-  const label = t(dim.labelKey);
+  // Compact value table next to the radar — gives the analyst the
+  // exact numbers without needing tooltips. Two columns of values per
+  // axis, color-keyed back to the polygons.
   return (
-    <div className="cmp-bar-row">
-      <div className="cmp-bar-label">{label}</div>
-      <div className="cmp-bar-value cmp-bar-value-a">
-        {valA != null ? dim.fmt(valA) : "—"}
+    <div className="cmp-radar-legend">
+      <div className="cmp-radar-legend-head">
+        <div className="cmp-radar-legend-spacer" />
+        <div className="cmp-radar-legend-name" style={{ color: accentA }}>
+          {a.artist}
+        </div>
+        <div className="cmp-radar-legend-name" style={{ color: accentB }}>
+          {b.artist}
+        </div>
       </div>
-      <div className="cmp-overlay-bar">
-        <span className="cmp-bar-a" style={{ width: `${widthA}%`, background: accentA }} />
-        <span className="cmp-bar-b" style={{ width: `${widthB}%`, background: accentB }} />
-      </div>
-      <div className="cmp-bar-value cmp-bar-value-b">
-        {valB != null ? dim.fmt(valB) : "—"}
-      </div>
-    </div>
-  );
-}
-
-
-function ScoringCompare({
-  a, b, accentA, accentB,
-}: {
-  a: Dossier;
-  b: Dossier;
-  accentA: string;
-  accentB: string;
-}) {
-  // Union of dimension names across both dossiers — same dim should
-  // be present in both, but be defensive.
-  const dimNames = Array.from(
-    new Set([
-      ...Object.keys(a.prospect_score.dimensions ?? {}),
-      ...Object.keys(b.prospect_score.dimensions ?? {}),
-    ])
-  );
-  return (
-    <>
-      {dimNames.map((name) => {
-        const sa = a.prospect_score.dimensions?.[name]?.score ?? null;
-        const sb = b.prospect_score.dimensions?.[name]?.score ?? null;
-        const label = name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-        // Scores are bounded 0-100, so use 100 as the denominator
-        // rather than max(a,b) — keeps the bars comparable across
-        // dimensions (an 80 always looks bigger than a 40).
-        return (
-          <div key={name} className="cmp-bar-row">
-            <div className="cmp-bar-label">{label}</div>
-            <div className="cmp-bar-value cmp-bar-value-a">
-              {sa != null ? Math.round(sa) : "—"}
-            </div>
-            <div className="cmp-overlay-bar">
-              {sa != null && (
-                <span className="cmp-bar-a" style={{ width: `${Math.min(100, sa)}%`, background: accentA }} />
-              )}
-              {sb != null && (
-                <span className="cmp-bar-b" style={{ width: `${Math.min(100, sb)}%`, background: accentB }} />
-              )}
-            </div>
-            <div className="cmp-bar-value cmp-bar-value-b">
-              {sb != null ? Math.round(sb) : "—"}
-            </div>
+      {dims.map((d, i) => (
+        <div key={i} className="cmp-radar-legend-row">
+          <div className="cmp-radar-legend-dim">{d.label}</div>
+          <div className="cmp-radar-legend-val">
+            {d.valueA != null ? d.fmt(d.valueA) : "—"}
           </div>
-        );
-      })}
-    </>
+          <div className="cmp-radar-legend-val">
+            {d.valueB != null ? d.fmt(d.valueB) : "—"}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
