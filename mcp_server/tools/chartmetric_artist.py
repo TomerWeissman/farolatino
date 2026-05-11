@@ -758,14 +758,17 @@ def _fetch_sp_top_tracks_and_features(spotify_id: str) -> tuple[list[dict], dict
         return [], {}
 
 
-def _resolve_youtube_uploads_playlist(artist_name: str) -> str | None:
-    """Resolve the channel's uploads playlist ID via name search → channel lookup.
+def _resolve_youtube_channel_info(artist_name: str) -> dict:
+    """Resolve a channel_id + uploads_playlist_id for the artist.
 
-    Two calls (search_youtube_channel, get_youtube_channel) — both have
-    YouTube quota costs, so we only ever run this on a cold get_artist_data.
+    Two YouTube calls (search_youtube_channel, get_youtube_channel) —
+    both have quota costs, so we only run this on a cold
+    get_artist_data and bundle the result so downstream calls reuse
+    the same channel_id.
     """
+    out = {"channel_id": None, "uploads_playlist_id": None}
     if not artist_name:
-        return None
+        return out
     try:
         from mcp_server.tools.youtube_search import (
             search_youtube_channel,
@@ -774,14 +777,16 @@ def _resolve_youtube_uploads_playlist(artist_name: str) -> str | None:
         search = search_youtube_channel(artist_name, limit=1)
         channels = search.get("channels") or []
         if not channels:
-            return None
+            return out
         channel_id = channels[0].get("channel_id")
         if not channel_id:
-            return None
+            return out
+        out["channel_id"] = channel_id
         details = get_youtube_channel(channel_id)
-        return details.get("uploads_playlist_id")
+        out["uploads_playlist_id"] = details.get("uploads_playlist_id")
+        return out
     except Exception:
-        return None
+        return out
 
 
 def _fetch_yt_latest_videos(uploads_playlist_id: str) -> list[dict]:
@@ -789,6 +794,16 @@ def _fetch_yt_latest_videos(uploads_playlist_id: str) -> list[dict]:
     try:
         from mcp_server.tools.youtube_search import get_youtube_latest_videos
         result = get_youtube_latest_videos(uploads_playlist_id, limit=3)
+        return result.get("videos") or []
+    except Exception:
+        return []
+
+
+def _fetch_yt_top_videos(channel_id: str) -> list[dict]:
+    """Pull the channel's top 3 videos by lifetime views. ``[]`` on error."""
+    try:
+        from mcp_server.tools.youtube_search import get_youtube_top_videos
+        result = get_youtube_top_videos(channel_id, limit=3)
         return result.get("videos") or []
     except Exception:
         return []
@@ -981,21 +996,30 @@ def get_artist_data(cm_artist_id: int, use_cache: bool = True) -> dict:
         return {"sp_artist_id": spid, "top_tracks": tracks, "audio_features": avg_feats}
 
     def _fetch_yt_enrichment(_id):
-        playlist_id = _resolve_youtube_uploads_playlist(artist_name)
-        if not playlist_id:
-            return {"uploads_playlist_id": None, "videos": []}
+        info = _resolve_youtube_channel_info(artist_name)
+        channel_id = info["channel_id"]
+        playlist_id = info["uploads_playlist_id"]
+        if not channel_id:
+            return {"channel_id": None, "uploads_playlist_id": None, "videos": [], "top_videos": []}
         return {
+            "channel_id": channel_id,
             "uploads_playlist_id": playlist_id,
-            "videos": _fetch_yt_latest_videos(playlist_id),
+            "videos": _fetch_yt_latest_videos(playlist_id) if playlist_id else [],
+            "top_videos": _fetch_yt_top_videos(channel_id),
         }
 
     sp_enrich = _cached_fetch(cm_artist_id, "sp_enrichment_v1", _fetch_sp_enrichment, c)
-    yt_enrich = _cached_fetch(cm_artist_id, "yt_enrichment_v1", _fetch_yt_enrichment, c)
+    # Bump cache slot name to v2 — the v1 payload didn't include
+    # top_videos or channel_id; existing caches would short-circuit
+    # us out of the new fields. Treating v0.5.2 as a fresh cold lookup
+    # for the YT slot ensures Step 2's fields populate.
+    yt_enrich = _cached_fetch(cm_artist_id, "yt_enrichment_v2", _fetch_yt_enrichment, c)
 
     profile["sp_artist_id"] = sp_enrich.get("sp_artist_id")
     profile["sp_top_tracks"] = sp_enrich.get("top_tracks") or []
     profile["sp_audio_features"] = sp_enrich.get("audio_features") or {}
     profile["yt_latest_videos"] = yt_enrich.get("videos") or []
+    profile["yt_top_videos"] = yt_enrich.get("top_videos") or []
 
     # Add per-platform audience geography (used by revenue model for proper
     # per-(platform, country) CPM application). Country codes are normalized

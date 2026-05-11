@@ -165,6 +165,8 @@ const en: Catalog = {
   "eval.dashboard.content_velocity.cadence_value": "1 every {days} days · {trend}",
   "eval.dashboard.content_velocity.avg_views": "Avg views (last 3 videos)",
   "eval.dashboard.content_velocity.like_ratio": "Like ratio",
+  "eval.dashboard.content_velocity.comments_per_view": "Comments/view",
+  "eval.dashboard.content_velocity.top_videos_title": "Top videos by lifetime views",
   "eval.dashboard.content_velocity.days_ago": "{n} days ago",
   "eval.dashboard.source.content_velocity": "Source: Spotify Web API (album release dates) + YouTube Data API v3 (uploads playlist, video statistics)",
   // Similar
@@ -407,6 +409,8 @@ const es: Catalog = {
   "eval.dashboard.content_velocity.cadence_value": "1 cada {days} días · {trend}",
   "eval.dashboard.content_velocity.avg_views": "Vistas promedio (últimos 3 videos)",
   "eval.dashboard.content_velocity.like_ratio": "Ratio de likes",
+  "eval.dashboard.content_velocity.comments_per_view": "Comentarios/vista",
+  "eval.dashboard.content_velocity.top_videos_title": "Top videos por vistas históricas",
   "eval.dashboard.content_velocity.days_ago": "hace {n} días",
   "eval.dashboard.source.content_velocity": "Fuente: Spotify Web API (fechas de álbumes) + YouTube Data API v3 (playlist de subidas, estadísticas de videos)",
   // Similar

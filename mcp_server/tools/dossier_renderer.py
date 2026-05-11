@@ -701,6 +701,28 @@ def _b_content_velocity(dossier: dict, lang: str = "en") -> str:
         ratio = yt.get("avg_like_ratio_pct")
         if ratio is not None:
             lines.append(f"- {t('dossier.velocity.like_ratio', lang)}: {ratio:.1f}%")
+        # Comments-per-view (v0.5.2) — sits right under Like ratio as
+        # they're related engagement signals.
+        cpv = yt.get("avg_comments_per_view_pct")
+        if cpv is not None:
+            lines.append(f"- {t('dossier.velocity.comments_per_view', lang)}: {cpv:.2f}%")
+
+        # Top videos by lifetime views (v0.5.2)
+        top_videos = yt.get("top_videos") or []
+        if top_videos:
+            lines.append("")
+            lines.append(f"**{t('dossier.velocity.top_videos_title', lang)}**")
+            views_suffix = t("dossier.velocity.views_suffix", lang)
+            for v in top_videos[:3]:
+                title = v.get("title") or "—"
+                url = v.get("url")
+                title_md = f"[{title}]({url})" if url else title
+                view_count = v.get("view_count") or 0
+                bits = [f"{_fmt_int(view_count)} {views_suffix}"]
+                lr = v.get("like_ratio")
+                if lr is not None:
+                    bits.append(f"{lr:.1f}% {t('dossier.velocity.like_ratio_short', lang)}")
+                lines.append(f"- {title_md} — {' · '.join(bits)}")
 
     return "\n".join(lines)
 

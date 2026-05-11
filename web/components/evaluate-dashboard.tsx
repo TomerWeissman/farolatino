@@ -567,9 +567,50 @@ function ContentVelocity({ velocity }: { velocity?: Dossier["content_velocity"] 
                 <strong>{yt.avg_like_ratio_pct.toFixed(1)}%</strong>
               </div>
             )}
+            {yt.avg_comments_per_view_pct != null && (
+              <div className="ev-velocity-row">
+                <span className="ev-velocity-label">{t("eval.dashboard.content_velocity.comments_per_view")}</span>
+                <strong>{yt.avg_comments_per_view_pct.toFixed(2)}%</strong>
+              </div>
+            )}
           </div>
         )}
       </div>
+      {/* v0.5.2 — top videos by lifetime views, rendered below the
+          two-column cadence block. Shows the artist's biggest hits on
+          YouTube, distinct from the latest-uploads view above. */}
+      {yt && yt.top_videos && yt.top_videos.length > 0 && (
+        <div className="ev-top-videos">
+          <div className="ev-velocity-subhead">
+            {t("eval.dashboard.content_velocity.top_videos_title")}
+          </div>
+          {yt.top_videos.slice(0, 3).map((v) => (
+            <a
+              key={v.id}
+              href={v.url ?? `https://www.youtube.com/watch?v=${v.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ev-top-videos-row"
+            >
+              {v.thumbnail_url ? (
+                <img
+                  className="ev-top-video-thumb"
+                  src={v.thumbnail_url}
+                  alt={v.title}
+                  loading="lazy"
+                />
+              ) : (
+                <div className="ev-top-video-thumb ev-top-video-thumb-fallback" />
+              )}
+              <div className="ev-top-video-title">{v.title}</div>
+              <div className="ev-num-mono">{formatInt(v.view_count)}</div>
+              <div className="ev-num-mono">
+                {v.like_ratio != null ? `${v.like_ratio.toFixed(1)}%` : "—"}
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
       <div className="ev-source">{t("eval.dashboard.source.content_velocity")}</div>
     </section>
   );

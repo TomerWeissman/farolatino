@@ -124,23 +124,84 @@ def get_youtube_latest_videos(uploads_playlist_id: str, limit: int = 3) -> dict:
     raw_videos = videos_data.get("items") or []
 
     by_id = {v.get("id"): v for v in raw_videos}
-    out = []
-    for vid in video_ids:
-        v = by_id.get(vid)
-        if not v:
-            continue
-        snip = v.get("snippet") or {}
-        stats = v.get("statistics") or {}
-        view_count = _safe_int(stats.get("viewCount")) or 0
-        like_count = _safe_int(stats.get("likeCount")) or 0
-        like_ratio = (like_count / view_count * 100) if view_count > 0 else None
-        out.append({
-            "id": vid,
-            "title": snip.get("title"),
-            "published_at": snip.get("publishedAt"),
-            "view_count": view_count,
-            "like_count": like_count,
-            "comment_count": _safe_int(stats.get("commentCount")) or 0,
-            "like_ratio": like_ratio,
-        })
+    out = [_format_video(vid, by_id[vid]) for vid in video_ids if vid in by_id]
     return {"videos": out}
+
+
+@mcp.tool()
+def get_youtube_top_videos(channel_id: str, limit: int = 3) -> dict:
+    """Fetch a channel's top N videos by lifetime view count.
+
+    Two API calls: first ``GET /search?channelId=...&order=viewCount&type=video``
+    to list the highest-viewed videos (YouTube search costs ~100 quota units;
+    /videos is 1 unit). Then ``GET /videos?ids=...&part=snippet,statistics``
+    for full counts in one batch.
+
+    Answers the A&R question "what's their biggest hit on YouTube right
+    now" — distinct from the latest-uploads view, which can be skewed by
+    a recent flop. Mirrors the latest-videos shape so the dashboard can
+    render them with identical row styling.
+
+    Args:
+        channel_id: YouTube channel ID (starts with ``UC...``).
+        limit: Max videos to return (default 3, capped at 10).
+    """
+    limit = max(1, min(int(limit), 10))
+    search_data = api_get("/search", params={
+        "part": "snippet",
+        "channelId": channel_id,
+        "order": "viewCount",
+        "type": "video",
+        "maxResults": limit,
+    })
+    items = search_data.get("items") or []
+    video_ids = [
+        (it.get("id") or {}).get("videoId")
+        for it in items
+        if (it.get("id") or {}).get("videoId")
+    ]
+    if not video_ids:
+        return {"videos": []}
+
+    videos_data = api_get("/videos", params={
+        "part": "snippet,statistics",
+        "id": ",".join(video_ids),
+    })
+    raw_videos = videos_data.get("items") or []
+
+    by_id = {v.get("id"): v for v in raw_videos}
+    # Preserve the search-order ranking (highest views first) rather than
+    # the dict-iteration order of /videos's response.
+    out = [_format_video(vid, by_id[vid]) for vid in video_ids if vid in by_id]
+    return {"videos": out}
+
+
+def _format_video(vid: str, v: dict) -> dict:
+    """Normalize a YouTube /videos item into the shape both
+    get_youtube_latest_videos + get_youtube_top_videos return.
+
+    Returns the canonical 8-field shape including ``thumbnail_url``
+    (medium-size thumbnail from the snippet) which the dashboard's
+    TopVideos block renders next to the title.
+    """
+    snip = v.get("snippet") or {}
+    stats = v.get("statistics") or {}
+    view_count = _safe_int(stats.get("viewCount")) or 0
+    like_count = _safe_int(stats.get("likeCount")) or 0
+    like_ratio = (like_count / view_count * 100) if view_count > 0 else None
+    thumbs = snip.get("thumbnails") or {}
+    # Prefer medium (320×180); fall back gracefully.
+    thumb_url = (
+        (thumbs.get("medium") or {}).get("url")
+        or (thumbs.get("default") or {}).get("url")
+    )
+    return {
+        "id": vid,
+        "title": snip.get("title"),
+        "published_at": snip.get("publishedAt"),
+        "view_count": view_count,
+        "like_count": like_count,
+        "comment_count": _safe_int(stats.get("commentCount")) or 0,
+        "like_ratio": like_ratio,
+        "thumbnail_url": thumb_url,
+    }

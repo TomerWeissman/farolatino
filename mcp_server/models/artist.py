@@ -159,8 +159,9 @@ class ArtistProfile:
     sp_top_tracks: list[dict] = field(default_factory=list)
     sp_audio_features: dict = field(default_factory=dict)
 
-    # Native YouTube enrichment (v0.5.0)
+    # Native YouTube enrichment (v0.5.0 + v0.5.2 top_videos)
     yt_latest_videos: list[dict] = field(default_factory=list)
+    yt_top_videos: list[dict] = field(default_factory=list)
 
     # Metadata
     data_fetched_at: str = ""  # ISO datetime

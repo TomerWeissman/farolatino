@@ -196,11 +196,25 @@ export type Dossier = {
       trend?: "accelerating" | "steady" | "decelerating" | null;
       avg_views_recent_3?: number | null;
       avg_like_ratio_pct?: number | null;
+      // v0.5.2 — comments-per-view (sharper engagement signal than likes)
+      avg_comments_per_view_pct?: number | null;
       latest_videos?: Array<{
         title: string;
         published_at: string;
         view_count: number;
         like_count: number;
+      }>;
+      // v0.5.2 — top videos by lifetime view count
+      top_videos?: Array<{
+        id: string;
+        title: string;
+        published_at: string;
+        view_count: number;
+        like_count: number;
+        comment_count: number;
+        like_ratio: number | null;
+        thumbnail_url: string | null;
+        url: string | null;
       }>;
     } | null;
   };

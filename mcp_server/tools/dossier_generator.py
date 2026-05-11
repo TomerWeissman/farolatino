@@ -144,10 +144,19 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
 
     # 7c. Content velocity (Spotify + YouTube cadence + recent video performance)
     yt_videos = artist.yt_latest_videos or []
+    yt_top = artist.yt_top_videos or []
     yt_publish_dates = [v.get("published_at") for v in yt_videos if v.get("published_at")]
     yt_cadence = compute_release_cadence([d[:10] for d in yt_publish_dates if d])
     yt_views = [v.get("view_count") for v in yt_videos if v.get("view_count")]
     yt_ratios = [v.get("like_ratio") for v in yt_videos if v.get("like_ratio") is not None]
+    # Comments-per-view (v0.5.2) — sharper engagement signal than like
+    # ratio because comments require effort. Bot-bought views rarely
+    # come with scripted comments; real fans leave them.
+    yt_cpv_vals = [
+        (v.get("comment_count") / v["view_count"] * 100)
+        for v in yt_videos
+        if v.get("view_count") and v.get("comment_count") is not None
+    ]
     yt_block: dict = {
         "latest_date": yt_cadence.get("latest_date"),
         "days_since_latest": yt_cadence.get("days_since_latest"),
@@ -155,6 +164,7 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
         "trend": yt_cadence.get("trend"),
         "avg_views_recent_3": (sum(yt_views) // len(yt_views)) if yt_views else None,
         "avg_like_ratio_pct": (sum(yt_ratios) / len(yt_ratios)) if yt_ratios else None,
+        "avg_comments_per_view_pct": (sum(yt_cpv_vals) / len(yt_cpv_vals)) if yt_cpv_vals else None,
         "latest_videos": [
             {
                 "title": v.get("title") or "",
@@ -163,6 +173,20 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
                 "like_count": v.get("like_count") or 0,
             }
             for v in yt_videos
+        ],
+        "top_videos": [
+            {
+                "id": v.get("id") or "",
+                "title": v.get("title") or "",
+                "published_at": v.get("published_at") or "",
+                "view_count": v.get("view_count") or 0,
+                "like_count": v.get("like_count") or 0,
+                "comment_count": v.get("comment_count") or 0,
+                "like_ratio": v.get("like_ratio"),
+                "thumbnail_url": v.get("thumbnail_url"),
+                "url": f"https://www.youtube.com/watch?v={v['id']}" if v.get("id") else None,
+            }
+            for v in yt_top
         ],
     }
     content_velocity = {

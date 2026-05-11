@@ -346,6 +346,22 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "en": "Like ratio",
         "es": "Ratio de likes",
     },
+    "dossier.velocity.like_ratio_short": {
+        "en": "like ratio",
+        "es": "ratio likes",
+    },
+    "dossier.velocity.comments_per_view": {
+        "en": "Comments/view",
+        "es": "Comentarios/vista",
+    },
+    "dossier.velocity.top_videos_title": {
+        "en": "Top videos (lifetime views)",
+        "es": "Top videos (vistas históricas)",
+    },
+    "dossier.velocity.views_suffix": {
+        "en": "views",
+        "es": "vistas",
+    },
     "dossier.velocity.days_ago": {
         "en": "{n} days ago",
         "es": "hace {n} días",
