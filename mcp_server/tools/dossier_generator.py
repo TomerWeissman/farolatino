@@ -211,10 +211,12 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
 
     # 8b. Bot-suspicion risk (v0.5.2). The existing engagement_quality
     # dimension folds these signals into a score; this row surfaces the
-    # specific firing reasons as a discrete ⚠️ row when the composite
-    # level is medium/high.
+    # specific firing reasons as a discrete ⚠️ row only when the
+    # composite level is "high" (≥2 signals firing). Single-signal
+    # cases stay buried in engagement_quality's rationale to avoid
+    # false-positives on organic artists with one noisy video.
     bot = assess_bot_risk(artist, artist.yt_latest_videos or [])
-    if bot["level"] != "low":
+    if bot["level"] == "high":
         risk["bot_suspicion"] = "; ".join(bot["reasons"])
 
     # 8c. Signing-status verification (v0.5.2). Cross-checks Chartmetric's

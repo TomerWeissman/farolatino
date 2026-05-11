@@ -151,25 +151,30 @@ function Hero({ data, accent }: { data: LoadedDossier; accent: string }) {
               )}
             </div>
           )}
+          {/* v0.5.2 redesign — two-row meta with a prominent signing
+              pill aligned right of row 1. Trims genres to top 3 so the
+              row stays scannable. Stage gets a small label prefix so
+              it isn't visually ambiguous with the genre list. */}
           <div className="ev-meta">
-            {(ident.genres ?? []).slice(0, 5).join(" · ") || "—"}
+            <div className="ev-meta-row1">
+              <span className="ev-meta-genres">
+                {(ident.genres ?? []).slice(0, 3).join(" · ") || "—"}
+              </span>
+              {signing?.verified_status ? (
+                <SigningPill signing={signing} fallbackLabel={ident.label ?? undefined} />
+              ) : ident.label ? (
+                <SigningPill
+                  signing={{ verified_status: "signed_indie", label_display: ident.label }}
+                  fallbackLabel={ident.label}
+                />
+              ) : null}
+            </div>
             {ident.career_stage && (
-              <>
-                {" · "}<strong>{ident.career_stage}</strong>
-                {ident.career_trend && ` / ${ident.career_trend}`}
-              </>
-            )}
-            {/* v0.5.2 — signing-status badge replaces the bare
-                "signed to X" string with the verified-status outcome.
-                Falls back to the raw label when signing data is absent. */}
-            {signing?.verified_status ? (
-              <SigningBadge signing={signing} fallbackLabel={ident.label ?? undefined} />
-            ) : (
-              ident.label && (
-                <>
-                  {" · "}signed to <strong>{ident.label}</strong>
-                </>
-              )
+              <div className="ev-meta-row2">
+                <span className="ev-meta-prefix">{t("eval.dashboard.hero.stage_label")}</span>
+                <strong>{ident.career_stage}</strong>
+                {ident.career_trend && <span className="ev-meta-trend">{" / "}{ident.career_trend}</span>}
+              </div>
             )}
           </div>
           {socials.length > 0 && (
@@ -736,7 +741,7 @@ function Stat({ big, label, sub }: { big: string; label: string; sub?: string })
 }
 
 
-function SigningBadge({
+function SigningPill({
   signing,
   fallbackLabel,
 }: {
@@ -749,42 +754,41 @@ function SigningBadge({
   const status = signing.verified_status;
   const isWarn = signing.discrepancy;
 
-  let body: React.ReactNode;
-  if (isWarn) {
-    body = (
-      <>
-        ⚠️ {t("eval.dashboard.hero.signing.unclear")} ·{" "}
-        <strong>{labelText}</strong>
-      </>
-    );
-  } else if (status === "signed_major") {
-    body = (
-      <>
-        {t("eval.dashboard.hero.signing.signed")} ·{" "}
-        <strong>{labelText}</strong>{" "}
-        <em>({t("eval.dashboard.hero.signing.verified")})</em>
-      </>
-    );
-  } else if (status === "signed_indie") {
-    body = (
-      <>
-        {t("eval.dashboard.hero.signing.indie")} ·{" "}
-        <strong>{labelText}</strong>
-      </>
-    );
-  } else if (status === "self_released") {
-    body = <>{t("eval.dashboard.hero.signing.self_released")}</>;
-  } else {
-    body = <>{t("eval.dashboard.hero.signing.unknown")}</>;
-  }
+  // Pick variant class for color-tinted background. "warn" overrides
+  // all when Chartmetric and label evidence disagree.
+  let variant = "unknown";
+  if (isWarn) variant = "warn";
+  else if (status === "signed_major") variant = "major";
+  else if (status === "signed_indie") variant = "indie";
+  else if (status === "self_released") variant = "self";
+
+  // Compact two-token form: "STATUS · Label", where STATUS is the
+  // uppercase keyword. Discrepancy adds a leading ⚠️.
+  let statusWord: string;
+  if (isWarn) statusWord = `⚠ ${t("eval.dashboard.hero.signing.unclear")}`;
+  else if (status === "signed_major") statusWord = t("eval.dashboard.hero.signing.signed");
+  else if (status === "signed_indie") statusWord = t("eval.dashboard.hero.signing.indie");
+  else if (status === "self_released") statusWord = t("eval.dashboard.hero.signing.self_released");
+  else statusWord = t("eval.dashboard.hero.signing.unknown");
+
+  // For self-released / unknown there's no meaningful label to append.
+  const showLabel = status !== "self_released" && status !== "unknown";
 
   return (
     <span
-      className={isWarn ? "ev-signing-badge ev-signing-badge-warn" : "ev-signing-badge"}
+      className={`ev-signing-pill ev-signing-pill-${variant}`}
       title={tooltip || undefined}
     >
-      {" · "}
-      {body}
+      <span className="ev-signing-pill-status">{statusWord.toUpperCase()}</span>
+      {showLabel && (
+        <>
+          <span className="ev-signing-pill-sep">·</span>
+          <span className="ev-signing-pill-label">{labelText}</span>
+        </>
+      )}
+      {status === "signed_major" && !isWarn && (
+        <span className="ev-signing-pill-check" aria-hidden="true">✓</span>
+      )}
     </span>
   );
 }

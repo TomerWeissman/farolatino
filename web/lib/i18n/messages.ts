@@ -160,8 +160,10 @@ const en: Catalog = {
   "eval.dashboard.hero.signing.verified": "verified",
   "eval.dashboard.hero.signing.indie": "Indie",
   "eval.dashboard.hero.signing.self_released": "Self-released",
-  "eval.dashboard.hero.signing.unknown": "Signing status unknown",
-  "eval.dashboard.hero.signing.unclear": "Signing unclear",
+  "eval.dashboard.hero.signing.unknown": "Unknown",
+  "eval.dashboard.hero.signing.unclear": "Unclear",
+  // Hero meta — small uppercase prefix for the stage row
+  "eval.dashboard.hero.stage_label": "STAGE",
   // Content velocity section (v0.5.0)
   "eval.dashboard.content_velocity": "Content velocity",
   "eval.dashboard.content_velocity.spotify": "Spotify",
@@ -412,8 +414,10 @@ const es: Catalog = {
   "eval.dashboard.hero.signing.verified": "verificado",
   "eval.dashboard.hero.signing.indie": "Indie",
   "eval.dashboard.hero.signing.self_released": "Auto-editado",
-  "eval.dashboard.hero.signing.unknown": "Estado de firma desconocido",
-  "eval.dashboard.hero.signing.unclear": "Firma incierta",
+  "eval.dashboard.hero.signing.unknown": "Desconocido",
+  "eval.dashboard.hero.signing.unclear": "Incierto",
+  // Hero meta — small uppercase prefix for the stage row
+  "eval.dashboard.hero.stage_label": "ETAPA",
   // Content velocity section (v0.5.0)
   "eval.dashboard.content_velocity": "Velocidad de contenido",
   "eval.dashboard.content_velocity.spotify": "Spotify",
