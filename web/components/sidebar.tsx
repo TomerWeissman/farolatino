@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MessageSquare, BookOpen, Settings as SettingsIcon, FolderOpen, Trash2, Plus, Plug, Loader2, Search } from "lucide-react";
+import { MessageSquare, BookOpen, Settings as SettingsIcon, FolderOpen, Trash2, Plus, Plug, Loader2, Search, GitCompare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type Conversation,
@@ -24,6 +24,7 @@ const SIDEBAR_WIDTH = 240;
 const NAV: Array<{ href: string; labelKey: string; icon: typeof MessageSquare }> = [
   { href: "/",            labelKey: "sidebar.nav.faroai",      icon: MessageSquare },
   { href: "/evaluate",    labelKey: "sidebar.nav.evaluate",    icon: Search },
+  { href: "/compare",     labelKey: "sidebar.nav.compare",     icon: GitCompare },
   { href: "/skills",      labelKey: "sidebar.nav.skills",      icon: BookOpen },
   { href: "/settings",    labelKey: "sidebar.nav.settings",    icon: SettingsIcon },
   { href: "/files",       labelKey: "sidebar.nav.files",       icon: FolderOpen },
