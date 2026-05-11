@@ -22,7 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { evaluate } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
-import { TIER_COLOR, formatInt, formatMoney } from "@/lib/format";
+import { TIER_COLOR, formatInt } from "@/lib/format";
 import type { DisambigCandidate, Dossier, EvaluateResponse } from "@/lib/types";
 import { RadarChart, type RadarDim } from "@/components/radar-chart";
 
