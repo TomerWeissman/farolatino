@@ -52,6 +52,8 @@ EXPOSED_VARS: list[str] = [
     "YOUTUBE_CLIENT_ID",
     "YOUTUBE_CLIENT_SECRET",
     "YOUTUBE_REFRESH_TOKEN",
+    # Tavily web search (optional — falls back to LLM-native search when unset)
+    "TAVILY_API_KEY",
     # Alerts (used by route_alert + the email/whatsapp adapters)
     "ALERT_FROM_EMAIL",
     "ALERT_TO_EMAILS",

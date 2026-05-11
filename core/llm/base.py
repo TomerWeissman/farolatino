@@ -61,6 +61,7 @@ class LLMProvider(Protocol):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        web_search: str = "off",
     ) -> Iterator[AgentEvent]:
         """Drive a full multi-turn agent loop until the model stops.
 
@@ -71,6 +72,16 @@ class LLMProvider(Protocol):
             tools: provider-formatted tool schemas (Anthropic flavor in
                 Phase 1; emitted by `core.llm.tool_schemas`).
             system: full system prompt (FAROAI.md persona + today's date).
+            web_search: web-search mode resolved upstream in the agent
+                runner. One of:
+                  - ``"off"``: do nothing.
+                  - ``"tavily"``: ``web_search`` is already in ``tools``;
+                    the model dispatches it in-process via ``tool_dispatch``.
+                  - ``"native"``: append the provider's hosted web-search
+                    tool (Brave / Bing / Google grounding); results are
+                    executed server-side by the provider.
+                Adapters that don't support native search treat anything
+                other than ``"tavily"`` as a no-op.
 
         Yields:
             `AgentEvent` instances in the order the model produces them.

@@ -59,7 +59,14 @@ class OpenAIProvider:
         tools: list[dict],
         system: str,
         thinking_budget: int = 0,  # OpenAI ignores; o-series reasoning is gated separately
+        web_search: str = "off",
     ) -> Iterator[AgentEvent]:
+        # Native hosted web_search is gated to Responses-API-compatible
+        # models. The agent runner already filtered "native" out for
+        # unsupported models (see ``_resolve_web_search_mode``), so by
+        # the time we get here it's safe to append the hosted tool.
+        if web_search == "native":
+            tools = list(tools) + [{"type": "web_search"}]
         # Build the initial input array. The Responses API takes either
         # a string OR an array of typed items; for multi-turn we use
         # the array form. Each prior assistant turn is collapsed into a
@@ -111,7 +118,8 @@ class OpenAIProvider:
                             yield AgentEvent(type="text", content=delta)
                     elif etype == "response.output_item.added":
                         item = getattr(event, "item", None)
-                        if item is not None and getattr(item, "type", None) == "function_call":
+                        item_type = getattr(item, "type", None) if item is not None else None
+                        if item is not None and item_type == "function_call":
                             tool_calls_in_flight[item.id] = {
                                 "id": item.id,
                                 "name": item.name,
@@ -126,6 +134,22 @@ class OpenAIProvider:
                                     type="tool_use",
                                     tool_name=item.name,
                                     tool_use_id=item.id,
+                                    tool_input={},
+                                )
+                        elif item is not None and item_type == "web_search_call":
+                            # Hosted Bing-backed web search. OpenAI runs
+                            # it server-side; surface as a regular
+                            # tool_use so the Reasoning panel renders a
+                            # status pill. We do NOT dispatch this item
+                            # (only function_call items go in the
+                            # dispatch loop below).
+                            item_id = getattr(item, "id", "web_search")
+                            if item_id not in announced:
+                                announced.add(item_id)
+                                yield AgentEvent(
+                                    type="tool_use",
+                                    tool_name="web_search",
+                                    tool_use_id=item_id,
                                     tool_input={},
                                 )
                     elif etype == "response.function_call_arguments.delta":

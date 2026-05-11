@@ -96,6 +96,10 @@ _DEFAULT_TOOL_NAMES = [
     "mcp__farolatino__get_spotify_artist",
     "mcp__farolatino__search_youtube_channel",
     "mcp__farolatino__get_youtube_channel",
+    # Web search — conditionally retained in the allowlist by
+    # _resolve_web_search_mode(). When Tavily is unhealthy or unset, the
+    # provider adapter substitutes its own hosted search instead.
+    "web_search",
 ]
 
 _SKILL_PROFILES: dict[str, dict] = {
@@ -105,6 +109,7 @@ _SKILL_PROFILES: dict[str, dict] = {
             "mcp__farolatino__search_artist_by_url",
         ],
         "thinking_budget": 0,
+        "web_search_mode": "off",
     },
     "@similar": {
         "tools": [
@@ -112,16 +117,66 @@ _SKILL_PROFILES: dict[str, dict] = {
             "mcp__farolatino__search_artist_by_url",
         ],
         "thinking_budget": 0,
+        "web_search_mode": "off",
     },
 }
 
 
 def _resolve_skill_profile(prompt: str) -> dict:
-    """Return the per-skill profile (tool allowlist + thinking budget)."""
+    """Return the per-skill profile (tool allowlist + thinking budget + web-search mode)."""
     head = prompt.strip().lower().split()[0] if prompt.strip() else ""
     if head in _SKILL_PROFILES:
         return _SKILL_PROFILES[head]
-    return {"tools": _DEFAULT_TOOL_NAMES, "thinking_budget": 8000}
+    return {
+        "tools": _DEFAULT_TOOL_NAMES,
+        "thinking_budget": 8000,
+        "web_search_mode": "on",
+    }
+
+
+# OpenAI's hosted web_search tool is gated to specific Responses-API
+# models. If the active model isn't on this list, native search is
+# silently turned off (rather than emitting a 400 banner). Users on
+# unsupported models can add a Tavily key to get web search anyway.
+_OPENAI_NATIVE_SEARCH_MODELS = {
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+}
+
+
+def _openai_model_supports_native_search() -> bool:
+    model = os.getenv("FAROAI_OPENAI_MODEL", "gpt-4o")
+    return model in _OPENAI_NATIVE_SEARCH_MODELS
+
+
+def _resolve_web_search_mode(profile: dict, provider_name: str) -> str:
+    """Return one of ``'off' | 'tavily' | 'native'`` for this request.
+
+    Decision tree:
+      1. If the active profile disables web search, return ``'off'``.
+      2. If a healthy Tavily connector is registered, return ``'tavily'``
+         (model dispatches the ``web_search`` tool in-process).
+      3. Otherwise return ``'native'`` so the provider's hosted search
+         takes over — except OpenAI on a non-supporting model, which
+         degrades to ``'off'`` (no banner, just no web search).
+    """
+    if profile.get("web_search_mode", "off") != "on":
+        return "off"
+    try:
+        from core.connectors import get_connector
+        tavily = get_connector("tavily")
+        if tavily is not None and tavily.status().status == "ok":
+            return "tavily"
+    except Exception:
+        log.exception("tavily status probe raised; falling back to native")
+    if provider_name == "openai" and not _openai_model_supports_native_search():
+        return "off"
+    return "native"
 
 
 def _load_persona() -> str:
@@ -215,6 +270,7 @@ def run_claude_streaming(
         raise ClaudeRunnerError(str(exc)) from exc
 
     profile = _resolve_skill_profile(prompt)
+    web_search_mode = _resolve_web_search_mode(profile, provider.name)
 
     # Provider-flavored tool schemas, narrowed to the active skill's
     # allowlist. Same shape as V1's --allowed-tools whitelist.
@@ -227,7 +283,14 @@ def run_claude_streaming(
         tools = to_gemini(specs)
     else:  # pragma: no cover — registry only returns the three above
         raise ClaudeRunnerError(f"Unsupported provider: {provider.name}")
-    tools = _filter_tools_by_allowlist(tools, profile["tools"])
+    # Build the per-request allowlist. ``web_search`` is in
+    # _DEFAULT_TOOL_NAMES, but only stays in the allowlist when mode is
+    # "tavily" — otherwise the provider adapter will substitute its own
+    # hosted version (or skip web search entirely).
+    allowed = list(profile["tools"])
+    if web_search_mode != "tavily" and "web_search" in allowed:
+        allowed = [t for t in allowed if t != "web_search"]
+    tools = _filter_tools_by_allowlist(tools, allowed)
 
     # Build the message stack. Prior assistant/user content from the
     # frontend is replayed verbatim (`{role, content}`), then the new
@@ -271,6 +334,7 @@ def run_claude_streaming(
             tools=tools,
             system=system,
             thinking_budget=profile["thinking_budget"],
+            web_search=web_search_mode,
         ):
             yield from _translate_event(event, on_event)
     except ClaudeRunnerError:

@@ -30,9 +30,13 @@ sources:
     description: "Save-to-stream ratios for bot detection (D6)"
     enabled: false
 
-  google_search:
-    type: scraper
-    description: "Web scraping for press coverage, contact info, age estimation"
+  tavily:
+    type: api
+    base_url: "https://api.tavily.com"
+    auth:
+      method: api_key
+      env_var: "TAVILY_API_KEY"
+    description: "Web search for press, label, and social context across all LLM providers (optional — falls back to each LLM's native search when unset)"
     enabled: false
 
   luminate:

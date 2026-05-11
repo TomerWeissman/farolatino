@@ -64,6 +64,7 @@ class AnthropicProvider:
         tools: list[dict],
         system: str,
         thinking_budget: int = 0,
+        web_search: str = "off",
     ) -> Iterator[AgentEvent]:
         """Drive the Anthropic agent loop. Yields `AgentEvent`s.
 
@@ -90,6 +91,20 @@ class AnthropicProvider:
         # delta on top so a high thinking budget doesn't squeeze the
         # actual answer.
         max_tokens = thinking_budget + _RESPONSE_TOKENS
+
+        # Append Anthropic's hosted web-search tool when the runner asks
+        # for the native path. Executed server-side by Anthropic (no
+        # local dispatch); the assistant turn carries server_tool_use +
+        # web_search_tool_result blocks that we surface to the UI and
+        # skip in the dispatch loop below.
+        if web_search == "native":
+            tools = list(tools) + [
+                {
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "max_uses": 5,
+                }
+            ]
 
         for iteration in range(_MAX_AGENT_ITERATIONS):
             # Per-iteration state — reset every loop.
@@ -167,6 +182,14 @@ class AnthropicProvider:
             for block in final_message.content:
                 if block.type != "tool_use":
                     continue
+                # Hosted server-side tools (web_search_20250305) come
+                # back as "tool_use" blocks too, but Anthropic already
+                # executed them — calling dispatch_tool would error on
+                # an unknown name. Their results are attached server-side
+                # to the same assistant turn as web_search_tool_result
+                # blocks, so the model has what it needs already.
+                if block.name == "web_search":
+                    continue
                 tool_input = block.input if isinstance(block.input, dict) else {}
                 output = dispatch_tool(block.name, tool_input)
                 serialised = _safe_json(output)
@@ -184,6 +207,12 @@ class AnthropicProvider:
                     }
                 )
 
+            # If the only tool_use blocks this turn were hosted (already
+            # executed by Anthropic), there's nothing to append — and
+            # appending an empty user message would 400. Break out of
+            # the loop; the next iteration would have nothing to do.
+            if not tool_results:
+                break
             messages.append({"role": "user", "content": tool_results})
         else:
             yield AgentEvent(
@@ -248,6 +277,41 @@ def _process_raw_event(
                     tool_name=block.name,
                     tool_use_id=block.id,
                     tool_input={},
+                )
+            )
+        elif btype == "server_tool_use":
+            # Hosted tool (e.g. web_search_20250305). Anthropic executes
+            # it server-side; surface the call to the UI as a regular
+            # tool_use so the Reasoning panel renders a status pill.
+            state["current_tool_use"] = {
+                "id": block.id,
+                "name": getattr(block, "name", "server_tool"),
+            }
+            state["current_tool_json"] = ""
+            events.append(
+                AgentEvent(
+                    type="tool_use",
+                    tool_name=getattr(block, "name", "server_tool"),
+                    tool_use_id=block.id,
+                    tool_input={},
+                )
+            )
+        elif btype == "web_search_tool_result":
+            # Server-executed search result. Emit a synthetic tool_result
+            # so the UI pairs it with the preceding server_tool_use call.
+            # The actual citation URLs land in the text via inline
+            # citation blocks (Anthropic's native format).
+            content = getattr(block, "content", None)
+            try:
+                serialised = json.dumps(content, default=str)
+            except Exception:
+                serialised = "{\"results\": \"hosted\"}"
+            events.append(
+                AgentEvent(
+                    type="tool_result",
+                    content=serialised,
+                    tool_use_id=getattr(block, "tool_use_id", "") or "",
+                    tool_name="web_search",
                 )
             )
         elif btype == "thinking":

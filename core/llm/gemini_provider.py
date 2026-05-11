@@ -12,6 +12,7 @@ repeat until the model returns no more function calls.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Iterator
@@ -58,6 +59,7 @@ class GeminiProvider:
         tools: list[dict],
         system: str,
         thinking_budget: int = 0,  # Gemini's thinking mode is gated; ignored for Phase 2
+        web_search: str = "off",
     ) -> Iterator[AgentEvent]:
         # Translate our messages into Gemini's contents form.
         # Gemini uses role "user" / "model" (NOT "assistant").
@@ -89,10 +91,22 @@ class GeminiProvider:
                 for t in tools
             ]
         )
+        tool_list: list[genai_types.Tool] = [tool_wrapper]
+        # Native Google Search grounding. Gemini 2.x supports mixing
+        # google_search with function_declarations in the same request.
+        # Grounding metadata (cited URLs, search queries) arrives on the
+        # final chunk's candidates[0].grounding_metadata — we synthesize
+        # tool_use/tool_result events post-stream so the Reasoning panel
+        # renders citations consistently.
+        if web_search == "native":
+            try:
+                tool_list.append(genai_types.Tool(google_search=genai_types.GoogleSearch()))
+            except Exception:
+                log.exception("failed to attach google_search grounding; continuing without")
 
         config = genai_types.GenerateContentConfig(
             system_instruction=system,
-            tools=[tool_wrapper],
+            tools=tool_list,
             # Force a function call when one is plausible — Gemini's
             # default is AUTO which is what we want here.
             tool_config=genai_types.ToolConfig(
@@ -154,6 +168,14 @@ class GeminiProvider:
                 total_input += getattr(usage, "prompt_token_count", 0) or 0
                 total_output += getattr(usage, "candidates_token_count", 0) or 0
 
+            # Surface Google Search grounding (when native web_search is
+            # on) as a synthetic tool_use + tool_result pair so the
+            # Reasoning panel renders the citations alongside other tool
+            # calls. Metadata arrives once per response, on the final
+            # chunk — not streamed.
+            if web_search == "native":
+                yield from _emit_grounding_events(final_chunk)
+
             # Persist the model's reply to contents so the next round
             # has the full conversation. Skip empty turns to keep the
             # log lean.
@@ -203,6 +225,54 @@ class GeminiProvider:
             output_tokens=total_output,
             extra={"model": self._model},
         )
+
+
+def _emit_grounding_events(final_chunk) -> Iterator[AgentEvent]:
+    """Synthesize tool_use + tool_result AgentEvents from a Gemini
+    response's grounding metadata. No-op when grounding wasn't used.
+
+    Gemini's grounding metadata is delivered once on the final chunk;
+    we transform it to look like a normal tool call (name="web_search")
+    so the chat UI renders it alongside other tool dispatches.
+    """
+    candidates = getattr(final_chunk, "candidates", None) or []
+    if not candidates:
+        return
+    metadata = getattr(candidates[0], "grounding_metadata", None)
+    if metadata is None:
+        return
+    queries = list(getattr(metadata, "web_search_queries", []) or [])
+    chunks = getattr(metadata, "grounding_chunks", None) or []
+    sources: list[dict] = []
+    for c in chunks:
+        web = getattr(c, "web", None)
+        if web is None:
+            continue
+        sources.append(
+            {
+                "title": getattr(web, "title", "") or "",
+                "url": getattr(web, "uri", "") or "",
+            }
+        )
+    if not queries and not sources:
+        return
+    tool_use_id = "gemini_grounding"
+    yield AgentEvent(
+        type="tool_use",
+        tool_name="web_search",
+        tool_use_id=tool_use_id,
+        tool_input={"queries": queries},
+    )
+    try:
+        serialised = json.dumps({"queries": queries, "sources": sources}, default=str)
+    except (TypeError, ValueError):
+        serialised = "{\"queries\": [], \"sources\": []}"
+    yield AgentEvent(
+        type="tool_result",
+        content=serialised,
+        tool_use_id=tool_use_id,
+        tool_name="web_search",
+    )
 
 
 def _classify_error(exc: Exception) -> dict:

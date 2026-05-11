@@ -132,4 +132,5 @@ def reset_all_caches() -> None:
 # py2app build sees them via static analysis.
 from core.connectors import chartmetric as _chartmetric  # noqa: E402, F401
 from core.connectors import spotify as _spotify  # noqa: E402, F401
+from core.connectors import tavily as _tavily  # noqa: E402, F401
 from core.connectors import youtube as _youtube  # noqa: E402, F401

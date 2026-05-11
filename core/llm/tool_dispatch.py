@@ -47,6 +47,12 @@ from mcp_server.tools import (  # noqa: E402
 )
 from mcp_server.tools.scoring import engine as scoring_engine  # noqa: E402
 
+# Tavily web search lives outside mcp_server because it's not an MCP
+# tool — it's a connector-backed primitive that wraps Tavily's HTTP
+# API. The agent runner only adds "web_search" to the allowlist when
+# Tavily is healthy; otherwise the provider's hosted search kicks in.
+from core.connectors import tavily as _tavily_connector  # noqa: E402
+
 log = logging.getLogger(__name__)
 
 # Public tool name → Python callable. The prefix is the V1 wire format
@@ -82,6 +88,9 @@ _REGISTRY: dict[str, Callable[..., Any]] = {
     "mcp__farolatino__load_config": config_manager.load_config,
     "mcp__farolatino__get_profile": config_manager.get_profile,
     "mcp__farolatino__list_profiles": config_manager.list_profiles,
+    # Web search (Tavily-backed; bare "web_search" name so the model
+    # treats it as a generic capability, not an MCP-namespaced tool)
+    "web_search": _tavily_connector.web_search,
 }
 
 
