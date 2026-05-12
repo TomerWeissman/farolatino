@@ -57,8 +57,13 @@ def evaluate_artist(
 ) -> dict:
     """Full A&R evaluation for one artist — single-call pipeline.
 
+    REQUIRED: you MUST pass either ``artist`` (name or URL) or ``cm_id``.
+    Calling with both empty/missing returns an error — empty input used
+    to silently search the empty string and return a random match.
+
     Args:
-        artist: Artist name OR a Spotify/Chartmetric/social URL.
+        artist: Artist name OR a Spotify/Chartmetric/social URL. Required
+            unless ``cm_id`` is provided.
         profile_name: Scoring profile (default, emerging_momentum, revenue_focus,
                       latam_expansion).
         cm_id: Skip search if the caller already has the Chartmetric ID
@@ -76,6 +81,18 @@ def evaluate_artist(
     # so 0 is never a valid lookup.
     if not cm_id:
         cm_id = None
+    # Reject the empty-input shape `{}` — Anthropic / OpenAI sometimes
+    # emit a tool call with no fields filled. Without this guard,
+    # search_artists("") returns whatever Chartmetric hands back for the
+    # empty string and the user sees a dossier for a random unrelated
+    # artist with the prose label they actually asked about.
+    if cm_id is None and not (artist or "").strip():
+        return {
+            "error": (
+                "evaluate_artist needs an artist name or cm_id. "
+                "Pass `artist=\"<name or URL>\"` or `cm_id=<chartmetric id>`."
+            )
+        }
     if cm_id is None:
         if _is_url(artist):
             res = search_artist_by_url(artist)

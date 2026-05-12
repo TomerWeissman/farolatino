@@ -82,6 +82,16 @@ skip step 1 to jump to web search.
    internal sources with `[Chartmetric]` / `[Spotify]` / `[YouTube]` /
    `[FaroLatino]` tags.
 
+   **Always pass `artist="<name>"` when calling `evaluate_artist`.**
+   The empty-input shape `{}` is rejected — and even when it slipped
+   through historically, Chartmetric returned a random unrelated
+   artist. After the call, check that the dossier's `identity.name`
+   matches who the user actually asked about. If it doesn't (e.g. user
+   asked about "Karol G" but the dossier came back as "Deep Blue
+   Something"), STOP — don't write prose claiming the result is for
+   the intended artist. Tell the user there was a search mismatch and
+   ask them to clarify or share a URL.
+
    **When you ran `evaluate_artist`, DO NOT paste the dossier as
    markdown.** The chat UI renders a compact pill card linking to the
    full evaluation page automatically — your role is to write a brief

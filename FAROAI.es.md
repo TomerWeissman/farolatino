@@ -95,6 +95,17 @@ paso 1 para ir directo a la web.
    internas con tags `[Chartmetric]` / `[Spotify]` / `[YouTube]` /
    `[FaroLatino]`.
 
+   **Siempre pasa `artist="<nombre>"` al llamar `evaluate_artist`.**
+   El llamado vacío `{}` es rechazado — y cuando históricamente pasaba,
+   Chartmetric devolvía un artista aleatorio sin relación. Después de
+   la llamada, verifica que el `identity.name` del dossier coincide
+   con el artista que el usuario realmente preguntó. Si no coincide
+   (ej. el usuario preguntó por "Karol G" pero el dossier vino como
+   "Deep Blue Something"), DETENTE — no escribas prosa diciendo que
+   el resultado es del artista intencionado. Avisa al usuario que
+   hubo un desajuste de búsqueda y pídele que aclare o comparta una
+   URL.
+
    **Cuando hayas corrido `evaluate_artist`, NO pegues el dossier
    como markdown.** El chat renderiza automáticamente una píldora
    compacta que enlaza a la página de evaluación completa — tu rol
