@@ -23,6 +23,7 @@ from google.genai import types as genai_types
 
 from core.llm.base import AgentEvent
 from core.llm.tool_dispatch import dispatch as dispatch_tool
+from core.llm.web_search_routing import attach_for_gemini_grounding
 
 log = logging.getLogger(__name__)
 
@@ -98,11 +99,19 @@ class GeminiProvider:
         # final chunk's candidates[0].grounding_metadata — we synthesize
         # tool_use/tool_result events post-stream so the Reasoning panel
         # renders citations consistently.
-        if web_search == "native":
+        if attach_for_gemini_grounding(web_search):
             try:
                 tool_list.append(genai_types.Tool(google_search=genai_types.GoogleSearch()))
-            except Exception:
-                log.exception("failed to attach google_search grounding; continuing without")
+            except Exception as exc:
+                # v0.5.2: promoted from silent log.exception → visible
+                # warning. The v0.5.0 Spotify-403 lesson: silent degrade
+                # makes downstream failures look mysterious. Mirror the
+                # same pattern: when grounding attach fails we surface
+                # the reason in the log and continue without it.
+                log.warning(
+                    "google_search grounding attach failed (continuing without): %s",
+                    exc,
+                )
 
         config = genai_types.GenerateContentConfig(
             system_instruction=system,

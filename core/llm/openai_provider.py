@@ -22,6 +22,7 @@ import openai
 
 from core.llm.base import AgentEvent
 from core.llm.tool_dispatch import dispatch as dispatch_tool
+from core.llm.web_search_routing import attach_for_openai
 
 log = logging.getLogger(__name__)
 
@@ -61,12 +62,13 @@ class OpenAIProvider:
         thinking_budget: int = 0,  # OpenAI ignores; o-series reasoning is gated separately
         web_search: str = "off",
     ) -> Iterator[AgentEvent]:
-        # Native hosted web_search is gated to Responses-API-compatible
-        # models. The agent runner already filtered "native" out for
-        # unsupported models (see ``_resolve_web_search_mode``), so by
-        # the time we get here it's safe to append the hosted tool.
-        if web_search == "native":
-            tools = list(tools) + [{"type": "web_search"}]
+        # Web search attachment delegated to the shared helper —
+        # v0.5.2 fix for the per-provider drift that left Tavily +
+        # native-search wired differently on Anthropic vs OpenAI.
+        # The runner already filtered "native" out for unsupported
+        # models (see ``_resolve_web_search_mode``), so the hosted
+        # tool is only appended when actually supported.
+        tools = attach_for_openai(tools, web_search)
         # Build the initial input array. The Responses API takes either
         # a string OR an array of typed items; for multi-turn we use
         # the array form. Each prior assistant turn is collapsed into a

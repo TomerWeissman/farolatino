@@ -24,6 +24,7 @@ import anthropic
 
 from core.llm.base import AgentEvent
 from core.llm.tool_dispatch import dispatch as dispatch_tool
+from core.llm.web_search_routing import attach_for_anthropic
 
 log = logging.getLogger(__name__)
 
@@ -92,19 +93,12 @@ class AnthropicProvider:
         # actual answer.
         max_tokens = thinking_budget + _RESPONSE_TOKENS
 
-        # Append Anthropic's hosted web-search tool when the runner asks
-        # for the native path. Executed server-side by Anthropic (no
-        # local dispatch); the assistant turn carries server_tool_use +
-        # web_search_tool_result blocks that we surface to the UI and
-        # skip in the dispatch loop below.
-        if web_search == "native":
-            tools = list(tools) + [
-                {
-                    "type": "web_search_20250305",
-                    "name": "web_search",
-                    "max_uses": 5,
-                }
-            ]
+        # Web search attachment is delegated to the shared helper so
+        # all three providers stay in lockstep. v0.5.2: extracted to
+        # core/llm/web_search_routing.py to fix the per-provider drift
+        # that caused Tavily / native search to behave inconsistently
+        # across Anthropic + OpenAI + Gemini in v0.5.1.
+        tools = attach_for_anthropic(tools, web_search)
 
         for iteration in range(_MAX_AGENT_ITERATIONS):
             # Per-iteration state — reset every loop.
