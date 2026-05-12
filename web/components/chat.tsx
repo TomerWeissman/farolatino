@@ -682,7 +682,20 @@ function ReasoningPanel({ blocks }: { blocks: string[] }) {
   );
 }
 
-// ─── Chat input (autocomplete retired in v0.5.2) ─────────────────────────
+// ─── Chat input + @-autocomplete ────────────────────────────────────────
+
+function findActiveTrigger(
+  value: string,
+  caret: number,
+): { start: number; query: string } | null {
+  const before = value.slice(0, caret);
+  const at = before.lastIndexOf("@");
+  if (at === -1) return null;
+  const between = before.slice(at + 1);
+  if (/\s/.test(between)) return null;
+  if (at > 0 && !/\s/.test(before[at - 1])) return null;
+  return { start: at, query: between };
+}
 
 function ChatInputZone({
   draft,
@@ -703,13 +716,15 @@ function ChatInputZone({
   const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // @-autocomplete was retired in v0.5.2: the LLM detects skill intent
-  // inline ("evaluate Karol G" → asks-then-runs evaluate_artist) so the
-  // popup got in the way more than it helped. We keep the keyboard
-  // handler / popup JSX as inert paths so the input behaves like a
-  // plain textarea — refreshTrigger never sets a non-null trigger.
+  // @-autocomplete: popup appears when the user types `@` followed by
+  // a partial slug. v0.5.2 narrowed the slug list — `evaluate` and
+  // `similar` are filtered out at core/skill_registry.list_skills(),
+  // since the LLM handles those inline now. The popup remains for the
+  // other skills (@compare, @discover, @prospect, @analyze, @calibrate).
   const refreshTrigger = useCallback(() => {
-    setTrigger(null);
+    const ta = taRef.current;
+    if (!ta) return;
+    setTrigger(findActiveTrigger(ta.value, ta.selectionStart ?? ta.value.length));
   }, []);
 
   useEffect(() => {

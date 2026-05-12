@@ -89,6 +89,12 @@ def list_skills() -> list[Skill]:
         _parse_skill(resolved.path, resolved.source)
         for filename, resolved in found.items()
     ]
+    # v0.5.2: hide the retired `@evaluate` / `@similar` slugs from the
+    # skill list so they don't appear anywhere in the UI. The
+    # behavior moved to the LLM (which calls evaluate_artist directly
+    # and the chat surfaces the pill via SSE). The underlying skill
+    # files stay on disk so the upgrade path is reversible if needed.
+    skills = [s for s in skills if s.slug.lower() not in {"evaluate", "similar"}]
     skills.sort(key=lambda s: s.slug)
     return skills
 

@@ -384,33 +384,38 @@ def _assert_evaluate_dossier_is_real(trace: dict) -> None:
         )
 
 
-@pytest.mark.skipif(
-    not _has_provider_key("anthropic"),
-    reason="Anthropic key not configured (set LLM_API_KEY=sk-ant-...)",
+# v0.5.2: @evaluate / @similar slash-skill bypass retired. Free-form
+# chat now routes through the LLM which calls evaluate_artist directly
+# and the chat surfaces a compact pill via the evaluate_pill SSE event.
+# The byte-identical provider-output guarantee no longer applies — the
+# LLM's brief intro + web "Recent News" paragraph differs by provider.
+# Skipping these tests (rather than deleting) preserves the v0.5.1
+# contract in repo history.
+_RETIRED_SKILL_BYPASS = pytest.mark.skip(
+    reason="@evaluate / @similar slash bypass retired in v0.5.2; "
+    "LLM now emits an evaluate_pill instead. See FAROAI.md."
 )
+
+
+@_RETIRED_SKILL_BYPASS
 def test_evaluate_skill_via_anthropic():
     trace = _capture_evaluate_run(f"@evaluate {REGRESSION_ARTIST}")
     _assert_evaluate_dossier_is_real(trace)
 
 
-@pytest.mark.skipif(
-    not _has_provider_key("openai"),
-    reason="OpenAI key not configured (set LLM_API_KEY=sk-...)",
-)
+@_RETIRED_SKILL_BYPASS
 def test_evaluate_skill_via_openai():
     trace = _capture_evaluate_run(f"@evaluate {REGRESSION_ARTIST}")
     _assert_evaluate_dossier_is_real(trace)
 
 
-@pytest.mark.skipif(
-    not _has_provider_key("gemini"),
-    reason="Gemini key not configured (set LLM_API_KEY=AIza...)",
-)
+@_RETIRED_SKILL_BYPASS
 def test_evaluate_skill_via_gemini():
     trace = _capture_evaluate_run(f"@evaluate {REGRESSION_ARTIST}")
     _assert_evaluate_dossier_is_real(trace)
 
 
+@_RETIRED_SKILL_BYPASS
 def test_similar_output_is_provider_independent(monkeypatch):
     """``@similar`` output must also be byte-identical across providers.
     Same rationale as ``test_evaluate_output_is_provider_independent``."""
@@ -432,6 +437,7 @@ def test_similar_output_is_provider_independent(monkeypatch):
     assert a == g, "Anthropic and Gemini produced different @similar output."
 
 
+@_RETIRED_SKILL_BYPASS
 def test_evaluate_output_is_provider_independent(monkeypatch):
     """V2 lifts dossier rendering server-side, so the visible chat
     response is byte-identical regardless of which LLM provider is
