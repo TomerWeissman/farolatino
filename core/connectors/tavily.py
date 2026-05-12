@@ -93,12 +93,18 @@ def web_search(query: str, max_results: int = 5) -> dict:
         return _error_payload("permanent", "TAVILY_API_KEY not set; web search unavailable.")
 
     capped = max(1, min(int(max_results or 5), 10))
+    # search_depth="advanced" pulls richer page content into the result
+    # snippets (Tavily charges 2 credits/query vs 1 on "basic"). v0.5.2:
+    # the basic depth was returning thin snippets that left the model
+    # saying "I couldn't find detailed information" on legitimate
+    # results. include_answer=True gives the model a pre-synthesized
+    # one-line summary alongside the raw snippets — useful grounding.
     payload = {
         "api_key": api_key,
         "query": query,
         "max_results": capped,
-        "include_answer": False,
-        "search_depth": "basic",
+        "include_answer": True,
+        "search_depth": "advanced",
     }
     try:
         resp = httpx.post(_TAVILY_API_URL, json=payload, timeout=_TAVILY_TIMEOUT_S)
@@ -163,7 +169,15 @@ def web_search(query: str, max_results: int = 5) -> dict:
         "tavily ok query=%r n_results=%d in %dms",
         query[:80], len(results), elapsed_ms,
     )
-    return {"query": query, "results": results}
+    out: dict = {"query": query, "results": results}
+    # When include_answer=True, Tavily pre-synthesizes a one-line answer
+    # from the result snippets. Pass it through verbatim so the model
+    # has a strong starting point — but ALWAYS keep the per-result
+    # snippets too so the model can cite specific URLs.
+    answer = data.get("answer")
+    if isinstance(answer, str) and answer.strip():
+        out["answer"] = answer.strip()
+    return out
 
 
 def _error_payload(

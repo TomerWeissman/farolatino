@@ -174,15 +174,15 @@ class AnthropicProvider:
             # user message with all tool_result blocks, append it.
             tool_results: list[dict] = []
             for block in final_message.content:
+                # Hosted server-side tools (Anthropic's web_search_20250305)
+                # come as block.type == "server_tool_use" — filtered here.
+                # Local tool calls (including the Tavily-backed `web_search`
+                # in v0.5.2 tavily mode) come as block.type == "tool_use" and
+                # need dispatching. v0.5.1 had an extra `if block.name ==
+                # "web_search": continue` here that incorrectly skipped the
+                # Tavily call too, causing Anthropic + Tavily to return
+                # status=no_text (tool called, no result fed back).
                 if block.type != "tool_use":
-                    continue
-                # Hosted server-side tools (web_search_20250305) come
-                # back as "tool_use" blocks too, but Anthropic already
-                # executed them — calling dispatch_tool would error on
-                # an unknown name. Their results are attached server-side
-                # to the same assistant turn as web_search_tool_result
-                # blocks, so the model has what it needs already.
-                if block.name == "web_search":
                     continue
                 tool_input = block.input if isinstance(block.input, dict) else {}
                 output = dispatch_tool(block.name, tool_input)
