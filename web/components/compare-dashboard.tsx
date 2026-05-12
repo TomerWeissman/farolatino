@@ -19,7 +19,7 @@
 // candidates, elapsed-seconds spinner during loading, structured error.
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { evaluate } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
 import { TIER_COLOR, formatInt } from "@/lib/format";
@@ -387,6 +387,11 @@ function CompareHeader({
   accentA: string;
   accentB: string;
 }) {
+  const t = useT();
+  const router = useRouter();
+  const openDossier = (artist: string, cm_id: number) => {
+    router.push(`/evaluate?artist=${encodeURIComponent(artist)}&cm_id=${cm_id}`);
+  };
   return (
     <header className="ev-section ev-hero cmp-header">
       <div className="cmp-header-side" style={{ borderColor: accentA }}>
@@ -395,6 +400,13 @@ function CompareHeader({
         <div className="cmp-header-tier" style={{ color: accentA }}>
           {a.dossier.prospect_score.tier} · {Math.round(a.dossier.prospect_score.overall)}/100
         </div>
+        <button
+          type="button"
+          className="evaluate-btn evaluate-btn-secondary cmp-header-dossier-btn"
+          onClick={() => openDossier(a.artist, a.cm_id)}
+        >
+          {t("compare.open_dossier")}
+        </button>
       </div>
       <div className="cmp-header-vs">vs</div>
       <div className="cmp-header-side" style={{ borderColor: accentB }}>
@@ -403,6 +415,13 @@ function CompareHeader({
         <div className="cmp-header-tier" style={{ color: accentB }}>
           {b.dossier.prospect_score.tier} · {Math.round(b.dossier.prospect_score.overall)}/100
         </div>
+        <button
+          type="button"
+          className="evaluate-btn evaluate-btn-secondary cmp-header-dossier-btn"
+          onClick={() => openDossier(b.artist, b.cm_id)}
+        >
+          {t("compare.open_dossier")}
+        </button>
       </div>
     </header>
   );

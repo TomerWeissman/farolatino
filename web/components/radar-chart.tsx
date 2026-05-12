@@ -24,7 +24,18 @@ type Props = {
   dims: RadarDim[];
   accentA: string;
   accentB: string;
+  /**
+   * Inner polygon size (the square that the radar grid + polygons
+   * draw inside of). Default 320. The SVG viewport itself is wider
+   * than this so axis labels have horizontal room without clipping.
+   */
   size?: number;
+  /**
+   * Horizontal padding for axis labels (each side of the chart).
+   * Long labels like "Spotify monthly listeners" need ~120px room
+   * outside the polygon edge.
+   */
+  labelPaddingX?: number;
   /**
    * "max"     — each axis scaled to max(valueA, valueB) (default)
    * "percent" — axis is 0-100, used for scoring breakdowns
@@ -36,14 +47,19 @@ export function RadarChart({
   dims,
   accentA,
   accentB,
-  size = 360,
+  size = 320,
+  labelPaddingX = 130,
   normalizeMode = "max",
 }: Props) {
-  const cx = size / 2;
-  const cy = size / 2;
-  // Leave padding so axis labels (drawn outside the ring) fit inside
-  // the SVG viewport.
-  const radius = size / 2 - 60;
+  // SVG viewport: square chart + horizontal slack for labels on both
+  // sides. The polygon stays centered on (size/2 + labelPaddingX, size/2).
+  const viewBoxW = size + labelPaddingX * 2;
+  const viewBoxH = size + 40;  // small vertical pad for top/bottom labels
+  const cx = viewBoxW / 2;
+  const cy = viewBoxH / 2;
+  // Polygon radius — leave 30px between outer ring and the SVG content
+  // bounds; the labels live in `labelPaddingX` past that.
+  const radius = size / 2 - 30;
   const n = dims.length;
   if (n === 0) return null;
 
@@ -91,7 +107,7 @@ export function RadarChart({
 
   // Label positions — slightly outside the outer ring.
   const labelPositions = dims.map((d, i) => {
-    const r = radius + 22;
+    const r = radius + 18;
     const x = cx + r * Math.cos(angles[i]);
     const y = cy + r * Math.sin(angles[i]);
     // text-anchor heuristic — align based on angle so labels don't crowd center.
@@ -102,9 +118,9 @@ export function RadarChart({
 
   return (
     <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      width="100%"
+      viewBox={`0 0 ${viewBoxW} ${viewBoxH}`}
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label="Comparison radar chart"
       className="cmp-radar-svg"

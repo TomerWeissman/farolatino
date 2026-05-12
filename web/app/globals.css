@@ -1886,17 +1886,27 @@ button.sidebar-link {
 }
 .cmp-header-name { font: 500 24px/1.1 Georgia, serif; text-align: center; }
 .cmp-header-tier { font-size: 13px; letter-spacing: 0.05em; }
+.cmp-header-dossier-btn {
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 6px 12px;
+}
 
 /* v0.5.2 radar comparison.
    Two-column wrap: SVG radar on the left, color-keyed value legend
    table on the right. Each radar gets its own .cmp-radar-wrap. */
 .cmp-radar-wrap {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 32px;
   align-items: center;
 }
-.cmp-radar-svg { display: block; }
+.cmp-radar-svg {
+  display: block;
+  width: 100%;
+  max-width: 580px;
+  height: auto;
+}
 .cmp-radar-label {
   font-size: 11px;
   fill: #1a1a1a;
