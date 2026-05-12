@@ -157,6 +157,8 @@ function parseSseBlock(block: string): ChatEvent | null {
       return { kind: "error", ...data } as ChatEvent;
     case "evaluate_pill":
       return { kind: "evaluate_pill", ...data } as ChatEvent;
+    case "compare_pill":
+      return { kind: "compare_pill", ...data } as ChatEvent;
     default:
       return null;
   }

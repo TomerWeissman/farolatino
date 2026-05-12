@@ -88,6 +88,14 @@ paso 1 para ir directo a la web.
       Spotify tiene X?") → `search_artists` y luego `get_artist_data`
       está bien.
     - "Quién es similar a…" → `find_similar_artists`.
+    - **Comparar dos artistas** ("Compara A y B", "X vs Y", "¿quién
+      está mejor posicionado, A o B?") → `compare_artists`, pasando
+      AMBOS `artist_a` y `artist_b`. El chat muestra automáticamente
+      una píldora compacta de dos fotos que enlaza a
+      `/compare?primary=A&secondary=B` — misma forma que el flow de
+      evaluate. Escribe un titular breve de 1 oración contrastando
+      ambos (tier + score de cada uno) y luego ÚNICAMENTE la sección
+      "Noticias recientes". No pegues ambos dossiers como markdown.
     - Queries de descubrimiento →
       `discover_artists` / `discover_artists_multi_country`.
 

@@ -83,6 +83,7 @@ _DEFAULT_TOOL_NAMES = [
     "mcp__farolatino__discover_artists_multi_country",
     "mcp__farolatino__estimate_revenue",
     "mcp__farolatino__evaluate_artist",
+    "mcp__farolatino__compare_artists",
     "mcp__farolatino__find_similar_artists",
     "mcp__farolatino__generate_dossier",
     "mcp__farolatino__get_artist_data",

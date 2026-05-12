@@ -74,6 +74,23 @@ async def post_chat(req: ChatRequest):
         """Thread-safe enqueue from the worker thread."""
         loop.call_soon_threadsafe(queue.put_nowait, item)
 
+    def _parse_tool_result_content(tool_result_block: dict) -> dict | None:
+        """Provider adapters serialize tool_result content as either a
+        JSON string or a list of text blocks. Normalize and parse, or
+        return None if the result isn't a dict we can read."""
+        content = tool_result_block.get("content")
+        if isinstance(content, list):
+            content = "".join(
+                (b.get("text") or "") for b in content if isinstance(b, dict)
+            )
+        if not isinstance(content, str):
+            return None
+        try:
+            parsed = json.loads(content)
+        except (ValueError, TypeError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+
     def _maybe_emit_evaluate_pill(tool_result_block: dict) -> None:
         """When the just-completed tool was evaluate_artist, parse the
         result and emit a compact pill event so the chat renders a card
@@ -85,20 +102,8 @@ async def post_chat(req: ChatRequest):
             return
         if tool_use_index.get(tool_use_id) != "mcp__farolatino__evaluate_artist":
             return
-        content = tool_result_block.get("content")
-        # Provider adapters serialize tool_result content as either a
-        # string (JSON) or a list of text blocks. Normalize to a string.
-        if isinstance(content, list):
-            content = "".join(
-                (b.get("text") or "") for b in content if isinstance(b, dict)
-            )
-        if not isinstance(content, str):
-            return
-        try:
-            parsed = json.loads(content)
-        except (ValueError, TypeError):
-            return
-        if not isinstance(parsed, dict):
+        parsed = _parse_tool_result_content(tool_result_block)
+        if parsed is None:
             return
         if parsed.get("error") or parsed.get("needs_disambiguation"):
             return
@@ -115,6 +120,43 @@ async def post_chat(req: ChatRequest):
             "image": identity.get("image"),
             "tier": score.get("tier"),
             "score": score.get("overall"),
+        }))
+
+    def _maybe_emit_compare_pill(tool_result_block: dict) -> None:
+        """When the just-completed tool was compare_artists, parse the
+        result and emit a compact two-photo pill event. Skipped on
+        partial results (either side errored or needs disambiguation)
+        — the chat surfaces the LLM's prose follow-up in those cases."""
+        tool_use_id = tool_result_block.get("tool_use_id")
+        if not tool_use_id:
+            return
+        if tool_use_index.get(tool_use_id) != "mcp__farolatino__compare_artists":
+            return
+        parsed = _parse_tool_result_content(tool_result_block)
+        if parsed is None:
+            return
+        if (
+            parsed.get("error")
+            or parsed.get("needs_disambiguation_a")
+            or parsed.get("needs_disambiguation_b")
+        ):
+            return
+        comp = parsed.get("comparison") or {}
+        cm_id_a = parsed.get("cm_id_a")
+        cm_id_b = parsed.get("cm_id_b")
+        if not (cm_id_a and cm_id_b and comp.get("name_a") and comp.get("name_b")):
+            return
+        _push(_build_event("compare_pill", {
+            "artist_a": comp["name_a"],
+            "artist_b": comp["name_b"],
+            "cm_id_a": cm_id_a,
+            "cm_id_b": cm_id_b,
+            "image_a": comp.get("image_a"),
+            "image_b": comp.get("image_b"),
+            "tier_a": comp.get("tier_a"),
+            "tier_b": comp.get("tier_b"),
+            "score_a": comp.get("score_a"),
+            "score_b": comp.get("score_b"),
         }))
 
     def _on_event(event: dict) -> None:
@@ -137,6 +179,7 @@ async def post_chat(req: ChatRequest):
             for block in (event.get("message") or {}).get("content") or []:
                 if block.get("type") == "tool_result":
                     _maybe_emit_evaluate_pill(block)
+                    _maybe_emit_compare_pill(block)
             return
         if etype != "assistant":
             return

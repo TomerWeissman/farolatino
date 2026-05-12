@@ -65,13 +65,30 @@ export type EvaluatePillEvent = {
   score?: number | null;
 };
 
+// Sibling of EvaluatePillEvent for chat-initiated compares — emitted
+// when the LLM's compare_artists tool returns both sides resolved.
+export type ComparePillEvent = {
+  kind: "compare_pill";
+  artist_a: string;
+  artist_b: string;
+  cm_id_a: number;
+  cm_id_b: number;
+  image_a?: string | null;
+  image_b?: string | null;
+  tier_a?: string | null;
+  tier_b?: string | null;
+  score_a?: number | null;
+  score_b?: number | null;
+};
+
 export type ChatEvent =
   | ToolUseEvent
   | ThinkingEvent
   | TextEvent
   | ResultEvent
   | ErrorEvent
-  | EvaluatePillEvent;
+  | EvaluatePillEvent
+  | ComparePillEvent;
 
 // Compact "I evaluated X" chip rendered in the chat instead of a
 // big Markdown wall. Click → goes back to /evaluate?artist=X. The
@@ -93,6 +110,23 @@ export type EvaluatePill = {
   inline?: boolean;
 };
 
+// Compact two-photo "I compared X vs Y" chip. Same inline semantics as
+// EvaluatePill — when the LLM emits it the chat renders pill + the
+// LLM's brief follow-up content. Click → /compare?primary=...&secondary=...
+export type ComparePill = {
+  artist_a: string;
+  artist_b: string;
+  cm_id_a: number;
+  cm_id_b: number;
+  image_a?: string;
+  image_b?: string;
+  tier_a?: string;
+  tier_b?: string;
+  score_a?: number;
+  score_b?: number;
+  inline?: boolean;
+};
+
 // What we keep in client state per chat turn.
 export type Turn = {
   role: "user" | "assistant";
@@ -105,6 +139,8 @@ export type Turn = {
   // `content` still holds the full dossier markdown so the LLM has
   // context for follow-up questions via Phase 1's history replay.
   evaluatePill?: EvaluatePill;
+  // Sibling for chat-initiated compares — same inline semantics.
+  comparePill?: ComparePill;
 };
 
 // ─── /api/evaluate response types ──────────────────────────────────────

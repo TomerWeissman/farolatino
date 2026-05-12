@@ -32,6 +32,7 @@ from mcp_server.tools import chartmetric_discovery  # noqa: E402, F401
 # makes only one MCP call per skill (vs. 6+ in the unfactored flow).
 from mcp_server.tools import composite_evaluate  # noqa: E402, F401
 from mcp_server.tools import composite_similar  # noqa: E402, F401
+from mcp_server.tools import composite_compare  # noqa: E402, F401
 
 # Spotify + YouTube — direct API integrations for cross-validation against
 # Chartmetric's daily snapshot. Both auto-handle auth via .env credentials.

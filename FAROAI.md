@@ -76,6 +76,14 @@ skip step 1 to jump to web search.
     - One narrow metric only ("what's X's monthly Spotify listener
       count?") → `search_artists` then `get_artist_data` is fine.
     - "Who is similar to…" → `find_similar_artists`.
+    - **Compare two artists** ("Compare A and B", "X vs Y", "Who's
+      bigger / better positioned, A or B?") → `compare_artists`,
+      passing BOTH `artist_a` and `artist_b`. The chat surfaces a
+      compact two-photo pill linking to `/compare?primary=A&secondary=B`
+      automatically — same shape as the evaluate flow. Write a brief
+      1-sentence headline contrasting the two (tier + score for each)
+      and then ONLY the web "Recent News" section. Don't dump both
+      dossiers as markdown.
     - Discovery queries → `discover_artists` / `discover_artists_multi_country`.
 
    Use the data you get back as the grounding for your answer. Cite

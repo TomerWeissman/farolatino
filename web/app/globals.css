@@ -2316,6 +2316,22 @@ button.sidebar-link {
 }
 .chat-eval-pill:hover .chat-eval-pill-link { color: #1a1a1a; }
 
+/* Two-photo variant for compare_artists — stacks the two artist
+   photos in an overlapping pair to the left of the name "A vs B". */
+.chat-compare-pill-photos {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.chat-compare-pill-photos .chat-eval-pill-photo:nth-child(2) {
+  margin-left: -10px;
+  border: 2px solid white;
+}
+.chat-compare-pill-vs {
+  color: #999;
+  font-weight: 400;
+  margin: 0 2px;
+}
+
 /* Compact responsive — collapse 4-col reach to 2-col on narrow window. */
 @media (max-width: 720px) {
   .ev-grid-4 { grid-template-columns: 1fr 1fr; }

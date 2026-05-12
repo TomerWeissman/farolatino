@@ -7,6 +7,7 @@ from __future__ import annotations
 
 _FAROLATINO_LABELS: dict[str, str] = {
     "mcp__farolatino__evaluate_artist": "Evaluating artist (full pipeline)",
+    "mcp__farolatino__compare_artists": "Comparing two artists",
     "mcp__farolatino__find_similar_artists": "Finding similar artists",
     "mcp__farolatino__search_artists": "Searching Chartmetric",
     "mcp__farolatino__search_artist_by_url": "Looking up artist",

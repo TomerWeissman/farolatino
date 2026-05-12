@@ -357,11 +357,14 @@ function AssistantMessage({ turn }: { turn: Turn }) {
           - dashboard "Continue in chat" (pill.inline=false): content is
             the full dossier markdown (LLM context); UI renders only
             the pill.
-          - LLM-initiated evaluate_artist (pill.inline=true): content
-            is the LLM's brief intro + web "Recent News"; UI renders
+          - LLM-initiated evaluate_artist / compare_artists (inline=true):
+            content is the LLM's brief intro + web section; UI renders
             pill AND content. */}
       {turn.evaluatePill && <EvaluatePillCard pill={turn.evaluatePill} />}
-      {turn.content && (!turn.evaluatePill || turn.evaluatePill.inline) ? (
+      {turn.comparePill && <ComparePillCard pill={turn.comparePill} />}
+      {turn.content &&
+      (!turn.evaluatePill || turn.evaluatePill.inline) &&
+      (!turn.comparePill || turn.comparePill.inline) ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
           {turn.content}
         </ReactMarkdown>
@@ -517,6 +520,55 @@ function EvaluatePillCard({ pill }: { pill: NonNullable<Turn["evaluatePill"]> })
   );
 }
 
+function ComparePillCard({ pill }: { pill: NonNullable<Turn["comparePill"]> }) {
+  const router = useRouter();
+  const initials = (name: string) =>
+    name.split(" ").filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? "").join("") || "?";
+  const photo = (name: string, image?: string) =>
+    image ? (
+      <img src={image} alt={name} className="chat-eval-pill-photo" />
+    ) : (
+      <div className="chat-eval-pill-photo chat-eval-pill-photo-fallback">{initials(name)}</div>
+    );
+  return (
+    <button
+      type="button"
+      className="chat-eval-pill chat-compare-pill"
+      onClick={() => {
+        const params = new URLSearchParams({
+          primary: pill.artist_a,
+          secondary: pill.artist_b,
+        });
+        if (pill.cm_id_a) params.set("primary_cm_id", String(pill.cm_id_a));
+        if (pill.cm_id_b) params.set("secondary_cm_id", String(pill.cm_id_b));
+        router.push(`/compare?${params.toString()}`);
+      }}
+      title={`Open /compare for ${pill.artist_a} vs ${pill.artist_b}`}
+    >
+      <div className="chat-compare-pill-photos">
+        {photo(pill.artist_a, pill.image_a)}
+        {photo(pill.artist_b, pill.image_b)}
+      </div>
+      <div className="chat-eval-pill-body">
+        <div className="chat-eval-pill-name">
+          {pill.artist_a} <span className="chat-compare-pill-vs">vs</span> {pill.artist_b}
+        </div>
+        <div className="chat-eval-pill-meta">
+          {pill.score_a != null && pill.score_b != null && (
+            <span className="chat-eval-pill-score">
+              {Math.round(pill.score_a)} vs {Math.round(pill.score_b)}
+            </span>
+          )}
+          {pill.tier_a && pill.tier_b && (
+            <span className="chat-eval-pill-tier">{pill.tier_a} · {pill.tier_b}</span>
+          )}
+          <span className="chat-eval-pill-link">Open compare <ArrowRight size={12} /></span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // Inline structured-error banner. Always shows the title; renders the
 // hint + a "Fix it" link when the backend supplied them; the raw
 // provider message goes into a collapsible "Show details" so power
@@ -616,7 +668,7 @@ function LiveAssistant({
   elapsedSec: number;
 }) {
   const t = useT();
-  const { text, thinking, toolStatus, evaluatePill } = snapshot;
+  const { text, thinking, toolStatus, evaluatePill, comparePill } = snapshot;
   const showTimer = elapsedSec >= 3;
   const baseLabel = toolStatus ?? t("chat.thinking");
   const statusLabel = showTimer ? `${baseLabel} (${elapsedSec}s)` : baseLabel;
@@ -624,6 +676,7 @@ function LiveAssistant({
     <div className="chat-assistant">
       {thinking.length > 0 && <ReasoningPanel blocks={thinking} />}
       {evaluatePill && <EvaluatePillCard pill={evaluatePill} />}
+      {comparePill && <ComparePillCard pill={comparePill} />}
       {text ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
       ) : (

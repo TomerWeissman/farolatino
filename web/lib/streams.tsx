@@ -43,6 +43,8 @@ export type StreamSnapshot = {
   // the chat renders a compact pill card instead of dumping the
   // dossier markdown wall.
   evaluatePill?: Turn["evaluatePill"];
+  // Sibling for compare_artists.
+  comparePill?: Turn["comparePill"];
 };
 
 type StreamHandle = {
@@ -172,6 +174,24 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
               },
             };
             bump();
+          } else if (ev.kind === "compare_pill") {
+            handle.snapshot = {
+              ...handle.snapshot,
+              comparePill: {
+                artist_a: ev.artist_a,
+                artist_b: ev.artist_b,
+                cm_id_a: ev.cm_id_a,
+                cm_id_b: ev.cm_id_b,
+                image_a: ev.image_a ?? undefined,
+                image_b: ev.image_b ?? undefined,
+                tier_a: ev.tier_a ?? undefined,
+                tier_b: ev.tier_b ?? undefined,
+                score_a: ev.score_a ?? undefined,
+                score_b: ev.score_b ?? undefined,
+                inline: true,
+              },
+            };
+            bump();
           } else if (ev.kind === "result") {
             // Make sure no buffered text is dropped.
             if (flushTimer) {
@@ -206,6 +226,7 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
                   ? handle.snapshot.errorDetails ?? { message: handle.snapshot.errorMessage ?? "Unknown error" }
                   : undefined,
                 evaluatePill: handle.snapshot.evaluatePill,
+                comparePill: handle.snapshot.comparePill,
               };
               const updated: Conversation = {
                 ...c,

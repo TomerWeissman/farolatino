@@ -36,6 +36,7 @@ from mcp_server.tools import (  # noqa: E402
     chartmetric_artist,
     chartmetric_discovery,
     chartmetric_search,
+    composite_compare,
     composite_evaluate,
     composite_similar,
     config_manager,
@@ -61,6 +62,7 @@ log = logging.getLogger(__name__)
 _REGISTRY: dict[str, Callable[..., Any]] = {
     # Composite (one-call pipelines)
     "mcp__farolatino__evaluate_artist": composite_evaluate.evaluate_artist,
+    "mcp__farolatino__compare_artists": composite_compare.compare_artists,
     "mcp__farolatino__find_similar_artists": composite_similar.find_similar_artists,
     # Chartmetric primitives
     "mcp__farolatino__search_artists": chartmetric_search.search_artists,
