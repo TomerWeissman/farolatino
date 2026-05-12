@@ -12,13 +12,18 @@ to pick. The model then re-invokes with `cm_id=<chosen>`.
 """
 from __future__ import annotations
 
+import logging
+
 from mcp_server.server import mcp
 from mcp_server.tools.alert_router import route_alert
 from mcp_server.tools.chartmetric_artist import get_artist_data
 from mcp_server.tools.chartmetric_search import search_artist_by_url, search_artists
+from mcp_server.tools.data_cache import raw_cache_get, raw_cache_set
 from mcp_server.tools.dossier_generator import generate_dossier
 from mcp_server.tools.revenue_model import estimate_revenue
 from mcp_server.tools.scoring.engine import compute_prospect_score
+
+log = logging.getLogger(__name__)
 
 # A search result is "dominant" if the top match has >10× the Spotify
 # follower count of the runner-up. Below this we ask the user to pick.
@@ -87,6 +92,15 @@ def evaluate_artist(
                 }
             cm_id = chosen["cm_id"]
 
+    # Short-circuit: if a full dossier was built for this artist +
+    # profile within the TTL (1h), return it without recomputing.
+    # Keeps follow-up chat turns ("what's her TikTok number?")
+    # near-instant after the first @evaluate.
+    cached_dossier = raw_cache_get(cm_id, f"dossier_{profile_name}")
+    if isinstance(cached_dossier, dict) and "dossier" in cached_dossier:
+        log.info("evaluate_artist cache hit cm_id=%s profile=%s", cm_id, profile_name)
+        return cached_dossier
+
     # Step 2: Pull all 14 endpoints (cache-aware)
     artist_data = get_artist_data(cm_id, use_cache=True)
     if "error" in artist_data:
@@ -115,8 +129,13 @@ def evaluate_artist(
         "prospect_score": score_result.get("prospect_score", 0),
     })
 
-    return {
+    result = {
         "dossier": dossier,
         "alert": alert,
         "cm_id": cm_id,
     }
+    try:
+        raw_cache_set(cm_id, f"dossier_{profile_name}", result)
+    except Exception:
+        log.exception("dossier cache write failed (non-fatal)")
+    return result

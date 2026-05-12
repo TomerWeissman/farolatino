@@ -348,13 +348,15 @@ function AssistantMessage({ turn }: { turn: Turn }) {
       {turn.thinking && turn.thinking.length > 0 && (
         <ReasoningPanel blocks={turn.thinking} />
       )}
-      {/* When the dashboard handed off into chat, render a compact pill
-          instead of dumping the full Markdown dossier. The Markdown is
-          still in turn.content so the LLM sees the dossier as context
-          on the next turn — we just hide it from the UI. */}
-      {turn.evaluatePill ? (
-        <EvaluatePillCard pill={turn.evaluatePill} />
-      ) : turn.content ? (
+      {/* Two pill modes:
+          - dashboard "Continue in chat" (pill.inline=false): content is
+            the full dossier markdown (LLM context); UI renders only
+            the pill.
+          - LLM-initiated evaluate_artist (pill.inline=true): content
+            is the LLM's brief intro + web "Recent News"; UI renders
+            pill AND content. */}
+      {turn.evaluatePill && <EvaluatePillCard pill={turn.evaluatePill} />}
+      {turn.content && (!turn.evaluatePill || turn.evaluatePill.inline) ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
           {turn.content}
         </ReactMarkdown>
@@ -609,13 +611,14 @@ function LiveAssistant({
   elapsedSec: number;
 }) {
   const t = useT();
-  const { text, thinking, toolStatus } = snapshot;
+  const { text, thinking, toolStatus, evaluatePill } = snapshot;
   const showTimer = elapsedSec >= 3;
   const baseLabel = toolStatus ?? t("chat.thinking");
   const statusLabel = showTimer ? `${baseLabel} (${elapsedSec}s)` : baseLabel;
   return (
     <div className="chat-assistant">
       {thinking.length > 0 && <ReasoningPanel blocks={thinking} />}
+      {evaluatePill && <EvaluatePillCard pill={evaluatePill} />}
       {text ? (
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
       ) : (

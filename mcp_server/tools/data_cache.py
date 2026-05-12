@@ -43,6 +43,16 @@ CACHE_TTL = {
     "similar_genre": timedelta(weeks=2),
     "urls": timedelta(weeks=4),
     "score": timedelta(days=1),
+    # Full @evaluate dossier (composite output). Short TTL because
+    # tier / score can move on fresh Chartmetric daily snapshots and
+    # the user wants the chat to feel current — but long enough that
+    # follow-up turns ("What's her TikTok number?") within the same
+    # conversation reuse the dossier instead of re-running the whole
+    # pipeline. Profile-aware: key is `dossier_<profile_name>`.
+    "dossier_default": timedelta(hours=1),
+    "dossier_emerging_momentum": timedelta(hours=1),
+    "dossier_revenue_focus": timedelta(hours=1),
+    "dossier_latam_expansion": timedelta(hours=1),
 }
 
 

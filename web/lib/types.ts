@@ -52,23 +52,45 @@ export type TurnError = {
   raw?: string;
 };
 
+// Emitted by the chat backend when the LLM's evaluate_artist tool
+// returns successfully — the frontend attaches it to the assistant
+// turn so the chat renders a compact pill card instead of the LLM
+// pasting the dossier markdown wall.
+export type EvaluatePillEvent = {
+  kind: "evaluate_pill";
+  artist: string;
+  cm_id: number;
+  image?: string | null;
+  tier?: string | null;
+  score?: number | null;
+};
+
 export type ChatEvent =
   | ToolUseEvent
   | ThinkingEvent
   | TextEvent
   | ResultEvent
-  | ErrorEvent;
+  | ErrorEvent
+  | EvaluatePillEvent;
 
 // Compact "I evaluated X" chip rendered in the chat instead of a
 // big Markdown wall. Click → goes back to /evaluate?artist=X. The
 // dossier is still in the turn's `content` field so the LLM has it
 // as context — the UI just renders the pill on top of the markdown.
+//
+// `inline=true` is the v0.5.2 chat-initiated mode: the LLM emits a
+// short reply (intro + web "Recent News") AND the backend emits a
+// pill event, so the UI renders the pill ALONGSIDE the brief content.
+// Default (unset / false) is the dashboard "Continue in chat" mode:
+// the dossier markdown lives in content for LLM context but the UI
+// hides it and shows only the pill.
 export type EvaluatePill = {
   artist: string;
   cm_id: number;
   image?: string;
   tier?: string;
   score?: number;
+  inline?: boolean;
 };
 
 // What we keep in client state per chat turn.

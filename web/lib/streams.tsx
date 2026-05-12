@@ -39,6 +39,10 @@ export type StreamSnapshot = {
   errorDetails?: TurnError; // structured: title + hint + fix_url + raw
   // The result event's session_id, set when status becomes "done".
   sessionId?: string;
+  // Set when the LLM's evaluate_artist call returned successfully —
+  // the chat renders a compact pill card instead of dumping the
+  // dossier markdown wall.
+  evaluatePill?: Turn["evaluatePill"];
 };
 
 type StreamHandle = {
@@ -155,6 +159,19 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
           } else if (ev.kind === "text") {
             pendingText += ev.delta;
             if (!flushTimer) flushTimer = setTimeout(flushPending, TEXT_THROTTLE_MS);
+          } else if (ev.kind === "evaluate_pill") {
+            handle.snapshot = {
+              ...handle.snapshot,
+              evaluatePill: {
+                artist: ev.artist,
+                cm_id: ev.cm_id,
+                image: ev.image ?? undefined,
+                tier: ev.tier ?? undefined,
+                score: ev.score ?? undefined,
+                inline: true,
+              },
+            };
+            bump();
           } else if (ev.kind === "result") {
             // Make sure no buffered text is dropped.
             if (flushTimer) {
@@ -188,6 +205,7 @@ export function ConversationStreamsProvider({ children }: { children: ReactNode 
                 error: erroredOut
                   ? handle.snapshot.errorDetails ?? { message: handle.snapshot.errorMessage ?? "Unknown error" }
                   : undefined,
+                evaluatePill: handle.snapshot.evaluatePill,
               };
               const updated: Conversation = {
                 ...c,

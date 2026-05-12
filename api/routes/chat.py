@@ -64,17 +64,67 @@ async def post_chat(req: ChatRequest):
     accumulated_text: list[str] = []
     thinking_blocks: list[str] = []
     state: dict = {"error": None, "session_id": None}
+    # Map tool_use_id → tool_name so we can recognise an evaluate_artist
+    # tool_result when it lands on the next user event. Used only to
+    # decide whether to emit an evaluate_pill event — the LLM still
+    # sees the full result.
+    tool_use_index: dict[str, str] = {}
 
     def _push(item) -> None:
         """Thread-safe enqueue from the worker thread."""
         loop.call_soon_threadsafe(queue.put_nowait, item)
+
+    def _maybe_emit_evaluate_pill(tool_result_block: dict) -> None:
+        """When the just-completed tool was evaluate_artist, parse the
+        result and emit a compact pill event so the chat renders a card
+        linking to /evaluate instead of the LLM pasting the dossier wall.
+        Silently does nothing if the result is missing fields, errored,
+        or was a disambiguation prompt."""
+        tool_use_id = tool_result_block.get("tool_use_id")
+        if not tool_use_id:
+            return
+        if tool_use_index.get(tool_use_id) != "mcp__farolatino__evaluate_artist":
+            return
+        content = tool_result_block.get("content")
+        # Provider adapters serialize tool_result content as either a
+        # string (JSON) or a list of text blocks. Normalize to a string.
+        if isinstance(content, list):
+            content = "".join(
+                (b.get("text") or "") for b in content if isinstance(b, dict)
+            )
+        if not isinstance(content, str):
+            return
+        try:
+            parsed = json.loads(content)
+        except (ValueError, TypeError):
+            return
+        if not isinstance(parsed, dict):
+            return
+        if parsed.get("error") or parsed.get("needs_disambiguation"):
+            return
+        dossier = parsed.get("dossier") or {}
+        identity = dossier.get("identity") or {}
+        score = dossier.get("prospect_score") or {}
+        cm_id = parsed.get("cm_id") or identity.get("cm_id")
+        artist = identity.get("name")
+        if not (cm_id and artist):
+            return
+        _push(_build_event("evaluate_pill", {
+            "artist": artist,
+            "cm_id": cm_id,
+            "image": identity.get("image"),
+            "tier": score.get("tier"),
+            "score": score.get("overall"),
+        }))
 
     def _on_event(event: dict) -> None:
         """Forwarded into RunLogger (telemetry) AND used to surface
         tool_use events to the client BEFORE the corresponding text
         chunk arrives — gives the UI a chance to update the status pill.
         Also captures the session_id from the system/init event so the
-        frontend can pass it back as resume_session_id on follow-up turns."""
+        frontend can pass it back as resume_session_id on follow-up turns.
+        And: emits a synthetic evaluate_pill event when a successful
+        evaluate_artist tool_result lands."""
         logger.record_event(event)
         etype = event.get("type")
         if etype == "system" and event.get("subtype") == "init":
@@ -82,11 +132,20 @@ async def post_chat(req: ChatRequest):
             if sid:
                 state["session_id"] = sid
             return
+        if etype == "user":
+            # Tool results come back on synthetic user messages.
+            for block in (event.get("message") or {}).get("content") or []:
+                if block.get("type") == "tool_result":
+                    _maybe_emit_evaluate_pill(block)
+            return
         if etype != "assistant":
             return
         for block in (event.get("message") or {}).get("content") or []:
             if block.get("type") == "tool_use":
                 name = block.get("name", "tool")
+                tid = block.get("id")
+                if tid:
+                    tool_use_index[tid] = name
                 _push(_build_event("tool_use", {
                     "name": name,
                     "label": humanize_tool(name),
