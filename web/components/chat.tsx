@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlertCircle, ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowRight, Globe } from "lucide-react";
 
 import { fetchSkills } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
@@ -355,11 +355,120 @@ function AssistantMessage({ turn }: { turn: Turn }) {
       {turn.evaluatePill ? (
         <EvaluatePillCard pill={turn.evaluatePill} />
       ) : turn.content ? (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+          {turn.content}
+        </ReactMarkdown>
       ) : null}
       {turn.error && <ErrorBanner error={turn.error} />}
     </div>
   );
+}
+
+
+// Custom Markdown component overrides — used for both completed and
+// live-streaming assistant turns.
+//
+// v0.5.2: detect persona-style source tags ([Web: domain.com](url),
+// [Chartmetric] / [Spotify] / [YouTube] / [FaroLatino]) and render
+// them as styled chip pills instead of plain links. Web-source chips
+// open the URL in a new browser tab; internal-source chips are static
+// (no link target — they're just "where this fact came from").
+const MARKDOWN_COMPONENTS = {
+  a: ({ href, children, ...rest }: { href?: string; children?: React.ReactNode }) => {
+    const text = childrenToText(children);
+    // [Web: domain.com](url) → clickable pill chip with a globe icon.
+    const webMatch = text.match(/^\s*Web:\s*(.+?)\s*$/i);
+    if (webMatch && href) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="chat-source-chip chat-source-chip-web"
+          title={href}
+          {...rest}
+        >
+          <Globe className="chat-source-chip-icon" aria-hidden="true" />
+          <span>{webMatch[1]}</span>
+        </a>
+      );
+    }
+    // Fallback: plain link, default styling.
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+        {children}
+      </a>
+    );
+  },
+};
+
+// Persona-style bracket tags like [Chartmetric] aren't markdown links
+// (no URL), so ReactMarkdown leaves them as text inside <p>. We
+// post-process text nodes to wrap matching bracket tags in chip spans.
+// Implemented via a text-node renderer override so the chip styling
+// applies inside any parent node (p, td, li, etc).
+const INTERNAL_SOURCE_TAGS = new Set([
+  "Chartmetric", "Spotify", "YouTube", "FaroLatino",
+]);
+
+// We add a `p` override too so the bracket tags inside paragraph text
+// get tokenized. This re-walks the children, splitting strings on the
+// bracket pattern and wrapping matches in chip spans.
+(MARKDOWN_COMPONENTS as Record<string, unknown>).p = ({ children }: { children?: React.ReactNode }) => (
+  <p>{tokenizeSourceTags(children)}</p>
+);
+(MARKDOWN_COMPONENTS as Record<string, unknown>).li = ({ children }: { children?: React.ReactNode }) => (
+  <li>{tokenizeSourceTags(children)}</li>
+);
+(MARKDOWN_COMPONENTS as Record<string, unknown>).td = ({ children }: { children?: React.ReactNode }) => (
+  <td>{tokenizeSourceTags(children)}</td>
+);
+
+
+function tokenizeSourceTags(children: React.ReactNode): React.ReactNode {
+  // Recursively walk children, splitting any string text on the
+  // [Chartmetric] / [Spotify] / [YouTube] / [FaroLatino] pattern.
+  // Non-string children pass through unchanged.
+  const tagRe = /\[(Chartmetric|Spotify|YouTube|FaroLatino)\]/g;
+  const walk = (node: React.ReactNode): React.ReactNode => {
+    if (typeof node === "string") {
+      const parts: React.ReactNode[] = [];
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = tagRe.exec(node)) !== null) {
+        if (match.index > lastIndex) parts.push(node.slice(lastIndex, match.index));
+        const tag = match[1];
+        if (INTERNAL_SOURCE_TAGS.has(tag)) {
+          parts.push(
+            <span
+              key={`${tag}-${match.index}`}
+              className={`chat-source-chip chat-source-chip-internal chat-source-chip-${tag.toLowerCase()}`}
+            >
+              {tag}
+            </span>
+          );
+        } else {
+          parts.push(match[0]);
+        }
+        lastIndex = tagRe.lastIndex;
+      }
+      if (lastIndex < node.length) parts.push(node.slice(lastIndex));
+      return parts.length > 0 ? parts : node;
+    }
+    if (Array.isArray(node)) return node.map((c, i) => <span key={i}>{walk(c)}</span>);
+    return node;
+  };
+  return walk(children);
+}
+
+
+function childrenToText(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (Array.isArray(children)) return children.map(childrenToText).join("");
+  if (children && typeof children === "object" && "props" in children) {
+    return childrenToText((children as { props?: { children?: React.ReactNode } }).props?.children);
+  }
+  return "";
 }
 
 function EvaluatePillCard({ pill }: { pill: NonNullable<Turn["evaluatePill"]> }) {
@@ -508,19 +617,37 @@ function LiveAssistant({
     <div className="chat-assistant">
       {thinking.length > 0 && <ReasoningPanel blocks={thinking} />}
       {text ? (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
       ) : (
-        <div className="chat-status">
-          <span className="dot" />
-          {statusLabel}
-        </div>
+        <ChatStatusPill label={statusLabel} toolStatus={toolStatus} />
       )}
       {text && toolStatus && (
-        <div className="chat-status">
-          <span className="dot" />
-          {statusLabel}
-        </div>
+        <ChatStatusPill label={statusLabel} toolStatus={toolStatus} />
       )}
+    </div>
+  );
+}
+
+
+// v0.5.2: visual signifier for what the assistant is currently doing.
+// When the active tool is `web_search` the pill shows a globe icon +
+// "Searching the web" label so users see the search happening — same
+// pattern as the existing thinking-dot but with a stronger affordance.
+function ChatStatusPill({ label, toolStatus }: { label: string; toolStatus: string | null }) {
+  const isWebSearch = (toolStatus ?? "").toLowerCase().includes("search")
+    && (toolStatus ?? "").toLowerCase().includes("web");
+  if (isWebSearch) {
+    return (
+      <div className="chat-status chat-status-web">
+        <Globe className="chat-status-icon" aria-hidden="true" />
+        <span>{label}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="chat-status">
+      <span className="dot" />
+      {label}
     </div>
   );
 }

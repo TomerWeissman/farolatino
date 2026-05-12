@@ -959,6 +959,70 @@ button.sidebar-link {
   50%      { opacity: 1.0; transform: scale(1.3); }
 }
 
+/* v0.5.2 — distinctive in-progress pill for web_search. Stronger than
+   the generic thinking dot because Tavily calls can take 1–4s and the
+   user wants to see "we're actively pulling from the web". Same style
+   as the source-tag chip but with an animated globe + brand color. */
+.chat-status-web {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+  animation: chat-web-pulse 1.6s ease-in-out infinite;
+}
+.chat-status-icon {
+  width: 14px;
+  height: 14px;
+}
+@keyframes chat-web-pulse {
+  0%, 100% { opacity: 0.8; }
+  50%      { opacity: 1.0; }
+}
+
+/* v0.5.2 — source-tag chips. Used by ReactMarkdown component
+   overrides to render persona-style [Web:...](url) and [Chartmetric]
+   / [Spotify] / [YouTube] / [FaroLatino] tags as colored pills. */
+.chat-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 0 2px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+.chat-source-chip-icon {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+/* Web sources are clickable links — distinct color + hover. */
+.chat-source-chip-web {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  text-decoration: none;
+  cursor: pointer;
+}
+.chat-source-chip-web:hover { background: #e0e7ff; border-color: #a5b4fc; }
+/* Internal source chips — non-clickable, color-coded by source. */
+.chat-source-chip-internal { border: 1px solid transparent; }
+.chat-source-chip-chartmetric { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.chat-source-chip-spotify     { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
+.chat-source-chip-youtube     { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.chat-source-chip-farolatino  { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+
 /* === Reasoning panel =================================================== */
 .reasoning-panel {
   color: var(--text-muted);

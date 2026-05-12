@@ -32,6 +32,7 @@ _GENERIC_LABELS: dict[str, str] = {
     "Grep": "Searching content",
     "Bash": "Running shell command",
     "Agent": "Delegating to a subagent",
+    "web_search": "Searching the web",
 }
 
 
