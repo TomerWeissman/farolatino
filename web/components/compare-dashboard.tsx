@@ -23,7 +23,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { evaluate } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
 import { TIER_COLOR, formatInt } from "@/lib/format";
-import type { DisambigCandidate, Dossier, EvaluateResponse } from "@/lib/types";
+import {
+  clearRecentCompares,
+  loadRecentCompares,
+  pushRecentCompare,
+  relativeTime,
+} from "@/lib/recents";
+import type { DisambigCandidate, Dossier, EvaluateResponse, RecentCompare } from "@/lib/types";
 import { RadarChart, type RadarDim } from "@/components/radar-chart";
 
 type SideState =
@@ -60,6 +66,12 @@ export function CompareDashboard() {
   const [draftB, setDraftB] = useState("");
   const [sideA, setSideA] = useState<SideState>({ kind: "empty" });
   const [sideB, setSideB] = useState<SideState>({ kind: "empty" });
+  const [recents, setRecents] = useState<RecentCompare[]>([]);
+
+  // Load recents on mount.
+  useEffect(() => {
+    setRecents(loadRecentCompares());
+  }, []);
 
   const runSide = useCallback(async (side: "A" | "B", artist: string, cmId?: number) => {
     if (!artist.trim()) return;
@@ -110,7 +122,39 @@ export function CompareDashboard() {
     if (draftB.trim()) void runSide("B", draftB.trim());
   };
 
+  const handlePickRecent = (rc: RecentCompare) => {
+    setDraftA(rc.artist_a);
+    setDraftB(rc.artist_b);
+    void runSide("A", rc.artist_a, rc.cm_id_a);
+    void runSide("B", rc.artist_b, rc.cm_id_b);
+  };
+
+  const handleClearRecents = () => {
+    clearRecentCompares();
+    setRecents([]);
+  };
+
   const bothLoaded = sideA.kind === "loaded" && sideB.kind === "loaded";
+
+  // Push to recents whenever a NEW pair (cm_id_a + cm_id_b) lands.
+  // Compare against the current head of recents so we don't duplicate
+  // on every re-render of the loaded state.
+  useEffect(() => {
+    if (sideA.kind !== "loaded" || sideB.kind !== "loaded") return;
+    const head = recents[0];
+    if (head && head.cm_id_a === sideA.cm_id && head.cm_id_b === sideB.cm_id) return;
+    const updated = pushRecentCompare({
+      artist_a: sideA.artist,
+      cm_id_a: sideA.cm_id,
+      artist_b: sideB.artist,
+      cm_id_b: sideB.cm_id,
+      compared_at: Date.now(),
+    });
+    setRecents(updated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sideA, sideB]);
+
+  const bothEmpty = sideA.kind === "empty" && sideB.kind === "empty";
 
   return (
     <div className="evaluate-shell">
@@ -146,6 +190,14 @@ export function CompareDashboard() {
         </form>
       </header>
 
+      {bothEmpty && recents.length > 0 && (
+        <RecentComparesList
+          recents={recents}
+          onPick={handlePickRecent}
+          onClear={handleClearRecents}
+        />
+      )}
+
       {!bothLoaded && (
         <div className="cmp-side-status-grid">
           <SideStatus
@@ -166,6 +218,42 @@ export function CompareDashboard() {
       {bothLoaded && sideA.kind === "loaded" && sideB.kind === "loaded" && (
         <ComparisonView a={sideA} b={sideB} />
       )}
+    </div>
+  );
+}
+
+
+function RecentComparesList({
+  recents,
+  onPick,
+  onClear,
+}: {
+  recents: RecentCompare[];
+  onPick: (rc: RecentCompare) => void;
+  onClear: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="cmp-recents">
+      <div className="cmp-recents-title">{t("compare.recents.title")}</div>
+      {recents.map((rc) => (
+        <button
+          key={`${rc.cm_id_a}-${rc.cm_id_b}`}
+          type="button"
+          className="cmp-recents-row"
+          onClick={() => onPick(rc)}
+        >
+          <span className="cmp-recents-pair">
+            <strong>{rc.artist_a}</strong>
+            <span className="cmp-recents-vs">vs</span>
+            <strong>{rc.artist_b}</strong>
+          </span>
+          <span className="cmp-recents-time">{relativeTime(rc.compared_at, t)}</span>
+        </button>
+      ))}
+      <button type="button" className="evaluate-btn-link cmp-recents-clear" onClick={onClear}>
+        {t("compare.recents.clear")}
+      </button>
     </div>
   );
 }

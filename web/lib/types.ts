@@ -287,3 +287,15 @@ export type RecentEval = {
   cm_id: number;
   evaluated_at: number; // epoch ms
 };
+
+// One row in the "Recent comparisons" list on /compare's empty state.
+// Persisted to localStorage as `faroai-recent-compares` (v0.5.2).
+// Stores both artist names + cm_ids so a click pre-fills the inputs
+// AND fast-paths the dispatch via cm_id (cache hit, no search step).
+export type RecentCompare = {
+  artist_a: string;
+  cm_id_a: number;
+  artist_b: string;
+  cm_id_b: number;
+  compared_at: number; // epoch ms
+};

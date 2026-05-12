@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { evaluate } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
+import { clearRecents, loadRecents, pushRecent, relativeTime } from "@/lib/recents";
 import type { DisambigCandidate, Dossier, EvaluateResponse, RecentEval } from "@/lib/types";
 import {
   createConversation,
@@ -11,10 +12,6 @@ import {
   setActiveConversationId,
 } from "@/lib/conversations";
 import { EvaluateDashboard } from "@/components/evaluate-dashboard";
-
-// Keys to coordinate state across the page.
-const RECENT_KEY = "faroai-recent-evals";
-const RECENT_LIMIT = 5;
 
 type State =
   | { kind: "empty" }
@@ -384,45 +381,9 @@ function ErrorState({
 }
 
 
-// ─── localStorage helpers for the recents list ─────────────────────
-
-function loadRecents(): RecentEval[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.slice(0, RECENT_LIMIT);
-  } catch {
-    return [];
-  }
-}
-
-function pushRecent(item: RecentEval): RecentEval[] {
-  if (typeof window === "undefined") return [];
-  const cur = loadRecents();
-  const filtered = cur.filter((r) => r.cm_id !== item.cm_id);
-  const next = [item, ...filtered].slice(0, RECENT_LIMIT);
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  } catch {
-    /* no-op */
-  }
-  return next;
-}
-
-function clearRecents(): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(RECENT_KEY);
-  } catch {
-    /* no-op */
-  }
-}
-
-
 // ─── Misc formatters ──────────────────────────────────────────────
+// (loadRecents / pushRecent / clearRecents / relativeTime moved to
+//  web/lib/recents.ts in v0.5.2 so /compare reuses the same code.)
 
 function formatInt(n: number): string {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -431,16 +392,3 @@ function formatInt(n: number): string {
   return n.toLocaleString();
 }
 
-function relativeTime(
-  epoch: number,
-  t: (key: string, vars?: Record<string, string | number>) => string,
-): string {
-  const diffSec = (Date.now() - epoch) / 1000;
-  if (diffSec < 60) return t("eval.time.just_now");
-  if (diffSec < 3600) return t("eval.time.minutes", { n: Math.floor(diffSec / 60) });
-  if (diffSec < 86400) return t("eval.time.hours", { n: Math.floor(diffSec / 3600) });
-  const days = Math.floor(diffSec / 86400);
-  if (days === 1) return t("eval.time.yesterday");
-  if (days < 7) return t("eval.time.days", { n: days });
-  return new Date(epoch).toLocaleDateString();
-}
