@@ -906,6 +906,30 @@ button.sidebar-link {
   line-height: 1.7;
 }
 .chat-assistant p { margin: 0.6em 0; }
+/* Section headings in chat replies. The persona forbids leading H1
+   in chat, so H2 is rare; H3 (### Recent News, ### Sources, etc.) is
+   the common case. v0.5.2: prior to this rule, default browser styling
+   made H3 visually identical to body text — users could not tell a
+   section break from regular prose. */
+.chat-assistant h1,
+.chat-assistant h2,
+.chat-assistant h3,
+.chat-assistant h4 {
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.3;
+  margin: 1.1em 0 0.4em;
+}
+.chat-assistant h1 { font-size: 1.25rem; }
+.chat-assistant h2 { font-size: 1.15rem; }
+.chat-assistant h3 { font-size: 1.05rem; }
+.chat-assistant h4 { font-size: 1rem; }
+/* First heading shouldn't push down — the chat bubble already has
+   its own top margin. */
+.chat-assistant > h1:first-child,
+.chat-assistant > h2:first-child,
+.chat-assistant > h3:first-child,
+.chat-assistant > h4:first-child { margin-top: 0; }
 .chat-assistant table {
   border-collapse: collapse;
   margin: 12px 0;
