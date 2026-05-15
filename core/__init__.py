@@ -11,7 +11,7 @@ a server.
 #   - packaging/setup_py2app.py — sets CFBundleVersion + CFBundleShortVersionString
 #   - core/updater.py — compares against GitHub Releases tags
 #   - api/routes/updates.py — returned to the UI's "Check for updates"
-_BUNDLED_VERSION = "0.5.3"
+_BUNDLED_VERSION = "0.5.4"
 
 
 import re as _re
