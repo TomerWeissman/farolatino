@@ -12,6 +12,7 @@ repeat until the model returns no more function calls.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -27,10 +28,47 @@ from core.llm.web_search_routing import attach_for_gemini_grounding
 
 log = logging.getLogger(__name__)
 
-# Default model. flash variants are cheap + fast and support function
-# calling. Override with FAROAI_GEMINI_MODEL.
-_DEFAULT_MODEL = "gemini-2.0-flash"
+# Preferred model chain. We start with the first entry and silently fall
+# back to the next one if Google reports the Cloud project behind this API
+# key has no free-tier credit for the current model. flash variants are
+# cheap + fast and both support function calling, so the chain stays in
+# that pricing tier (pro is left out so a quota issue can never silently
+# escalate to a paid model). Override with FAROAI_GEMINI_MODEL to pin one
+# explicitly + opt out of fallback.
+_MODEL_FALLBACK_CHAIN: list[str] = ["gemini-2.5-flash", "gemini-2.0-flash"]
+_DEFAULT_MODEL = _MODEL_FALLBACK_CHAIN[0]
 _MAX_AGENT_ITERATIONS = 16
+
+# Per-API-key memory of "the model that worked last time" so subsequent
+# runs in the same process skip the failing probes. Keyed by a short
+# hash of the key (not the key itself).
+_working_model_cache: dict[str, str] = {}
+
+
+def _key_fingerprint(api_key: str | None) -> str:
+    if not api_key:
+        return "_anon"
+    return hashlib.sha256(api_key.encode()).hexdigest()[:12]
+
+
+def _is_no_quota_for_model(exc: Exception) -> bool:
+    """True iff this is the 'project has zero free-tier credit for this
+    model' flavor of 429.
+
+    We auto-fall back on this case because it's a permanent condition for
+    the (key, model) pair — not a transient rate limit (where waiting is
+    the right answer, and falling back to a different model would just
+    mask the issue and could shift cost to a pricier tier).
+    """
+    raw = str(exc)
+    status = getattr(exc, "status", "") or ""
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    is_429 = (
+        code == 429
+        or "RESOURCE_EXHAUSTED" in status
+        or "RESOURCE_EXHAUSTED" in raw
+    )
+    return is_429 and "limit: 0" in raw
 
 # Approx prices ($/Mtok). Override the default model + we'll fall
 # back to flash pricing.
@@ -51,7 +89,22 @@ class GeminiProvider:
         # LLM_API_KEY (or a legacy env-var fallback), so the SDK
         # shouldn't auto-read GEMINI_API_KEY from env on its own.
         self._client = genai.Client(api_key=api_key)
-        self._model = os.getenv("FAROAI_GEMINI_MODEL", _DEFAULT_MODEL)
+        self._key_fp = _key_fingerprint(api_key)
+        override = os.getenv("FAROAI_GEMINI_MODEL")
+        if override:
+            # Explicit user pin — honor it exactly, no fallback magic.
+            self._model = override
+            self._fallback_chain: list[str] = []
+        else:
+            # If we've already confirmed a model works for this key this
+            # session, start there directly to skip the failing probes.
+            cached = _working_model_cache.get(self._key_fp)
+            if cached:
+                self._model = cached
+                self._fallback_chain = [m for m in _MODEL_FALLBACK_CHAIN if m != cached]
+            else:
+                self._model = _MODEL_FALLBACK_CHAIN[0]
+                self._fallback_chain = list(_MODEL_FALLBACK_CHAIN[1:])
 
     def run(
         self,
@@ -130,47 +183,74 @@ class GeminiProvider:
             announced: set[str] = set()
             collected_parts: list[genai_types.Part] = []
             final_chunk = None
-            try:
-                stream = self._client.models.generate_content_stream(
-                    model=self._model,
-                    contents=contents,
-                    config=config,
-                )
-                for chunk in stream:
-                    final_chunk = chunk
-                    candidates = getattr(chunk, "candidates", None) or []
-                    if not candidates:
-                        continue
-                    parts = getattr(candidates[0].content, "parts", None) or []
-                    for part in parts:
-                        # Text deltas
-                        text = getattr(part, "text", None)
-                        if text:
-                            yield AgentEvent(type="text", content=text)
-                            collected_parts.append(part)
+            # Inner retry loop: swaps to the next model in our fallback
+            # chain if Google reports the project has zero free-tier
+            # credit for the current one. Safe because we only retry when
+            # nothing has been streamed to the user yet for this turn.
+            while True:
+                try:
+                    stream = self._client.models.generate_content_stream(
+                        model=self._model,
+                        contents=contents,
+                        config=config,
+                    )
+                    for chunk in stream:
+                        final_chunk = chunk
+                        candidates = getattr(chunk, "candidates", None) or []
+                        if not candidates:
                             continue
-                        # Tool calls
-                        fc = getattr(part, "function_call", None)
-                        if fc is not None:
-                            # Use the function call's name as the
-                            # de-dupe key — Gemini may emit the same
-                            # function_call across multiple chunks
-                            # while it streams.
-                            key = f"{fc.name}:{id(fc)}"
-                            if key not in announced:
-                                announced.add(key)
-                                yield AgentEvent(
-                                    type="tool_use",
-                                    tool_name=fc.name,
-                                    tool_use_id=fc.name,  # Gemini doesn't return a stable id
-                                    tool_input=dict(fc.args or {}),
-                                )
-                            collected_parts.append(part)
-            except genai_errors.APIError as exc:
-                err = _classify_error(exc)
-                yield AgentEvent(type="error", content=err["title"], extra=err)
-                yield AgentEvent(type="result", content="error")
-                return
+                        parts = getattr(candidates[0].content, "parts", None) or []
+                        for part in parts:
+                            # Text deltas
+                            text = getattr(part, "text", None)
+                            if text:
+                                yield AgentEvent(type="text", content=text)
+                                collected_parts.append(part)
+                                continue
+                            # Tool calls
+                            fc = getattr(part, "function_call", None)
+                            if fc is not None:
+                                # Use the function call's name as the
+                                # de-dupe key — Gemini may emit the same
+                                # function_call across multiple chunks
+                                # while it streams.
+                                key = f"{fc.name}:{id(fc)}"
+                                if key not in announced:
+                                    announced.add(key)
+                                    yield AgentEvent(
+                                        type="tool_use",
+                                        tool_name=fc.name,
+                                        tool_use_id=fc.name,  # Gemini doesn't return a stable id
+                                        tool_input=dict(fc.args or {}),
+                                    )
+                                collected_parts.append(part)
+                    break  # streamed cleanly — exit retry loop
+                except genai_errors.APIError as exc:
+                    if (
+                        _is_no_quota_for_model(exc)
+                        and self._fallback_chain
+                        and not collected_parts
+                        and not announced
+                    ):
+                        old_model = self._model
+                        self._model = self._fallback_chain.pop(0)
+                        log.warning(
+                            "Gemini %s has no free-tier quota for this project; "
+                            "falling back to %s",
+                            old_model, self._model,
+                        )
+                        # Nothing yielded yet, so the swap is invisible
+                        # to the chat UI. Loop again with the new model.
+                        final_chunk = None
+                        continue
+                    err = _classify_error(exc)
+                    yield AgentEvent(type="error", content=err["title"], extra=err)
+                    yield AgentEvent(type="result", content="error")
+                    return
+
+            # Remember the winning model for this API key so subsequent
+            # runs in the same process skip the failing probes.
+            _working_model_cache[self._key_fp] = self._model
 
             usage = getattr(final_chunk, "usage_metadata", None) if final_chunk else None
             if usage is not None:
