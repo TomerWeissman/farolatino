@@ -37,6 +37,14 @@ from core.paths import app_config_dir
 
 _RECENT_LIMIT = 5  # matches the v0.5.2 frontend cap
 
+# v0.5.3 — FIFO cap on conversations. Above this, the oldest by
+# updatedAt is dropped on each save. The just-saved conversation
+# always has the freshest updatedAt (the frontend sets it to Date.now()
+# on every save), so it's structurally safe — eviction can only ever
+# touch older entries. A user wanting to keep an old chat just needs
+# to open it and send one more message to refresh its timestamp.
+_MAX_CONVERSATIONS = 50
+
 
 def _data_dir() -> Path:
     """Per-user data directory. Created on first use."""
@@ -109,14 +117,32 @@ def load_conversations() -> dict[str, dict]:
 
 
 def save_conversation(conversation: dict) -> None:
-    """Insert or update a single conversation."""
+    """Insert or update a single conversation. Trims to _MAX_CONVERSATIONS."""
     cid = conversation.get("id")
     if not isinstance(cid, str) or not cid:
         raise ValueError("conversation.id must be a non-empty string")
     with _conv_lock:
         convs = load_conversations()
         convs[cid] = conversation
+        convs = _enforce_cap(convs)
         _write_json_atomic(conversations_path(), {"conversations": convs})
+
+
+def _enforce_cap(convs: dict[str, dict]) -> dict[str, dict]:
+    """Keep at most _MAX_CONVERSATIONS, dropping oldest by updatedAt.
+
+    Entries missing updatedAt sort as 0 (oldest), so a malformed record
+    is the first to be evicted — defensive default that matches what
+    the frontend's groupByRecency does for the same field.
+    """
+    if len(convs) <= _MAX_CONVERSATIONS:
+        return convs
+    ordered = sorted(
+        convs.items(),
+        key=lambda item: item[1].get("updatedAt", 0),
+        reverse=True,
+    )
+    return dict(ordered[:_MAX_CONVERSATIONS])
 
 
 def delete_conversation(cid: str) -> bool:
@@ -133,7 +159,12 @@ def delete_conversation(cid: str) -> bool:
 def replace_all_conversations(items: list[dict]) -> int:
     """Bulk-import (used by the one-time localStorage → server migration).
 
-    Replaces the entire conversation set. Returns the count imported.
+    Replaces the entire conversation set. Returns the count imported
+    AFTER the _MAX_CONVERSATIONS cap is applied — a user migrating in
+    from a localStorage blob with 100 chats will see only the 50 most
+    recently updated on the server side; the rest are dropped silently
+    (which matches the rule going forward).
+
     Skipped items: entries missing an ``id``, or where the same ``id``
     appears twice in the input (last-write-wins).
     """
@@ -142,6 +173,7 @@ def replace_all_conversations(items: list[dict]) -> int:
         for c in items:
             if isinstance(c, dict) and isinstance(c.get("id"), str):
                 out[c["id"]] = c
+        out = _enforce_cap(out)
         _write_json_atomic(conversations_path(), {"conversations": out})
         return len(out)
 
