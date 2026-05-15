@@ -196,6 +196,7 @@ function EnvEditor({
   envVars: Record<string, EnvVar>;
   onSaved: (vars: EnvVar[]) => void;
 }) {
+  const t = useT();
   // Drafts: only fields the user has actually edited. Empty string = no
   // edit (we only PUT keys present in this map).
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -267,8 +268,8 @@ function EnvEditor({
                 type="button"
                 className="env-row-eye"
                 onClick={() => setReveal((r) => ({ ...r, [k]: !r[k] }))}
-                title={showSecret ? "Hide" : "Show"}
-                aria-label={showSecret ? "Hide value" : "Show value"}
+                title={showSecret ? t("ui.hide") : t("ui.show")}
+                aria-label={showSecret ? t("ui.hide_value") : t("ui.show_value")}
               >
                 {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
@@ -284,7 +285,7 @@ function EnvEditor({
           disabled={!dirty || saving}
           onClick={save}
         >
-          <Save size={14} /> {saving ? "Saving…" : "Save"}
+          <Save size={14} /> {saving ? t("ui.saving") : t("ui.save")}
         </button>
         {status && (
           <span className={cn("skills-editor-status", status.kind === "err" && "skills-editor-status-err")}>

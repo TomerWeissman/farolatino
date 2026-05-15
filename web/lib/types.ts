@@ -206,6 +206,13 @@ export type Dossier = {
     monthly_total?: number;
     monthly_revenue_by_platform?: Record<string, number>;
     note?: string;
+    // v0.5.3 — artist/Faro share resolved from config/revenue_share.yaml.
+    // Fractions summing to 1.0. Renders as the "Faro's monthly share" row
+    // in the Income Projection block.
+    share?: {
+      artist_pct: number;
+      faro_pct: number;
+    };
   };
   career_trajectory?: {
     stage?: string;

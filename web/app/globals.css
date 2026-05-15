@@ -1501,6 +1501,33 @@ button.sidebar-link {
   grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 24px;
 }
+/* v0.5.3 — Reach got split into "plays" + "audience" groups but both
+   share ONE 4-column grid so cell edges align across rows. The plays
+   tiles span 2 columns each (featured), the audience tiles take 1 col
+   each. Sub-headers occupy the whole row via `grid-column: 1 / -1`. */
+.ev-reach-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 24px;
+  row-gap: 16px;
+}
+.ev-stat-wide { grid-column: span 2; }
+.ev-reach-group-header {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.ev-reach-group-header-spaced {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0eb;
+}
+.ev-h3 {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #888;
+}
 .ev-stat-num {
   font: 500 32px/1 Georgia, serif;
   letter-spacing: -0.02em;
@@ -1522,8 +1549,150 @@ button.sidebar-link {
 }
 .ev-secondary-row strong { color: #1a1a1a; font-weight: 500; }
 
+/* v0.5.3 — "See other matches" panel + URL paste fallback. Surfaces
+   for when Chartmetric returned the wrong artist (panel) or zero hits
+   (URL fallback). Visually subdued so they don't compete with the
+   dossier itself. */
+.ev-other-matches { margin: 12px 0 24px 0; }
+.ev-other-matches-toggle {
+  background: none;
+  border: 1px solid #e5e5e0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ev-other-matches-toggle:hover { background: #f5f4f0; color: #1a1a1a; }
+.ev-other-matches-panel {
+  margin-top: 12px;
+  border: 1px solid #e5e5e0;
+  border-radius: 4px;
+  padding: 12px;
+  background: #fafaf6;
+}
+.ev-other-matches-empty {
+  font-size: 13px;
+  color: #888;
+  padding: 8px 4px;
+}
+.ev-other-matches-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ev-other-matches-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+.ev-other-matches-row:hover { background: #fff; border-color: #e5e5e0; }
+.ev-other-matches-row:disabled { opacity: 0.5; cursor: default; }
+.ev-other-matches-photo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #ddd;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ev-other-matches-photo-fallback {
+  font-weight: 500;
+  color: #666;
+  font-size: 14px;
+}
+.ev-other-matches-name { font-weight: 500; }
+.ev-other-matches-meta {
+  font-size: 12px;
+  color: #888;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ev-other-matches-meta-num {
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+
+/* URL paste fallback — shown when search returns zero hits or the
+   user got an error. Same visual rhythm as the other-matches panel. */
+.ev-url-fallback {
+  margin: 24px auto 0 auto;
+  max-width: 600px;
+  padding: 20px 24px;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  background: #fafaf6;
+}
+.ev-url-fallback-title { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+.ev-url-fallback-hint { font-size: 13px; color: #666; margin-top: 4px; }
+.ev-url-fallback-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ev-url-fallback-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e5e5e0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+}
+.ev-url-fallback-error { font-size: 12px; color: #b91c1c; margin-top: 8px; }
+
+/* v0.5.3 — secondary-row chips with hover tooltips. The platform name
+   gets a dotted underline as the affordance; a tiny Info icon trails
+   the value. Whole span is the tooltip trigger so anywhere on the
+   chip works. */
+.ev-reach-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  cursor: default;
+  outline: none;
+}
+.ev-reach-chip-label {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: #d0d0c8;
+}
+.ev-reach-chip-info {
+  display: inline-block;
+  vertical-align: -1px;
+  margin-left: 4px;
+  color: #b5b5af;
+}
+.ev-reach-chip:hover .ev-reach-chip-info,
+.ev-reach-chip:focus-visible .ev-reach-chip-info { color: #555; }
+.ev-reach-chip:focus-visible { outline: 1px dotted #888; outline-offset: 2px; }
+/* The empty cells we slot into the Plays row to keep alignment with
+   the Audience row don't need any visual presence. */
+.ev-reach-spacer { display: block; }
+
 /* Revenue grid + per-platform breakdown. */
 .ev-revenue-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+/* v0.5.3 — three-stat Income block: Annual / Monthly / Faro share. */
+.ev-revenue-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
 .ev-rev-platform-title {
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -1533,11 +1702,14 @@ button.sidebar-link {
 }
 .ev-rev-platform .ev-row-label { text-transform: capitalize; }
 
-/* Generic row — used for scoring, markets, revenue per-platform. */
+/* Generic row — used for scoring, markets, revenue per-platform.
+   Confidence column widened from 80→105px and gap bumped from 16→24px
+   in v0.5.3 so the uppercase letter-spaced headers
+   "CONFIDENCE" / "WEIGHT" don't visually butt against each other. */
 .ev-row {
   display: grid;
-  grid-template-columns: 220px 1fr 60px 80px 60px;
-  gap: 16px;
+  grid-template-columns: 220px 1fr 60px 105px 70px;
+  gap: 24px;
   align-items: center;
   padding: 14px 0;
   border-bottom: 1px solid #f0f0eb;
@@ -1576,6 +1748,31 @@ button.sidebar-link {
 .ev-score-num { color: #1a1a1a; font-weight: 500; }
 .ev-conf-num { color: #888; }
 .ev-weight-num { color: #888; }
+
+/* v0.5.3 — info icon next to dimension labels in the Scoring table.
+   Sits inline with the label, dims at rest, highlights on row hover
+   so it's discoverable without taking visual weight on first glance. */
+.ev-row-label-text { display: inline; }
+.ev-row-info {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 6px;
+  color: #b5b5af;
+  cursor: default;
+  line-height: 1;
+}
+.ev-row-info:hover, .ev-row-info:focus { color: #555; outline: none; }
+/* Column headers double as tooltip triggers (the legend prose lives
+   there now, not below the table). Subtle dotted underline signals
+   the hover affordance without shouting. Cursor stays default so the
+   header doesn't pretend to be clickable. */
+.ev-row-header-trigger {
+  cursor: default;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: #d0d0c8;
+}
+.ev-row-header-trigger:focus-visible { outline: 1px dotted #888; outline-offset: 2px; }
 
 .ev-rationale {
   padding: 12px 0 16px 0;
@@ -2028,6 +2225,72 @@ button.sidebar-link {
 /* v0.5.2 radar comparison.
    Two-column wrap: SVG radar on the left, color-keyed value legend
    table on the right. Each radar gets its own .cmp-radar-wrap. */
+
+/* v0.5.3 — fixed Compare palette as CSS variables. The hex values are
+   duplicated in web/components/compare-dashboard.tsx (ACCENT_A /
+   ACCENT_B) because the radar passes colors as plain props to its
+   SVG; the variables are here so future surfaces (income block
+   borders, dossier-link pills) can pick the same values from one
+   place instead of inlining hexes. */
+:root {
+  --compare-color-a: #0ea5e9;
+  --compare-color-b: #f97316;
+}
+
+/* v0.5.3 — side-by-side income block on /compare. Two columns, each
+   bordered in its artist's accent color, three labeled rows + a sub-
+   line. Mirrors the visual rhythm of CompareHeader sides. */
+.cmp-income-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: stretch;
+}
+.cmp-income-col {
+  border-top: 2px solid;
+  padding: 16px 4px 0 4px;
+}
+.cmp-income-name {
+  font: 500 16px/1.2 Georgia, serif;
+  margin-bottom: 16px;
+}
+.cmp-income-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0eb;
+  font-size: 13px;
+  color: #666;
+}
+.cmp-income-row:last-of-type { border-bottom: none; }
+.cmp-income-label { font-size: 12px; color: #888; }
+.cmp-income-value {
+  font: 500 20px/1 Georgia, serif;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-income-sub {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #888;
+}
+@media (max-width: 720px) {
+  .cmp-income-grid { grid-template-columns: 1fr; }
+}
+
+/* v0.5.3 — two OtherMatchesPanel toggles stacked side-by-side under
+   the CompareHeader so each artist gets its own escape hatch. */
+.cmp-other-matches-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-bottom: 16px;
+}
+@media (max-width: 720px) {
+  .cmp-other-matches-row { grid-template-columns: 1fr; }
+}
+
 .cmp-radar-wrap {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -2335,7 +2598,12 @@ button.sidebar-link {
 /* Compact responsive — collapse 4-col reach to 2-col on narrow window. */
 @media (max-width: 720px) {
   .ev-grid-4 { grid-template-columns: 1fr 1fr; }
+  /* v0.5.3 — Reach grid collapses to 2 columns on narrow widths. Plays
+     tiles drop their span so they don't try to span all 2 columns. */
+  .ev-reach-grid { grid-template-columns: 1fr 1fr; }
+  .ev-stat-wide { grid-column: span 1; }
   .ev-revenue-grid { grid-template-columns: 1fr; }
+  .ev-revenue-grid-3 { grid-template-columns: 1fr; }
   .ev-similar-grid { grid-template-columns: 1fr 1fr; }
   .ev-row { grid-template-columns: 140px 1fr 50px; }
   .ev-conf-num, .ev-weight-num { display: none; }

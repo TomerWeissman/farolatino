@@ -58,7 +58,7 @@ export function OnboardingWizard() {
   if (!status) {
     return (
       <div className="page-shell" style={{ padding: 48 }}>
-        <Loader2 className="spin" size={20} /> Loading…
+        <Loader2 className="spin" size={20} /> {t("onboarding.loading")}
       </div>
     );
   }
@@ -71,14 +71,14 @@ export function OnboardingWizard() {
       </header>
 
       <KeyCard
-        title="AI Model"
-        subtitle="Required — without this, FaroAI can't chat."
+        title={t("onboarding.section.llm")}
+        subtitle={t("onboarding.section.llm.subtitle")}
         envVar="LLM_API_KEY"
         placeholder="sk-ant-… (Claude) · sk-… (OpenAI) · AIza… (Gemini)"
         helpText={
           status.detected_provider !== "none"
-            ? `Detected: ${displayProvider(status.detected_provider)}`
-            : "We auto-detect Anthropic, OpenAI, or Gemini from the key prefix."
+            ? t("onboarding.detected", { provider: displayProvider(status.detected_provider) })
+            : t("onboarding.section.llm.help")
         }
         getKeyLinks={[
           { label: "Get an Anthropic key (sk-ant-…)", url: "https://console.anthropic.com/settings/keys" },
@@ -91,11 +91,11 @@ export function OnboardingWizard() {
       />
 
       <KeyCard
-        title="Chartmetric"
-        subtitle="Recommended — needed for @evaluate / @similar to fetch real artist data."
+        title={t("onboarding.section.chartmetric")}
+        subtitle={t("onboarding.section.chartmetric.subtitle")}
         envVar="CHARTMETRIC_REFRESH_TOKEN"
         placeholder="Long token from your Chartmetric account…"
-        helpText="Without this, free-form chat works but skill commands can't fetch streaming/social data."
+        helpText={t("onboarding.section.chartmetric.help")}
         getKeyLinks={[
           { label: "Chartmetric API docs", url: "https://chartmetric.com/api" },
         ]}
@@ -104,11 +104,11 @@ export function OnboardingWizard() {
       />
 
       <KeyCard
-        title="Spotify"
-        subtitle="Optional — cross-validates Chartmetric numbers."
+        title={t("onboarding.section.spotify")}
+        subtitle={t("onboarding.section.spotify.subtitle")}
         envVar="SPOTIFY_CLIENT_ID"
         placeholder="Client ID (32 chars)…"
-        helpText="Paired with SPOTIFY_CLIENT_SECRET. Skip if you don't have one."
+        helpText={t("onboarding.section.spotify.help")}
         getKeyLinks={[
           { label: "Spotify developer dashboard", url: "https://developer.spotify.com/dashboard" },
         ]}
@@ -119,11 +119,11 @@ export function OnboardingWizard() {
       />
 
       <KeyCard
-        title="YouTube"
-        subtitle="Optional — pulls subscriber + view counts."
+        title={t("onboarding.section.youtube")}
+        subtitle={t("onboarding.section.youtube.subtitle")}
         envVar="YOUTUBE_API_KEY"
         placeholder="YouTube Data API v3 key…"
-        helpText="An API key alone gives read-only access. Skip if you don't have one."
+        helpText={t("onboarding.section.youtube.help")}
         getKeyLinks={[
           { label: "Google Cloud — enable YouTube Data API", url: "https://console.cloud.google.com/apis/library/youtube.googleapis.com" },
         ]}
@@ -137,10 +137,10 @@ export function OnboardingWizard() {
           className="btn btn-primary"
           onClick={handleDone}
           disabled={!status.has_llm_key}
-          title={status.has_llm_key ? "Start chatting" : "Add an AI Model key first"}
+          title={status.has_llm_key ? t("onboarding.start_chatting") : t("onboarding.need_llm_first")}
           style={{ padding: "10px 24px", fontSize: 15 }}
         >
-          {status.has_llm_key ? <>Continue to chat <ArrowRight size={14} /></> : "Add an AI Model key to continue"}
+          {status.has_llm_key ? <>{t("onboarding.continue_to_chat")} <ArrowRight size={14} /></> : t("onboarding.add_llm_first")}
         </button>
         {!status.has_llm_key && (
           <button
@@ -155,13 +155,13 @@ export function OnboardingWizard() {
               textDecoration: "underline",
             }}
           >
-            Skip for now
+            {t("onboarding.skip")}
           </button>
         )}
       </div>
 
       <p style={{ marginTop: 32, textAlign: "center", fontSize: 12, color: "#9ca3af" }}>
-        You can change any of these later via Connections in the sidebar.
+        {t("onboarding.footer")}
       </p>
     </div>
   );

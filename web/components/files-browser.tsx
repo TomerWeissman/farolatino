@@ -50,6 +50,7 @@ function TabButton({
 
 // ─── Calibration tab ─────────────────────────────────────────────────────
 function CalibrationTab() {
+  const t = useT();
   const [files, setFiles] = useState<CalibrationFile[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [editor, setEditor] = useState("");
@@ -134,7 +135,7 @@ function CalibrationTab() {
             />
             <div className="skills-editor-actions">
               <button type="button" className="btn btn-primary" disabled={!dirty || saving} onClick={save}>
-                <Save size={14} /> {saving ? "Saving…" : "Save"}
+                <Save size={14} /> {saving ? t("ui.saving") : t("ui.save")}
               </button>
               {status && (
                 <span className={cn("skills-editor-status", status.kind === "err" && "skills-editor-status-err")}>
@@ -144,7 +145,7 @@ function CalibrationTab() {
             </div>
           </>
         ) : (
-          <div className="page-empty">Loading…</div>
+          <div className="page-empty">{t("ui.loading")}</div>
         )}
       </section>
     </div>
@@ -153,6 +154,7 @@ function CalibrationTab() {
 
 // ─── Cache tab ───────────────────────────────────────────────────────────
 function CacheTab() {
+  const t = useT();
   const [rows, setRows] = useState<CacheArtistRow[]>([]);
   const [filter, setFilter] = useState("");
 
@@ -172,7 +174,7 @@ function CacheTab() {
     <div>
       <input
         className="dialog-input files-filter"
-        placeholder={`Filter ${rows.length} cached artists…`}
+        placeholder={t("files.filter_placeholder", { n: rows.length })}
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
       />

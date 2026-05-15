@@ -1,0 +1,15 @@
+# Artist / FaroLatino revenue share applied to projected gross streaming
+# revenue. Surfaced on the Evaluate dossier as "Faro's monthly share" so
+# the A&R team can see roughly what FaroLatino keeps if they sign the
+# artist.
+#
+# NOT to be confused with config/distribution_split.yaml, which is a
+# per-(platform, country) NETO multiplier that converts BRUTO streaming
+# revenue into NETO at the distributor's books — a different concept,
+# different math, separate file deliberately so editing one doesn't
+# accidentally touch the other.
+#
+# Both percentages must sum to 1.0; the YAML loader validates this.
+
+artist_pct: 0.70
+faro_pct: 0.30

@@ -3,8 +3,10 @@
 from core.cadence import compute_release_cadence
 from mcp_server.models import build_artist
 from mcp_server.server import mcp
+from mcp_server.tools.revenue_share import load_revenue_share
 from mcp_server.tools.scoring.bot_detection import assess_bot_risk
 from mcp_server.tools.signing_check import verify_signing_status
+from mcp_server.tools.similar_filter import filter_neighbors_by_country
 
 
 def _pct_change(current: int, previous: int) -> str:
@@ -88,8 +90,13 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
         ],
     }
 
-    # 5. Revenue projection
+    # 5. Revenue projection. Always attach the configured artist/Faro
+    # revenue share so the dashboard can render "Faro's monthly share"
+    # without hardcoding 70/30 — the YAML at config/revenue_share.yaml
+    # is the single source of truth (see v0.5.3 plan, Round 3).
     revenue = revenue_result if revenue_result else {"note": "Revenue model not run"}
+    if isinstance(revenue, dict):
+        revenue = {**revenue, "share": load_revenue_share()}
 
     # 6. Career trajectory
     career = {
@@ -225,10 +232,27 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
     signing = verify_signing_status(artist)
 
     # 9. Competitive context
-    # Includes image_url + country_code + sp_monthly_listeners so the
-    # dashboard's Similar-artists section can render a profile photo
-    # next to the name. The chat-side Markdown renderer also uses these
-    # for its summary line.
+    # v0.5.3: filter neighbors through the shared country-cluster
+    # filter before slicing to 5. Before, the Evaluate page surfaced
+    # Chartmetric's raw audience-overlap clustering — a Bad Bunny seed
+    # would show Justin Bieber and Brent Rivera, which is useless for
+    # Latin A&R. Now Latin seeds get the Latin-market cluster (PR / MX
+    # / CO / AR / ES / …), non-Latin seeds get an exact-country match,
+    # and missing-country seeds bypass filtering. The chat-side
+    # @similar skill already used the same filter via composite_similar.
+    #
+    # `country_code` lives on the raw artist_data dict (Chartmetric
+    # metadata.code2); ArtistProfile doesn't store it as a top-level
+    # field. Falls back to the top listener-country if the dict is
+    # missing it (rare, but a defensive default).
+    seed_country = artist_data.get("country_code") or (
+        artist.listener_countries[0].country_code
+        if artist.listener_countries else None
+    )
+    filtered_neighbors, _country_filter_on = filter_neighbors_by_country(
+        seed_country,
+        [n for n in artist.neighboring_artists if n.cm_id != artist.cm_id],
+    )
     competitive = {
         "similar_artists": [
             {
@@ -240,7 +264,7 @@ def generate_dossier(artist_data: dict, score_result: dict, revenue_result: dict
                 "signed": n.signed,
                 "momentum": n.recent_momentum,
             }
-            for n in artist.neighboring_artists[:5]
+            for n in filtered_neighbors[:5]
         ],
     }
 

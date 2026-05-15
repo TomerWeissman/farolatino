@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { evaluate } from "@/lib/api";
+import { evaluate, searchArtists } from "@/lib/api";
 import { useT } from "@/lib/i18n/context";
-import { clearRecents, loadRecents, pushRecent, relativeTime } from "@/lib/recents";
+import { clearRecents, loadRecents, pushRecent, relativeTime, subscribeToRecents } from "@/lib/recents";
 import type { DisambigCandidate, Dossier, EvaluateResponse, RecentEval } from "@/lib/types";
 import {
   createConversation,
@@ -41,17 +41,23 @@ export function Evaluate() {
   // so we don't re-trigger on every state change.
   const autoRanFor = useRef<string | null>(null);
 
-  // Load recents on mount.
+  // Load recents on mount. Subscribing also picks up the async
+  // hydration from /api/recents — without this we'd render an empty
+  // "Recently evaluated" panel until the next user interaction.
   useEffect(() => {
     setRecents(loadRecents());
+    const unsub = subscribeToRecents(() => setRecents(loadRecents()));
     setTimeout(() => inputRef.current?.focus(), 50);
+    return unsub;
   }, []);
 
   /**
-   * Run /api/evaluate for a single artist. Handles the three response
-   * shapes: success → loaded; ambiguous → disambig; error → error.
-   * Side-by-side compare was removed in v0.3.1 — comparison now lives
-   * on a dedicated /compare page (planned next).
+   * Run /api/evaluate for a single artist by cm_id. Called AFTER the
+   * user has picked a specific Chartmetric candidate from the search
+   * picker (or when a recent-card click brings a stored cm_id with
+   * it). The backend skips the search step when cm_id is provided
+   * and goes straight to the cached dossier, so this is the cheap
+   * path for resolved artists.
    */
   const run = useCallback(async (artist: string, cmId?: number) => {
     if (!artist.trim()) return;
@@ -84,6 +90,51 @@ export function Evaluate() {
     }
   }, []);
 
+  /**
+   * v0.5.3 — top-of-funnel: always go through /api/search first.
+   *
+   * Replaces the previous "type a name → backend auto-picks the
+   * dominant hit → user discovers it was wrong only after seeing the
+   * dossier" flow. Now: type a name → see the candidate list → click
+   * the right one → evaluate. The input also accepts a Chartmetric /
+   * Spotify URL; URL-shaped queries skip the picker (there's nothing
+   * to disambiguate) and go straight to evaluate.
+   */
+  const runSearch = useCallback(
+    async (query: string) => {
+      const trimmed = query.trim();
+      if (!trimmed) return;
+      setState({ kind: "loading", artist: trimmed });
+      try {
+        const r = await searchArtists(trimmed, 10);
+        if (r.error) {
+          setState({ kind: "error", message: r.error, artist: trimmed });
+          return;
+        }
+        // URL path → exactly one (resolved) candidate. No picker —
+        // the user already chose this artist by pasting their URL.
+        if (r.resolved_from_url && r.artists[0]?.cm_id && r.artists[0]?.name) {
+          void run(r.artists[0].name, r.artists[0].cm_id);
+          return;
+        }
+        // Name path → always show the picker, even with one result, so
+        // the user explicitly confirms the artist before we burn cycles
+        // running the full dossier pipeline.
+        const candidates: DisambigCandidate[] = (r.artists ?? []).filter(
+          (a): a is DisambigCandidate => a.cm_id != null && a.name != null,
+        );
+        setState({ kind: "disambig", query: trimmed, candidates });
+      } catch (e) {
+        setState({
+          kind: "error",
+          message: e instanceof Error ? e.message : "Network error",
+          artist: trimmed,
+        });
+      }
+    },
+    [run],
+  );
+
   // Auto-run when navigated to /evaluate?artist=Name (e.g. from a
   // similar-artist card click or a chat-pill click-back). Only fires
   // once per URL value so the user can edit + re-search without it
@@ -96,9 +147,16 @@ export function Evaluate() {
     if (queryArtist && autoRanFor.current !== key) {
       autoRanFor.current = key;
       setDraft(queryArtist);
-      void run(queryArtist, queryCmId ? Number(queryCmId) : undefined);
+      // When the deep-link includes a cm_id (e.g. a pill click-back),
+      // go straight to evaluate. Otherwise go through the search picker
+      // — same flow as a manual submit.
+      if (queryCmId) {
+        void run(queryArtist, Number(queryCmId));
+      } else {
+        void runSearch(queryArtist);
+      }
     }
-  }, [searchParams, run]);
+  }, [searchParams, run, runSearch]);
 
   // Listen for the custom event fired by similar-artist card clicks
   // (covers Next.js's same-route-no-remount case where the URL changes
@@ -108,16 +166,18 @@ export function Evaluate() {
       const detail = (e as CustomEvent<{ name: string }>).detail;
       if (detail?.name) {
         setDraft(detail.name);
-        void run(detail.name);
+        // Similar-artist card clicks ship a name only — funnel them
+        // through the picker like a manual search would.
+        void runSearch(detail.name);
       }
     }
     window.addEventListener("faroai-evaluate-artist", onEvalEvent);
     return () => window.removeEventListener("faroai-evaluate-artist", onEvalEvent);
-  }, [run]);
+  }, [runSearch]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void run(draft.trim());
+    void runSearch(draft.trim());
   };
 
   const handlePickRecent = (r: RecentEval) => {
@@ -219,13 +279,17 @@ export function Evaluate() {
         />
       )}
       {state.kind === "error" && (
-        <ErrorState message={state.message} artist={state.artist} onRetry={() => run(state.artist)} />
+        <ErrorState message={state.message} artist={state.artist} onRetry={() => runSearch(state.artist)} />
       )}
       {state.kind === "loaded" && (
         <EvaluateDashboard
           primary={state.primary}
           onContinueInChat={handleContinueInChat}
           onCompare={handleCompare}
+          onPickOther={(name, cmId) => {
+            setDraft(name);
+            void run(name, cmId);
+          }}
         />
       )}
     </div>
@@ -308,6 +372,14 @@ function DisambigState({
   onPick: (cmId: number, name: string) => void;
 }) {
   const t = useT();
+  if (candidates.length === 0) {
+    return (
+      <div className="evaluate-disambig">
+        <div className="evaluate-disambig-title">{t("eval.disambig.empty_title", { query })}</div>
+        <div className="evaluate-disambig-hint">{t("eval.disambig.empty_hint")}</div>
+      </div>
+    );
+  }
   return (
     <div className="evaluate-disambig">
       <div className="evaluate-disambig-title">{t("eval.disambig.title", { query })}</div>

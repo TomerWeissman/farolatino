@@ -64,6 +64,33 @@ export function countryName(cc: string): string {
   return COUNTRY_NAMES[cc.toUpperCase()] ?? cc;
 }
 
+type Tfn = (key: string, vars?: Record<string, string | number>) => string;
+
+/**
+ * Localized label for a scoring dimension (`momentum`, `geographic_fit`, …).
+ *
+ * Reads `dimension.<name>.label` from the i18n catalog. If the key is
+ * missing (new dimension shipped from the backend that we haven't
+ * translated yet), falls back to the snake_case → "Title Case" rule
+ * the dashboards used before v0.5.3 — so a missing translation reads
+ * sensibly in English rather than rendering `⟦missing:…⟧`.
+ */
+export function dimensionLabel(t: Tfn, name: string): string {
+  const v = t(`dimension.${name}.label`);
+  if (v.startsWith("⟦missing:")) {
+    return name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  }
+  return v;
+}
+
+/** Companion to dimensionLabel for the info-tooltip body. Returns null
+ *  when no description is wired up, so the caller can omit the tooltip. */
+export function dimensionDescription(t: Tfn, name: string): string | null {
+  const v = t(`dimension.${name}.description`);
+  if (v.startsWith("⟦missing:")) return null;
+  return v;
+}
+
 /** Subtle off-white tint behind the recommendation block per tier. */
 export function tintFor(tier: string): string {
   switch (tier) {

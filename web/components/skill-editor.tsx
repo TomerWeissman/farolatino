@@ -225,16 +225,16 @@ export function SkillEditor() {
                   disabled={!dirty || saving}
                   onClick={save}
                 >
-                  <Save size={14} /> {saving ? "Saving…" : "Save"}
+                  <Save size={14} /> {saving ? t("ui.saving") : t("ui.save")}
                 </button>
                 {detail.source === "user" && (
                   <button
                     type="button"
                     className="btn"
                     onClick={resetToDefault}
-                    title="Discard your customization and use the bundled version again"
+                    title={t("skills.reset_tooltip")}
                   >
-                    <RotateCcw size={14} /> Reset to default
+                    <RotateCcw size={14} /> {t("skills.reset_to_default")}
                   </button>
                 )}
                 <button
@@ -242,9 +242,9 @@ export function SkillEditor() {
                   className="btn btn-danger"
                   onClick={remove}
                   disabled={detail.source !== "user"}
-                  title={detail.source !== "user" ? "Default skills can't be deleted — use Reset instead" : "Delete this user-created skill"}
+                  title={detail.source !== "user" ? t("skills.delete_default_tooltip") : t("skills.delete_user_tooltip")}
                 >
-                  <Trash2 size={14} /> Delete
+                  <Trash2 size={14} /> {t("skills.delete")}
                 </button>
                 {status && (
                   <span className={cn("skills-editor-status", status.kind === "err" && "skills-editor-status-err")}>
@@ -254,7 +254,7 @@ export function SkillEditor() {
               </div>
             </>
           ) : (
-            <div className="page-empty">Pick a skill on the left.</div>
+            <div className="page-empty">{t("skills.empty.pick_one")}</div>
           )}
         </section>
       </div>
@@ -263,6 +263,7 @@ export function SkillEditor() {
 }
 
 function NewSkillDialog({ onCreated }: { onCreated: (slug: string) => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
@@ -309,44 +310,44 @@ function NewSkillDialog({ onCreated }: { onCreated: (slug: string) => void }) {
   return (
     <>
       <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
-        <Plus size={14} /> New skill
+        <Plus size={14} /> {t("skills.new_skill")}
       </button>
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a new skill</DialogTitle>
+          <DialogTitle>{t("skills.dialog.title")}</DialogTitle>
           <DialogDescription>
-            Creates <code>.claude/skills/&lt;slug&gt;.md</code> with a starter template.
+            {t("skills.dialog.description")}
           </DialogDescription>
         </DialogHeader>
         <div className="dialog-form">
           <label className="dialog-label">
-            <span>Slug</span>
+            <span>{t("skills.dialog.slug_label")}</span>
             <input
               ref={slugRef}
               className="dialog-input"
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-              placeholder="lowercase, no spaces (e.g. shortlist)"
+              placeholder={t("skills.dialog.slug_placeholder")}
               maxLength={32}
             />
           </label>
           <label className="dialog-label">
-            <span>Name</span>
+            <span>{t("skills.dialog.name_label")}</span>
             <input
               className="dialog-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Shortlist Prospects"
+              placeholder={t("skills.dialog.name_placeholder")}
             />
           </label>
           <label className="dialog-label">
-            <span>Description</span>
+            <span>{t("skills.dialog.desc_label")}</span>
             <input
               className="dialog-input"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="One-line tooltip in the picker"
+              placeholder={t("skills.dialog.desc_placeholder")}
             />
           </label>
           {err && <div className="dialog-error">⚠️ {err}</div>}
@@ -358,7 +359,7 @@ function NewSkillDialog({ onCreated }: { onCreated: (slug: string) => void }) {
             disabled={!slug || !name || busy}
             onClick={submit}
           >
-            {busy ? "Creating…" : "Create"}
+            {busy ? t("ui.saving") : t("skills.add")}
           </button>
         </DialogFooter>
       </DialogContent>

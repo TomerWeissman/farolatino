@@ -13,6 +13,7 @@ from __future__ import annotations
 from mcp_server.server import mcp
 from mcp_server.tools.chartmetric_artist import get_artist_data
 from mcp_server.tools.chartmetric_search import search_artist_by_url, search_artists
+from mcp_server.tools.similar_filter import filter_neighbors_by_country
 
 # Mirrors composite_evaluate's resolution logic. Inlined (rather than
 # imported) because both modules are loaded by server.py at startup;
@@ -38,29 +39,9 @@ def _pick_unambiguous(search_result: dict) -> dict | None:
     return None
 
 
-# Countries whose music markets are part of the Latin scene FaroLatino
-# scouts in. When the seed is one of these, we filter neighbors to this
-# whole set rather than just exact-country match — most "neighbors" of a
-# PR superstar like Bad Bunny are global US/CA pop stars (audience
-# overlap, not genre), so an exact-PR filter would leave basically only
-# the seed itself in the list. The cluster catches Karol G (CO) for a
-# Bad Bunny (PR) seed, etc.
-_LATIN_MARKETS = frozenset({
-    "PR", "MX", "CO", "AR", "ES", "VE", "DO", "CL", "EC", "PE",
-    "UY", "PY", "BO", "CU", "GT", "HN", "NI", "CR", "PA", "SV", "BR",
-})
-
-
-def _filter_set(seed_country: str | None) -> frozenset[str] | None:
-    """Return the country set we'll filter neighbors against, or None to
-    skip filtering. Latin seeds use the cluster; everyone else uses an
-    exact country match (since we don't have other regional clusters
-    defined and exact match is the safer default)."""
-    if not seed_country:
-        return None
-    if seed_country in _LATIN_MARKETS:
-        return _LATIN_MARKETS
-    return frozenset({seed_country})
+# Country-cluster filtering moved to mcp_server/tools/similar_filter.py
+# in v0.5.3 so dossier_generator (Evaluate page) can apply the same
+# filter without re-implementing the Latin-market cluster constants.
 
 
 def _tier_band(seed_listeners: int, peer_listeners: int) -> str:
@@ -136,17 +117,9 @@ def find_similar_artists(
         n for n in (artist_data.get("neighboring_artists") or [])
         if n.get("cm_id") != cm_id  # exclude self
     ]
-    countries = _filter_set(seed_country)
-    if countries is not None:
-        filtered = [
-            n for n in raw_neighbors
-            if (n.get("country_code") or "").upper() in countries
-        ]
-        country_filter_applied = len(filtered) > 0
-        candidate_pool = filtered if country_filter_applied else raw_neighbors
-    else:
-        country_filter_applied = False
-        candidate_pool = raw_neighbors
+    candidate_pool, country_filter_applied = filter_neighbors_by_country(
+        seed_country, raw_neighbors
+    )
 
     # Step 3b — annotate with tier band so the model can summarize
     neighbors = []

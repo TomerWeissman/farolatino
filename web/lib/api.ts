@@ -1,7 +1,7 @@
 // API client — talks to FastAPI on the same origin (proxied in dev,
 // served directly in prod where the static export is mounted by FastAPI).
 
-import type { ChatEvent, EvaluateResponse, SkillSummary, Turn } from "./types";
+import type { ChatEvent, DisambigCandidate, EvaluateResponse, SkillSummary, Turn } from "./types";
 
 const BASE = "/api";
 
@@ -41,6 +41,40 @@ export async function evaluate(
   if (!r.ok) {
     const text = await r.text().catch(() => r.statusText);
     throw new Error(`/api/evaluate ${r.status}: ${text.slice(0, 200)}`);
+  }
+  return r.json();
+}
+
+/**
+ * POST /api/search — cheap Chartmetric candidate lookup with no scoring.
+ *
+ * Powers the v0.5.3 "See other matches" panel on Evaluate / Compare
+ * and the URL-paste fallback when a name returns zero hits. URLs
+ * (Spotify, Chartmetric, YouTube, etc.) are auto-routed server-side
+ * via search_artist_by_url, so the caller doesn't have to detect them.
+ */
+export type SearchResponse = {
+  query: string;
+  count: number;
+  artists: DisambigCandidate[];
+  resolved_from_url?: string | null;
+  error?: string | null;
+};
+
+export async function searchArtists(
+  query: string,
+  limit = 10,
+  signal?: AbortSignal,
+): Promise<SearchResponse> {
+  const r = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, limit }),
+    signal,
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => r.statusText);
+    throw new Error(`/api/search ${r.status}: ${text.slice(0, 200)}`);
   }
   return r.json();
 }

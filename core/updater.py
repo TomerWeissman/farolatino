@@ -42,6 +42,25 @@ from core.paths import app_config_dir
 log = logging.getLogger(__name__)
 
 
+def _append_update_log(line: str) -> None:
+    """Append a diagnostic line to <config>/logs/update.log.
+
+    Mirrors the format used by ``core/__init__.py:_log_version_resolution``
+    so all updater telemetry lands in one file. Never raises — logging
+    must never break a release check.
+    """
+    try:
+        from datetime import datetime
+
+        log_dir = app_config_dir() / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / "update.log").open("a", encoding="utf-8").write(
+            f"{datetime.now().isoformat(timespec='seconds')} {line}\n"
+        )
+    except Exception:
+        pass
+
+
 # Where we look for releases. Hardcoded to the FaroLatino repo since
 # this is single-tenant — change this only when forking.
 GITHUB_OWNER = "TomerWeissman"
@@ -103,12 +122,19 @@ def check_for_update(timeout: float = 10.0) -> UpdateInfo:
             code_asset = asset
             break
 
+    asset_name = code_asset.get("name") if code_asset else None
+    update_available = _is_newer(latest_tag, CURRENT_VERSION)
+    _append_update_log(
+        f"check_for_update current={CURRENT_VERSION} latest={latest_tag} "
+        f"update_available={update_available} asset={asset_name!r}"
+    )
+
     if code_asset is None:
         # Release exists but no code zip published — full reinstall path.
         return UpdateInfo(
             current_version=CURRENT_VERSION,
             latest_version=latest_tag,
-            update_available=_is_newer(latest_tag, CURRENT_VERSION),
+            update_available=update_available,
             download_url=None,
             expected_sha256=None,
             release_notes=payload.get("body"),
@@ -122,7 +148,7 @@ def check_for_update(timeout: float = 10.0) -> UpdateInfo:
     return UpdateInfo(
         current_version=CURRENT_VERSION,
         latest_version=latest_tag,
-        update_available=_is_newer(latest_tag, CURRENT_VERSION),
+        update_available=update_available,
         download_url=code_asset.get("browser_download_url"),
         expected_sha256=sha,
         release_notes=payload.get("body"),
@@ -172,14 +198,30 @@ def apply_update(info: UpdateInfo, *, restart: bool = True) -> None:
             raise UpdateError(f"Downloaded file is not a valid zip: {exc}") from exc
 
         # Manifest required — the overlay hook in __main__ refuses to
-        # load a code dir without one. Reject zips that lack it.
+        # load a code dir without one. Reject zips that lack it OR
+        # that ship a version that disagrees with the release tag (a
+        # mismatch leaves __version__ permanently stale, which is the
+        # root cause of the "keeps prompting to update" loop).
         manifest_path = staging_path / "manifest.json"
         if not manifest_path.is_file():
             raise UpdateError("Update zip is missing manifest.json.")
         try:
-            json.loads(manifest_path.read_text())
+            manifest_data = json.loads(manifest_path.read_text())
         except Exception as exc:
             raise UpdateError(f"manifest.json is not valid JSON: {exc}") from exc
+
+        manifest_version = (manifest_data.get("version") or "").strip().lstrip("v") if isinstance(manifest_data, dict) else ""
+        expected_version = info.latest_version.lstrip("v")
+        if manifest_version != expected_version:
+            _append_update_log(
+                f"apply_update aborted: manifest_version={manifest_version!r} "
+                f"!= release_tag={expected_version!r}"
+            )
+            raise UpdateError(
+                f"Update aborted: zip manifest says v{manifest_version or '?'} "
+                f"but the release tag is v{expected_version}. The downloaded "
+                f"build is mislabeled — refusing to swap it in."
+            )
 
         # Replace the live overlay. We keep the previous version under
         # ``code.bak`` so a botched update can be rolled back manually
@@ -191,6 +233,9 @@ def apply_update(info: UpdateInfo, *, restart: bool = True) -> None:
         if target.exists():
             target.rename(backup)
         shutil.copytree(staging_path, target)
+        _append_update_log(
+            f"apply_update success: installed v{manifest_version} at {target}"
+        )
 
     if restart:
         _restart_app()

@@ -2,16 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import { searchArtists } from "@/lib/api";
 import { useT, useLanguage } from "@/lib/i18n/context";
 import {
   TIER_COLOR,
   countryFlag,
   countryName,
+  dimensionDescription,
+  dimensionLabel,
   formatDate,
   formatInt,
   formatMoney,
   tintFor,
 } from "@/lib/format";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Dossier } from "@/lib/types";
 
 // What the parent (evaluate.tsx) hands us per artist slot.
@@ -26,15 +36,20 @@ export function EvaluateDashboard({
   primary,
   onContinueInChat,
   onCompare,
+  onPickOther,
 }: {
   primary: LoadedDossier;
   onContinueInChat: () => void;
   onCompare: () => void;
+  // v0.5.3 — "See other matches" callback. When the user picks a
+  // different Chartmetric candidate from the panel, the parent
+  // (evaluate.tsx) re-runs the pipeline with the new cm_id.
+  onPickOther?: (name: string, cmId: number) => void;
 }) {
   const t = useT();
   return (
     <div className="evaluate-dashboard">
-      <ArtistColumn data={primary} />
+      <ArtistColumn data={primary} onPickOther={onPickOther} />
 
       <div className="evaluate-cta-row">
         <button type="button" className="evaluate-btn evaluate-btn-primary" onClick={onContinueInChat}>
@@ -53,13 +68,23 @@ export function EvaluateDashboard({
  * Single-artist column. In single-artist mode this fills the whole
  * page; in compare mode there are two of these side-by-side.
  */
-function ArtistColumn({ data }: { data: LoadedDossier }) {
+function ArtistColumn({
+  data,
+  onPickOther,
+}: {
+  data: LoadedDossier;
+  onPickOther?: (name: string, cmId: number) => void;
+}) {
   const { dossier } = data;
   const tier = dossier.prospect_score.tier?.toUpperCase() ?? "?";
   const accent = TIER_COLOR[tier] ?? "#1a1a1a";
   return (
     <article className="evaluate-column">
       <Hero data={data} accent={accent} />
+      {/* Escape hatch: if Chartmetric returned the wrong artist for the
+          query, the user can expand this panel to see the next 9 hits
+          and pick a different one without re-typing. */}
+      {onPickOther && <OtherMatchesPanel artist={data.artist} onPick={onPickOther} />}
       {/* Scoring distribution comes first — the user wants to see WHY
           the overall score landed where it did before the supporting
           metrics. Reach / Revenue / Markets are the evidence behind
@@ -75,6 +100,125 @@ function ArtistColumn({ data }: { data: LoadedDossier }) {
       <Risks risks={dossier.risk_signals} />
       <Recommendation tier={tier} accent={accent} ident={dossier.identity} />
     </article>
+  );
+}
+
+
+// v0.5.3 — "See other matches" panel. Collapsed by default with a
+// small toggle link sitting right under the hero header. When the
+// user opens it the first time, we fire /api/search to fetch the
+// top 10 candidates. Subsequent opens reuse the cached list to
+// avoid re-hitting Chartmetric. Picking a candidate calls the
+// onPick callback so the parent re-runs the pipeline with that
+// artist's cm_id.
+export function OtherMatchesPanel({
+  artist,
+  onPick,
+}: {
+  artist: string;
+  onPick: (name: string, cmId: number) => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [candidates, setCandidates] = useState<
+    Array<{ cm_id: number | null; name: string | null; image_url?: string | null; sp_followers?: number | null; code2?: string | null }>
+  >([]);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    if (loaded) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await searchArtists(artist, 10);
+      if (r.error) {
+        setError(r.error);
+      } else {
+        // Filter to candidates we actually have a cm_id for — the
+        // URL fallback occasionally returns a partial record.
+        const cs = (r.artists || []).filter((a) => a.cm_id != null);
+        setCandidates(
+          cs as Array<{
+            cm_id: number | null;
+            name: string | null;
+            image_url?: string | null;
+            sp_followers?: number | null;
+            code2?: string | null;
+          }>,
+        );
+      }
+      setLoaded(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "search failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="ev-other-matches">
+      <button
+        type="button"
+        className="ev-other-matches-toggle"
+        onClick={toggle}
+        aria-expanded={open}
+      >
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {open ? t("eval.dashboard.other_matches_close") : t("eval.dashboard.other_matches_open")}
+      </button>
+      {open && (
+        <div className="ev-other-matches-panel">
+          {loading && (
+            <div className="ev-other-matches-empty">{t("eval.dashboard.other_matches_loading")}</div>
+          )}
+          {!loading && error && (
+            <div className="ev-other-matches-empty">
+              {t("eval.dashboard.other_matches_error", { message: error })}
+            </div>
+          )}
+          {!loading && !error && loaded && candidates.length === 0 && (
+            <div className="ev-other-matches-empty">{t("eval.dashboard.other_matches_none")}</div>
+          )}
+          {!loading && !error && candidates.length > 0 && (
+            <ul className="ev-other-matches-list">
+              {candidates.map((c) => (
+                <li key={c.cm_id ?? c.name}>
+                  <button
+                    type="button"
+                    className="ev-other-matches-row"
+                    onClick={() => c.cm_id && c.name && onPick(c.name, c.cm_id)}
+                    disabled={!c.cm_id || !c.name}
+                  >
+                    {c.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="ev-other-matches-photo" src={c.image_url} alt="" />
+                    ) : (
+                      <span className="ev-other-matches-photo ev-other-matches-photo-fallback">
+                        {(c.name ?? "?").slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="ev-other-matches-name">{c.name ?? "—"}</span>
+                    {c.code2 && <span className="ev-other-matches-meta">{c.code2}</span>}
+                    {c.sp_followers != null && (
+                      <span className="ev-other-matches-meta ev-other-matches-meta-num">
+                        {formatInt(c.sp_followers)}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -215,26 +359,45 @@ function Reach({ metrics }: { metrics: Dossier["metrics"] }) {
   const ig = metrics.instagram ?? {};
   const tt = metrics.tiktok ?? {};
   const other = metrics.other ?? {};
-  const cpp = metrics.cpp_score;
   const popularity = sp.popularity;
 
+  // v0.5.3 — split into two narratives:
+  //   Group A (plays): YouTube views + Spotify monthly listeners.
+  //   Group B (audience): Instagram / TikTok / YouTube subs / Spotify followers.
+  // Both groups live in the SAME 4-column grid so the cell edges
+  // align vertically — the plays row uses span-2 tiles so its
+  // featured numbers read bigger without breaking column alignment.
+  // Spotify popularity + Shazam / Deezer / SoundCloud move to the
+  // secondary chip row: they're either derived scores or follower-
+  // shaped counts that don't deserve a hero tile of their own.
+  // CPP dropped from Reach — it's a Chartmetric composite score,
+  // not a Reach metric.
   return (
     <section className="ev-section">
       <h2 className="ev-h2">{t("eval.dashboard.reach")}</h2>
-      <div className="ev-grid-4">
+      <div className="ev-reach-grid">
+        <h3 className="ev-h3 ev-reach-group-header">{t("eval.dashboard.reach.plays_title")}</h3>
+        <Stat
+          big={yt.views ? formatInt(yt.views) : "—"}
+          label={t("eval.dashboard.reach.yt_views")}
+          sub={t("eval.dashboard.reach.yt_views_sub")}
+        />
         <Stat
           big={sp.monthly_listeners ? formatInt(sp.monthly_listeners) : "—"}
-          label={t("eval.dashboard.reach.spotify_monthly")}
+          label={t("eval.dashboard.reach.sp_listeners")}
           sub={[
+            t("eval.dashboard.reach.sp_listeners_sub"),
             sp.monthly_listeners_change ?? null,
-            sp.followers ? `${formatInt(sp.followers)} ${t("eval.dashboard.reach.followers_suffix")}` : null,
           ].filter(Boolean).join(" · ") || undefined}
         />
-        <Stat
-          big={yt.subscribers ? formatInt(yt.subscribers) : "—"}
-          label={t("eval.dashboard.reach.youtube_subs")}
-          sub={yt.views ? t("eval.dashboard.reach.youtube_total_views", { n: formatInt(yt.views) }) : undefined}
-        />
+        {/* Cols 3 + 4 of the plays row stay empty on purpose — keeps
+            YouTube views above Instagram and Spotify listeners above
+            TikTok. */}
+        <div className="ev-reach-spacer" aria-hidden="true" />
+        <div className="ev-reach-spacer" aria-hidden="true" />
+        <h3 className="ev-h3 ev-reach-group-header ev-reach-group-header-spaced">
+          {t("eval.dashboard.reach.audience_title")}
+        </h3>
         <Stat
           big={ig.followers ? formatInt(ig.followers) : "—"}
           label={t("eval.dashboard.reach.instagram")}
@@ -245,15 +408,48 @@ function Reach({ metrics }: { metrics: Dossier["metrics"] }) {
           label={t("eval.dashboard.reach.tiktok")}
           sub={tt.likes ? `${formatInt(tt.likes)} ${t("eval.dashboard.reach.likes_suffix")}` : t("eval.dashboard.reach.no_data")}
         />
+        <Stat
+          big={yt.subscribers ? formatInt(yt.subscribers) : "—"}
+          label={t("eval.dashboard.reach.youtube_subs")}
+        />
+        <Stat
+          big={sp.followers ? formatInt(sp.followers) : "—"}
+          label={t("eval.dashboard.reach.sp_followers")}
+        />
       </div>
-      {(other.shazam_count || other.deezer_fans || other.soundcloud_followers || popularity || cpp) && (
+      {(other.shazam_count || other.deezer_fans || other.soundcloud_followers || popularity != null) && (
+        <TooltipProvider delay={0}>
         <div className="ev-secondary-row">
-          {other.shazam_count != null && <span>Shazam <strong>{formatInt(other.shazam_count)}</strong></span>}
-          {other.deezer_fans != null && <span>Deezer <strong>{formatInt(other.deezer_fans)}</strong></span>}
-          {other.soundcloud_followers != null && <span>SoundCloud <strong>{formatInt(other.soundcloud_followers)}</strong></span>}
-          {popularity != null && <span>{t("eval.dashboard.reach.spotify_pop")} <strong>{popularity}/100</strong></span>}
-          {cpp != null && <span>{t("eval.dashboard.reach.cpp")} <strong>{cpp.toFixed(2)}</strong></span>}
+          {other.shazam_count != null && (
+            <ReachChip
+              label={t("eval.dashboard.reach.shazam")}
+              value={formatInt(other.shazam_count)}
+              info={t("eval.dashboard.reach.shazam.info")}
+            />
+          )}
+          {other.deezer_fans != null && (
+            <ReachChip
+              label={t("eval.dashboard.reach.deezer")}
+              value={formatInt(other.deezer_fans)}
+              info={t("eval.dashboard.reach.deezer.info")}
+            />
+          )}
+          {other.soundcloud_followers != null && (
+            <ReachChip
+              label={t("eval.dashboard.reach.soundcloud")}
+              value={formatInt(other.soundcloud_followers)}
+              info={t("eval.dashboard.reach.soundcloud.info")}
+            />
+          )}
+          {popularity != null && (
+            <ReachChip
+              label={t("eval.dashboard.reach.spotify_pop")}
+              value={`${popularity}/100`}
+              info={t("eval.dashboard.reach.spotify_pop.info")}
+            />
+          )}
         </div>
+        </TooltipProvider>
       )}
       <div className="ev-source">{t("eval.dashboard.source.reach")}</div>
     </section>
@@ -270,8 +466,19 @@ function Revenue({ revenue }: { revenue: Dossier["revenue_projection"] }) {
   // confidence calc — use a wider band by default (0.6x – 1.7x).
   const lo = annual * 0.6;
   const hi = annual * 1.7;
-  const distributor = annual * 0.26;
-  const artist = annual * 0.74;
+  // Monthly gross is annual ÷ 12 (not `monthly_total` from the backend,
+  // which is pre-growth-factor — the three numbers would no longer add
+  // up consistently). The annual figure is what the user sees first, so
+  // monthly + Faro share are derived from it for honesty.
+  const monthly = annual / 12;
+  // Artist / Faro split sourced from config/revenue_share.yaml via the
+  // dossier. Falls back to 70/30 if the backend didn't attach it (e.g.
+  // older overlay still in the wild).
+  const share = revenue.share ?? { artist_pct: 0.70, faro_pct: 0.30 };
+  const faroMonthly = monthly * share.faro_pct;
+  const artistMonthly = monthly * share.artist_pct;
+  const faroPctLabel = Math.round(share.faro_pct * 100);
+  const artistPctLabel = Math.round(share.artist_pct * 100);
   const byPlatform = revenue.monthly_revenue_by_platform ?? {};
   const byPlatformAnnual: Array<[string, number]> = Object.entries(byPlatform)
     .map(([k, v]) => [k, (v ?? 0) * 12] as [string, number])
@@ -282,16 +489,24 @@ function Revenue({ revenue }: { revenue: Dossier["revenue_projection"] }) {
   return (
     <section className="ev-section">
       <h2 className="ev-h2">{t("eval.dashboard.revenue")}</h2>
-      <div className="ev-revenue-grid">
+      <div className="ev-revenue-grid ev-revenue-grid-3">
         <Stat
           big={formatMoney(annual)}
           label={t("eval.dashboard.revenue.annual_gross")}
           sub={t("eval.dashboard.revenue.range", { lo: formatMoney(lo), hi: formatMoney(hi) })}
         />
         <Stat
-          big={formatMoney(distributor)}
-          label={t("eval.dashboard.revenue.distributor_cut")}
-          sub={t("eval.dashboard.revenue.artist_payout", { amount: formatMoney(artist) })}
+          big={formatMoney(monthly)}
+          label={t("eval.dashboard.revenue.monthly_gross")}
+          sub={t("eval.dashboard.revenue.monthly_gross_sub")}
+        />
+        <Stat
+          big={formatMoney(faroMonthly)}
+          label={t("eval.dashboard.revenue.faro_share", { pct: faroPctLabel })}
+          sub={t("eval.dashboard.revenue.artist_share_sub", {
+            pct: artistPctLabel,
+            amount: formatMoney(artistMonthly),
+          })}
         />
       </div>
       {byPlatformAnnual.length > 0 && totalAnnual > 0 && (
@@ -326,21 +541,24 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
   if (rows.length === 0) return null;
 
   return (
+    <TooltipProvider delay={0}>
     <section className="ev-section">
       <h2 className="ev-h2">{t("eval.dashboard.scoring")}</h2>
       {/* Column headers — without these, the trailing "85%" / "20%"
-          numbers each row ends with read as random noise. Spelling
-          "Confidence" and "Weight" out costs one line and removes a
-          chunk of cognitive load. */}
-      <div className="ev-row ev-row-headers" aria-hidden="true">
-        <div className="ev-row-label">{t("eval.dashboard.scoring.col.dimension")}</div>
+          numbers each row ends with read as random noise. Each header
+          now carries a tooltip with the same prose that used to live
+          in the legend block below the table, so the explanation is
+          reachable from the column the user is actually looking at. */}
+      <div className="ev-row ev-row-headers">
+        <ScoringHeaderCell t={t} className="ev-row-label" headerKey="dimension" />
         <div />
-        <div className="ev-num-mono">{t("eval.dashboard.scoring.col.score")}</div>
-        <div className="ev-num-mono">{t("eval.dashboard.scoring.col.confidence")}</div>
-        <div className="ev-num-mono">{t("eval.dashboard.scoring.col.weight")}</div>
+        <ScoringHeaderCell t={t} className="ev-num-mono" headerKey="score" />
+        <ScoringHeaderCell t={t} className="ev-num-mono" headerKey="confidence" />
+        <ScoringHeaderCell t={t} className="ev-num-mono" headerKey="weight" />
       </div>
       {rows.map(([name, d]) => {
-        const label = name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+        const label = dimensionLabel(t, name);
+        const description = dimensionDescription(t, name);
         const cls = d.score >= 80 ? "" : d.score >= 50 ? "warn" : "bad";
         const isOpen = openName === name;
         return (
@@ -351,7 +569,34 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
               onClick={() => setOpenName(isOpen ? null : name)}
               aria-expanded={isOpen}
             >
-              <div className="ev-row-label">{label}</div>
+              <div className="ev-row-label">
+                <span className="ev-row-label-text">{label}</span>
+                {description && (
+                  <Tooltip>
+                    {/* `render={<span ... />}` makes base-ui render the
+                        trigger as a span instead of its default button —
+                        crucial here, because we're already inside a
+                        <button className="ev-row-clickable"> and nested
+                        buttons are invalid HTML. stopPropagation keeps
+                        the icon's click from toggling the row's rationale. */}
+                    <TooltipTrigger
+                      delay={0}
+                      render={
+                        <span
+                          role="img"
+                          tabIndex={0}
+                          aria-label={t("eval.dashboard.scoring.info_aria")}
+                          className="ev-row-info"
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                        />
+                      }
+                    >
+                      <Info size={13} strokeWidth={1.75} />
+                    </TooltipTrigger>
+                    <TooltipContent>{description}</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
               <div className="ev-bar"><span className={cls} style={{ width: `${Math.min(100, d.score)}%` }} /></div>
               <div className="ev-num-mono ev-score-num">{Math.round(d.score)}</div>
               <div className="ev-num-mono ev-conf-num">{Math.round((d.confidence ?? 0) * 100)}%</div>
@@ -363,14 +608,45 @@ function Scoring({ score }: { score: Dossier["prospect_score"] }) {
           </div>
         );
       })}
-      <div className="ev-legend">
-        <strong>{t("eval.dashboard.scoring.legend.score")}</strong> — {t("eval.dashboard.scoring.legend.score_desc")}{" "}
-        <strong>{t("eval.dashboard.scoring.legend.confidence")}</strong> — {t("eval.dashboard.scoring.legend.confidence_desc")}{" "}
-        <strong>{t("eval.dashboard.scoring.legend.weight")}</strong> — {t("eval.dashboard.scoring.legend.weight_desc")}
-      </div>
       <div className="ev-help">{t("eval.dashboard.scoring.click_hint")}</div>
       <div className="ev-source">{t("eval.dashboard.source.scoring", { profile: "default", file: "config/profiles.yaml" })}</div>
     </section>
+    </TooltipProvider>
+  );
+}
+
+// One column header. The visible label is the existing translated
+// string; the tooltip body comes from the same key family the legend
+// used pre-v0.5.3, just attached to the header so the explanation
+// is reachable from where the column lives.
+function ScoringHeaderCell({
+  t,
+  className,
+  headerKey,
+}: {
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  className: string;
+  headerKey: "dimension" | "score" | "confidence" | "weight";
+}) {
+  return (
+    <Tooltip>
+      {/* Same render-as-span trick as the info icon — the headers
+          live inside `.ev-row` (a grid) and don't need to be buttons. */}
+      <TooltipTrigger
+        delay={0}
+        render={
+          <span
+            tabIndex={0}
+            className={className + " ev-row-header-trigger"}
+          />
+        }
+      >
+        {t(`eval.dashboard.scoring.col.${headerKey}`)}
+      </TooltipTrigger>
+      <TooltipContent>
+        {t(`eval.dashboard.scoring.col.${headerKey}.tooltip`)}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -729,9 +1005,49 @@ function Recommendation({ tier, accent, ident }: { tier: string; accent: string;
 
 // ─── Reusable bits ────────────────────────────────────────────────
 
-function Stat({ big, label, sub }: { big: string; label: string; sub?: string }) {
+// Small chip in the Reach secondary row (Shazam / Deezer / SoundCloud
+// / Spotify popularity). Each chip is its own tooltip trigger so the
+// user can hover the platform name to see what the number actually
+// means — these metrics are non-obvious (Shazam isn't a follow count,
+// popularity isn't streams, etc.).
+function ReachChip({
+  label,
+  value,
+  info,
+}: {
+  label: string;
+  value: string;
+  info: string;
+}) {
   return (
-    <div className="ev-stat">
+    <Tooltip>
+      <TooltipTrigger
+        delay={0}
+        render={<span tabIndex={0} className="ev-reach-chip" />}
+      >
+        <span className="ev-reach-chip-label">{label}</span>{" "}
+        <strong>{value}</strong>
+        <Info size={11} strokeWidth={1.75} className="ev-reach-chip-info" />
+      </TooltipTrigger>
+      <TooltipContent>{info}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+
+function Stat({
+  big,
+  label,
+  sub,
+  className,
+}: {
+  big: string;
+  label: string;
+  sub?: string;
+  className?: string;
+}) {
+  return (
+    <div className={className ? `ev-stat ${className}` : "ev-stat"}>
       <div className="ev-stat-num">{big}</div>
       <div className="ev-stat-lbl">{label}</div>
       {sub && <div className="ev-stat-sub">{sub}</div>}

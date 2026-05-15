@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/lib/i18n/context";
+
 // Hand-rolled SVG radar chart for two-artist comparisons.
 //
 // No charting library dependency. Each axis gets a label and an end-of-
@@ -51,6 +53,7 @@ export function RadarChart({
   labelPaddingX = 130,
   normalizeMode = "max",
 }: Props) {
+  const t = useT();
   // SVG viewport: square chart + horizontal slack for labels on both
   // sides. The polygon stays centered on (size/2 + labelPaddingX, size/2).
   const viewBoxW = size + labelPaddingX * 2;
@@ -122,7 +125,7 @@ export function RadarChart({
       viewBox={`0 0 ${viewBoxW} ${viewBoxH}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="Comparison radar chart"
+      aria-label={t("a11y.radar.compare")}
       className="cmp-radar-svg"
     >
       {/* Grid rings (light gray) */}

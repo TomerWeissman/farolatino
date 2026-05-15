@@ -1,20 +1,29 @@
-// Conversation persistence. localStorage-backed for now — works across
-// page navigations + browser restarts (same browser only). Move to a
-// /api/conversations endpoint later if multi-browser sync is needed.
+// Conversation persistence — server-backed since v0.5.3.
 //
-// Storage shape (single JSON blob):
-//   faroai.conversations.v1   → { conversations: Record<id, Conversation> }
-//   faroai.activeConversation → id of the currently-loaded conversation
+// Storage moved from browser localStorage to a JSON file in the
+// per-user config dir (see core/storage.py + api/routes/conversations.py).
+// Motivation: pywebview's WebKit data store wasn't surviving py2app
+// rebuilds across version bumps, so every update silently wiped the
+// user's chat history. Disk-side storage takes that whole class of
+// failure off the table.
 //
-// Single-blob writes are fine at our scale: a chat session of 50 turns is
-// ~50KB; localStorage caps at 5MB. Re-write whole blob on each save so
-// we don't have to manage incremental persistence.
+// We keep the historical synchronous API surface (listConversations(),
+// saveConversation(c), etc.) so existing call sites don't change.
+// Reads return whatever's in the in-memory cache; on first call we
+// kick off a hydration fetch in the background and dispatch the
+// CHANGE event when it lands — same hook the sidebar already
+// listens on. Writes update the cache immediately AND fire a PUT
+// in the background. The active-conversation id stays in
+// localStorage because it's strictly a per-browser-window UX state,
+// not user content.
 
 import type { Turn } from "./types";
 
-const STORAGE_KEY = "faroai.conversations.v1";
-const ACTIVE_KEY = "faroai.activeConversation";
 const CHANGE_EVENT = "faroai:conversations-changed";
+const ACTIVE_KEY = "faroai.activeConversation";
+// Legacy localStorage key we drain into the server on first launch
+// after the v0.5.3 upgrade.
+const LEGACY_STORAGE_KEY = "faroai.conversations.v1";
 
 export type StoredTurn = Turn;
 
@@ -30,47 +39,127 @@ export type Conversation = {
   claudeSessionId?: string;
 };
 
-type Blob = { conversations: Record<string, Conversation> };
+// ─── In-memory cache (hydrated from the server) ─────────────────────────
 
-// ─── Storage I/O ────────────────────────────────────────────────────────
-function readBlob(): Blob {
-  if (typeof window === "undefined") return { conversations: {} };
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { conversations: {} };
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && parsed.conversations) {
-      return parsed as Blob;
-    }
-  } catch {
-    // localStorage corrupted — start fresh rather than crash.
-  }
-  return { conversations: {} };
-}
-
-function writeBlob(blob: Blob): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
-  notifyChanged();
-}
+let cache: Record<string, Conversation> | null = null;
+let hydratePromise: Promise<void> | null = null;
 
 function notifyChanged(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
 
-// ─── Public API ─────────────────────────────────────────────────────────
+async function fetchAll(): Promise<Conversation[]> {
+  const resp = await fetch("/api/conversations", { cache: "no-store" });
+  if (!resp.ok) throw new Error(`GET /api/conversations: HTTP ${resp.status}`);
+  const data = await resp.json();
+  const list = Array.isArray(data?.conversations) ? data.conversations : [];
+  return list as Conversation[];
+}
 
-/** Newest-first list of all conversations. */
+async function migrateLegacyLocalStorage(): Promise<Conversation[] | null> {
+  // One-time pull from the v0.5.2 localStorage blob. Returns the
+  // imported conversations on success, null if there was nothing to
+  // migrate, throws only if the POST itself fails (in which case the
+  // caller falls back to whatever was already on the server, which
+  // is empty — that's fine; the legacy blob stays put so a retry
+  // can pick it up).
+  if (typeof window === "undefined") return null;
+  let legacy: { conversations?: Record<string, Conversation> } | null = null;
+  try {
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed.conversations) {
+      legacy = parsed;
+    }
+  } catch {
+    return null;
+  }
+  if (!legacy?.conversations) return null;
+  const items = Object.values(legacy.conversations);
+  if (items.length === 0) return null;
+
+  const resp = await fetch("/api/conversations/migrate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ conversations: items }),
+  });
+  if (!resp.ok) throw new Error(`migrate failed: HTTP ${resp.status}`);
+  // Only clear localStorage AFTER the server has accepted the import —
+  // otherwise a network blip during upgrade would lose history.
+  try {
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    /* no-op */
+  }
+  return items;
+}
+
+async function hydrate(): Promise<void> {
+  let serverItems: Conversation[];
+  try {
+    serverItems = await fetchAll();
+  } catch {
+    // Network/storage error on hydrate: keep cache empty so the UI
+    // renders the empty state rather than crashing. A later mutation
+    // will retry indirectly when it tries to PUT.
+    cache = {};
+    notifyChanged();
+    return;
+  }
+
+  // If the server is empty and the user has legacy localStorage
+  // entries (the v0.5.2 → v0.5.3 path), drain them into the server
+  // and use the migrated set as the hydrated cache.
+  if (serverItems.length === 0) {
+    try {
+      const migrated = await migrateLegacyLocalStorage();
+      if (migrated && migrated.length > 0) {
+        serverItems = migrated;
+      }
+    } catch {
+      // Migration POST failed; proceed with the empty server set.
+      // The legacy blob is still in localStorage so the next launch
+      // can retry.
+    }
+  }
+
+  const next: Record<string, Conversation> = {};
+  for (const c of serverItems) {
+    if (c && typeof c === "object" && typeof c.id === "string") next[c.id] = c;
+  }
+  cache = next;
+  notifyChanged();
+}
+
+function ensureHydrated(): void {
+  if (cache !== null) return;
+  if (typeof window === "undefined") {
+    cache = {};
+    return;
+  }
+  if (!hydratePromise) {
+    cache = {}; // expose an empty view until hydration lands
+    hydratePromise = hydrate();
+  }
+}
+
+// ─── Public API (synchronous reads, fire-and-forget writes) ─────────────
+
 export function listConversations(): Conversation[] {
-  return Object.values(readBlob().conversations).sort((a, b) => b.updatedAt - a.updatedAt);
+  ensureHydrated();
+  if (!cache) return [];
+  return Object.values(cache).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export function getConversation(id: string): Conversation | null {
-  return readBlob().conversations[id] ?? null;
+  ensureHydrated();
+  return cache?.[id] ?? null;
 }
 
 export function createConversation(seedPrompt?: string): Conversation {
+  ensureHydrated();
   const now = Date.now();
   const id = `c_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const c: Conversation = {
@@ -80,25 +169,53 @@ export function createConversation(seedPrompt?: string): Conversation {
     updatedAt: now,
     turns: [],
   };
-  const blob = readBlob();
-  blob.conversations[id] = c;
-  writeBlob(blob);
+  if (!cache) cache = {};
+  cache[id] = c;
+  notifyChanged();
+  void persistConversation(c);
   return c;
 }
 
 export function saveConversation(c: Conversation): void {
-  const blob = readBlob();
-  blob.conversations[c.id] = { ...c, updatedAt: Date.now() };
-  writeBlob(blob);
+  ensureHydrated();
+  const updated: Conversation = { ...c, updatedAt: Date.now() };
+  if (!cache) cache = {};
+  cache[updated.id] = updated;
+  notifyChanged();
+  void persistConversation(updated);
 }
 
 export function deleteConversation(id: string): void {
-  const blob = readBlob();
-  delete blob.conversations[id];
-  writeBlob(blob);
+  ensureHydrated();
+  if (cache && cache[id]) {
+    delete cache[id];
+    notifyChanged();
+  }
+  void fetch(`/api/conversations/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }).catch(() => {
+    /* best-effort; if it fails the next hydrate will rehydrate from
+       the server's authoritative copy */
+  });
   if (getActiveConversationId() === id) setActiveConversationId(null);
 }
 
+async function persistConversation(c: Conversation): Promise<void> {
+  try {
+    await fetch(`/api/conversations/${encodeURIComponent(c.id)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(c),
+    });
+  } catch {
+    /* best-effort — the cache still holds the user's data locally,
+       and a hard reload will rehydrate from the server. */
+  }
+}
+
+// Active-conversation id stays in localStorage: it's a per-window UX
+// pointer, not durable user content. If it gets wiped on an update,
+// the user just lands on /new-chat — no data lost.
 export function getActiveConversationId(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(ACTIVE_KEY);
@@ -117,10 +234,13 @@ export function subscribeToConversations(cb: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const sameTab = () => cb();
   const crossTab = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY || e.key === ACTIVE_KEY) cb();
+    if (e.key === ACTIVE_KEY) cb();
   };
   window.addEventListener(CHANGE_EVENT, sameTab);
   window.addEventListener("storage", crossTab);
+  // Trigger hydration on first subscribe so the sidebar populates
+  // without needing a listConversations() call first.
+  ensureHydrated();
   return () => {
     window.removeEventListener(CHANGE_EVENT, sameTab);
     window.removeEventListener("storage", crossTab);
