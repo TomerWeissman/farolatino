@@ -155,3 +155,51 @@ def cache_clear(artist_id: int) -> dict:
         artist_dir.rmdir()
 
     return {"cleared": True, "files_removed": count}
+
+
+def sweep_old_cache(max_age_days: int = 3) -> dict:
+    """Retire cache files older than ``max_age_days``, regardless of TTL.
+
+    Wakes up on app launch (api/main.py startup) and prunes any cached
+    response — metadata, tracks, dossier, neighbors, whatever — that was
+    fetched more than ``max_age_days`` ago. Intentionally simpler than
+    a per-class "2× TTL" sweeper: one rule, easy to reason about, keeps
+    the on-disk footprint tightly bounded. The trade-off is that
+    re-evaluating an artist last seen 4+ days ago re-hits Chartmetric
+    for everything (~15 calls, ~15s at the 1.05 req/s ceiling).
+
+    Uses file mtime as the freshness proxy — accurate enough, faster
+    than parsing every JSON to read ``_fetched_at``. If a sweep empties
+    an artist's directory, the dir is removed too. Failures on
+    individual files are swallowed (best-effort cleanup; we don't want
+    a permission-denied file to abort the whole pass).
+
+    Returns ``{"files_removed": int, "dirs_removed": int}`` for logging.
+    """
+    cache_root = _cache_dir()
+    if not cache_root.exists():
+        return {"files_removed": 0, "dirs_removed": 0}
+
+    cutoff = datetime.now() - timedelta(days=max_age_days)
+    files_removed = 0
+    dirs_removed = 0
+
+    for artist_dir in cache_root.iterdir():
+        if not artist_dir.is_dir():
+            continue
+        for f in artist_dir.glob("*.json"):
+            try:
+                mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                if mtime < cutoff:
+                    f.unlink()
+                    files_removed += 1
+            except OSError:
+                continue
+        try:
+            if not any(artist_dir.iterdir()):
+                artist_dir.rmdir()
+                dirs_removed += 1
+        except OSError:
+            pass
+
+    return {"files_removed": files_removed, "dirs_removed": dirs_removed}

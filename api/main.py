@@ -32,6 +32,30 @@ load_credentials()
 
 from api.routes import chat, connections, conversations, env, evaluate, files, health, onboarding, persona, preferences, recents, runs, search, skills, updates  # noqa: E402
 
+# v0.5.3 — retire Chartmetric cache files older than 3 days at boot.
+# Single sweep, runs before the first request is served. Cheap (it's
+# just iterating mtimes) and bounded — the cache dir grows monotonically
+# without it because the TTL system marks files stale but never deletes
+# them. See sweep_old_cache for the trade-off rationale.
+#
+# Has to run AFTER `from api.routes import …` — those route modules
+# pull in mcp_server.tools.*, which is the only sequence that avoids
+# data_cache's circular import on cold load.
+import logging  # noqa: E402
+
+from mcp_server.tools.data_cache import sweep_old_cache  # noqa: E402
+
+_log = logging.getLogger(__name__)
+try:
+    _swept = sweep_old_cache(max_age_days=3)
+    if _swept["files_removed"] or _swept["dirs_removed"]:
+        _log.info(
+            "cache sweep: removed %d files, %d empty dirs",
+            _swept["files_removed"], _swept["dirs_removed"],
+        )
+except Exception:  # noqa: BLE001 — cleanup must never block startup
+    _log.exception("cache sweep failed (continuing)")
+
 app = FastAPI(
     title="FaroAI",
     description="A&R assistant backend for FaroLatino — wraps the FaroLatino MCP server.",
