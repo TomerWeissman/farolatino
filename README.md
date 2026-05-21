@@ -8,7 +8,13 @@ Latest installer (macOS `.dmg` / Windows `.exe`):
 
 **[→ Latest release](https://github.com/farolatino-app/farolatino/releases/latest)**
 
-Each release page includes installation instructions and SHA256 checksums.
+Each release page lists the available assets and SHA256 checksums.
+
+## Install guide
+
+First-time setup — download, unblock, paste API keys:
+
+**[→ INSTALL.md](INSTALL.md)** (5-minute walkthrough, Mac + Windows)
 
 ## In-app updates
 
