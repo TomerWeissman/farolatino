@@ -12,11 +12,12 @@ If a step doesn't work, jump to **Troubleshooting** at the bottom.
 
 - A Mac or Windows computer.
 - An internet connection.
-- The two **API keys** Tomer sent you in your welcome email:
-  - An AI Model key (starts with `sk-ant-`, `sk-`, or `AIza`).
-  - A Chartmetric refresh token (a long random string).
+- The **setup file** Tomer sent you (e.g. `FaroAI-API-Keys.txt`) — a plain
+  text file holding all your API keys. On first launch you upload it once
+  and everything connects. (No file? You can paste keys manually instead —
+  see Step 4.)
 
-Keep both keys handy — you'll paste them into the app on first launch.
+Keep that file handy — you'll upload it into the app on first launch.
 
 ---
 
@@ -35,11 +36,9 @@ The file lands in your **Downloads** folder.
 
 ### Step 2 — Install the app
 
-1. Double-click the `.dmg` you just downloaded. A window appears
-   showing a single `FaroAI` icon.
-2. Drag that `FaroAI` icon onto your **Applications** folder. (You can
-   open Applications via Finder → Applications, or just drag the icon
-   into the sidebar.)
+1. Double-click the `.dmg` you just downloaded. A window opens showing the
+   **FaroAI** icon next to an **Applications** folder.
+2. **Drag the FaroAI icon onto the Applications folder** in that window.
 3. Eject the disk image: in Finder's left sidebar, click the small
    ⏏ next to `FaroAI`.
 
@@ -67,15 +66,19 @@ Terminal command. You only do this once per computer.
 > re-download. Cancel keeps the app in place; the Terminal command
 > above unblocks it.
 
-### Step 4 — Paste your keys
+### Step 4 — Connect your APIs
 
-The Welcome screen shows two fields:
+The Welcome screen opens with an **"Upload the file you were sent"** box at
+the top. The easy path:
 
-1. **AI Model** — paste the `sk-ant-…` / `sk-…` / `AIza…` key Tomer sent
-   you. The app auto-detects which provider it's for.
-2. **Chartmetric** — paste the long refresh token Tomer sent you.
+1. **Drag the setup file** (`FaroAI-API-Keys.txt`) onto that box — or click
+   **Choose file** and pick it. Everything connects at once: AI model,
+   Chartmetric, Spotify, YouTube and Power BI.
+2. Click **Continue**. You're in.
 
-Click **Continue**. You're in.
+**No setup file?** Fill in the cards below the upload box instead: the **AI
+Model** key is required; **Chartmetric** is recommended; paste the **5
+`PBI_` Power BI codes** into the Power BI box; Spotify/YouTube are optional.
 
 ### Future launches
 
@@ -107,14 +110,18 @@ unblock step from Step 3 is permanent.
 The installer drops a **FaroAI** icon on your **Desktop** and adds it
 to the **Start Menu**.
 
-### Step 3 — Launch and paste your keys
+### Step 3 — Launch and connect your APIs
 
 1. **Double-click the FaroAI icon on your Desktop.** (Or click Start,
    type FaroAI, press Enter — same thing.)
-2. The Welcome screen shows two fields. Paste:
-   - **AI Model**: the `sk-ant-…` / `sk-…` / `AIza…` key Tomer sent.
-   - **Chartmetric**: the long refresh token Tomer sent.
+2. On the Welcome screen, **upload the setup file** (`FaroAI-API-Keys.txt`)
+   in the box at the top — drag it on or click **Choose file**. Everything
+   connects at once.
 3. Click **Continue**. You're in.
+
+**No setup file?** Use the manual cards below the upload box — the **AI
+Model** key is required; paste the **5 `PBI_` Power BI codes** into the
+Power BI box; Chartmetric/Spotify/YouTube as available.
 
 ### Future launches
 
@@ -135,16 +142,15 @@ re-downloading installers.
 
 ---
 
-## Switching the app to Spanish
+## Language
 
-Once you're inside FaroAI:
+FaroAI opens in **Spanish by default**. To switch to English (or back):
 
 1. Click **Settings** in the left sidebar.
-2. Under **Language**, click **Español**.
+2. Under **Language**, pick **English** / **Español**.
 
-The interface and the assistant's responses both switch to Spanish on
-the next message. Toggle back to English the same way. Your choice
-persists across launches.
+The interface and the assistant's responses switch on the next message.
+Your choice persists across launches.
 
 ---
 
