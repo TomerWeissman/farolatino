@@ -12,13 +12,13 @@ Si un paso no funciona, andá a **Solución de problemas** al final.
 
 - Una computadora con Mac o Windows.
 - Conexión a internet.
-- Las credenciales que te pasó Tomer (en tu correo de bienvenida o en el
-  archivo `faroai-team-keys.txt`):
-  - Una **clave del Modelo de IA** (empieza con `sk-ant-`, `sk-` o `AIza`).
-  - Un **refresh token de Chartmetric** (una cadena larga al azar).
-  - Los **5 códigos de Power BI** (las líneas que empiezan con `PBI_`).
+- El **archivo de configuración** que te pasó Tomer (`FaroAI-API-Keys.txt`)
+  — un archivo de texto con todas tus claves de API (Modelo de IA,
+  Chartmetric, Spotify, YouTube y los 5 códigos de Power BI). En el primer
+  arranque lo subís una vez y se conecta todo solo. (¿No tenés el archivo?
+  También podés cargar las claves a mano — ver Paso 4.)
 
-Tené todo a mano — lo vas a pegar dentro de la app en el primer arranque.
+Tené ese archivo a mano — lo vas a subir a la app en el primer arranque.
 
 ---
 
@@ -37,8 +37,9 @@ El archivo queda en tu carpeta **Descargas**.
 
 ### Paso 2 — Instalar la app
 
-1. Doble clic en el `.dmg`. Aparece una ventana con un ícono de `FaroAI`.
-2. Arrastrá ese ícono de `FaroAI` a tu carpeta **Aplicaciones**.
+1. Doble clic en el `.dmg`. Se abre una ventana con el ícono de **FaroAI**
+   al lado de una carpeta **Aplicaciones**.
+2. **Arrastrá el ícono de FaroAI sobre la carpeta Aplicaciones** de esa ventana.
 3. Expulsá la imagen de disco: en la barra lateral del Finder, hacé clic
    en el ⏏ al lado de `FaroAI`.
 
@@ -65,19 +66,19 @@ Terminal. Solo lo hacés una vez por computadora.
 > "Mover a la Papelera"**, o se borra la app y vas a tener que descargarla
 > de nuevo. Cancelar la deja en su lugar; el comando de arriba la desbloquea.
 
-### Paso 4 — Pegá tus credenciales
+### Paso 4 — Conectá tus APIs
 
-La pantalla de bienvenida tiene varias secciones:
+La pantalla de bienvenida abre con un recuadro **"Subí el archivo que te
+enviaron"** arriba de todo. El camino fácil:
 
-1. **Modelo de IA** (obligatorio) — pegá la clave `sk-ant-…` / `sk-…` /
-   `AIza…`. La app detecta sola de qué proveedor es. *Es el único campo
-   obligatorio para poder entrar.*
-2. **Chartmetric** — pegá el refresh token.
-3. **Power BI** — pegá las **5 líneas `PBI_`** del archivo de claves del
-   equipo en el recuadro. Acepta tanto `CLAVE=valor` como `CLAVE: valor`.
-4. (Opcional) **Spotify** y **YouTube**, si los tenés.
+1. **Arrastrá el archivo de configuración** (`FaroAI-API-Keys.txt`) sobre ese
+   recuadro — o hacé clic en **Elegir archivo** y elegilo. Se conecta todo de
+   una: Modelo de IA, Chartmetric, Spotify, YouTube y Power BI.
+2. Hacé clic en **Empezar**. Listo.
 
-Hacé clic en **Empezar**. Listo.
+**¿No tenés el archivo?** Cargá las claves a mano en las tarjetas de abajo: el
+**Modelo de IA** es obligatorio; **Chartmetric** es recomendado; pegá los **5
+códigos `PBI_`** en el recuadro de Power BI; Spotify y YouTube son opcionales.
 
 ### Próximos arranques
 
@@ -107,16 +108,18 @@ el desbloqueo del Paso 3 es permanente.
 
 Queda un ícono **FaroAI** en el Escritorio y en el menú Inicio.
 
-### Paso 3 — Abrir y pegar credenciales
+### Paso 3 — Abrir y conectar tus APIs
 
 1. **Doble clic en el ícono de FaroAI** del Escritorio. (O Inicio → escribí
    FaroAI → Enter.)
-2. En la pantalla de bienvenida pegá:
-   - **Modelo de IA** (obligatorio): la clave `sk-ant-…` / `sk-…` / `AIza…`.
-   - **Chartmetric**: el refresh token.
-   - **Power BI**: las 5 líneas `PBI_`.
-   - (Opcional) Spotify y YouTube.
+2. En la pantalla de bienvenida, **subí el archivo de configuración**
+   (`FaroAI-API-Keys.txt`) en el recuadro de arriba — arrastralo o hacé clic
+   en **Elegir archivo**. Se conecta todo de una.
 3. Hacé clic en **Empezar**.
+
+**¿No tenés el archivo?** Usá las tarjetas de abajo — el **Modelo de IA** es
+obligatorio; pegá los **5 códigos `PBI_`** en el recuadro de Power BI;
+Chartmetric/Spotify/YouTube según los tengas.
 
 ### Próximos arranques
 
